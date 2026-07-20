@@ -1,0 +1,65 @@
+---
+# kind cluster used by the krouter test suites.
+#
+# Topology: 1 control-plane + 2 workers. Multiple workers are required to
+# exercise the shared data-plane DaemonSet (spec §6.2), per-node frontend
+# EndpointSlices and `externalTrafficPolicy: Local` (spec §7.2).
+#
+# NodePort reachability: kind nodes are not routable from the host (notably on
+# macOS), so a fixed window of NodePorts is published to the host through
+# extraPortMappings. Tests request deterministic NodePorts through Gateway
+# infrastructure parameters (spec §8.2) inside this window:
+#
+#   worker  (krouter-e2e-worker):  nodePort N -> host 127.0.0.1:N
+#   worker2 (krouter-e2e-worker2): nodePort N -> host 127.0.0.1:(N + 1000)
+#
+# The window is 30080-30095 and 30443-30445. Port assignments per test module
+# live in tests/src/e2elib/ports.py. The krouter internal listener port range
+# (spec §4, default 10000-29999) must never overlap these NodePorts.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: krouter-e2e
+nodes:
+  - role: control-plane
+  - role: worker
+    extraPortMappings:
+      - { containerPort: 30080, hostPort: 30080, listenAddress: 127.0.0.1 }
+      - { containerPort: 30081, hostPort: 30081, listenAddress: 127.0.0.1 }
+      - { containerPort: 30082, hostPort: 30082, listenAddress: 127.0.0.1 }
+      - { containerPort: 30083, hostPort: 30083, listenAddress: 127.0.0.1 }
+      - { containerPort: 30084, hostPort: 30084, listenAddress: 127.0.0.1 }
+      - { containerPort: 30085, hostPort: 30085, listenAddress: 127.0.0.1 }
+      - { containerPort: 30086, hostPort: 30086, listenAddress: 127.0.0.1 }
+      - { containerPort: 30087, hostPort: 30087, listenAddress: 127.0.0.1 }
+      - { containerPort: 30088, hostPort: 30088, listenAddress: 127.0.0.1 }
+      - { containerPort: 30089, hostPort: 30089, listenAddress: 127.0.0.1 }
+      - { containerPort: 30090, hostPort: 30090, listenAddress: 127.0.0.1 }
+      - { containerPort: 30091, hostPort: 30091, listenAddress: 127.0.0.1 }
+      - { containerPort: 30092, hostPort: 30092, listenAddress: 127.0.0.1 }
+      - { containerPort: 30093, hostPort: 30093, listenAddress: 127.0.0.1 }
+      - { containerPort: 30094, hostPort: 30094, listenAddress: 127.0.0.1 }
+      - { containerPort: 30095, hostPort: 30095, listenAddress: 127.0.0.1 }
+      - { containerPort: 30443, hostPort: 30443, listenAddress: 127.0.0.1 }
+      - { containerPort: 30444, hostPort: 30444, listenAddress: 127.0.0.1 }
+      - { containerPort: 30445, hostPort: 30445, listenAddress: 127.0.0.1 }
+  - role: worker
+    extraPortMappings:
+      - { containerPort: 30080, hostPort: 31080, listenAddress: 127.0.0.1 }
+      - { containerPort: 30081, hostPort: 31081, listenAddress: 127.0.0.1 }
+      - { containerPort: 30082, hostPort: 31082, listenAddress: 127.0.0.1 }
+      - { containerPort: 30083, hostPort: 31083, listenAddress: 127.0.0.1 }
+      - { containerPort: 30084, hostPort: 31084, listenAddress: 127.0.0.1 }
+      - { containerPort: 30085, hostPort: 31085, listenAddress: 127.0.0.1 }
+      - { containerPort: 30086, hostPort: 31086, listenAddress: 127.0.0.1 }
+      - { containerPort: 30087, hostPort: 31087, listenAddress: 127.0.0.1 }
+      - { containerPort: 30088, hostPort: 31088, listenAddress: 127.0.0.1 }
+      - { containerPort: 30089, hostPort: 31089, listenAddress: 127.0.0.1 }
+      - { containerPort: 30090, hostPort: 31090, listenAddress: 127.0.0.1 }
+      - { containerPort: 30091, hostPort: 31091, listenAddress: 127.0.0.1 }
+      - { containerPort: 30092, hostPort: 31092, listenAddress: 127.0.0.1 }
+      - { containerPort: 30093, hostPort: 31093, listenAddress: 127.0.0.1 }
+      - { containerPort: 30094, hostPort: 31094, listenAddress: 127.0.0.1 }
+      - { containerPort: 30095, hostPort: 31095, listenAddress: 127.0.0.1 }
+      - { containerPort: 30443, hostPort: 31443, listenAddress: 127.0.0.1 }
+      - { containerPort: 30444, hostPort: 31444, listenAddress: 127.0.0.1 }
+      - { containerPort: 30445, hostPort: 31445, listenAddress: 127.0.0.1 }

@@ -1,0 +1,30 @@
+[project]
+name = "krouter-tests"
+version = "0.0.0"
+description = "Black-box test suites for krouter: e2e, performance gate and benchmarks"
+
+requires-python = ">=3.11"
+dependencies = [
+    "pytest>=8.0",
+    "pytest-timeout>=2.3",
+    "httpx[http2]>=0.27",
+    "trustme>=1.1",
+    "cryptography>=42.0",
+    "PyYAML>=6.0",
+]
+
+[tool.pdm]
+# Not an installable package: pdm only manages the venv and dependencies.
+distribution = false
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+pythonpath = ["src"]
+testpaths = ["specs/e2e"]
+timeout = 600
+markers = [
+    "performance: 10,000 concurrent-connection release gate (spec §19/§20.10); run with `task tests:performance`",
+]
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s %(levelname)-7s %(name)s: %(message)s"

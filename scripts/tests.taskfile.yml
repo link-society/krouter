@@ -1,0 +1,85 @@
+---
+version: '3'
+
+tasks:
+  default:
+    desc: Run unit tests then the e2e suite
+    cmds:
+      - task: unit
+      - task: e2e
+
+  install-deps:
+    desc: Install the Python test dependencies with PDM (tests/pyproject.toml)
+    cmds:
+      - pdm install --quiet --project tests
+
+  unit:
+    desc: Run Go unit tests (pure logic lives next to the packages, see tests/README.md)
+    cmds:
+      - go vet ./...
+      - go test -race -count=1 ./...
+
+  e2e:
+    desc: Run the pytest end-to-end suite against the kind cluster (expects `task k8s:up k8s:deploy`)
+    deps: [install-deps]
+    cmds:
+      - pdm run -p tests pytest tests/specs/e2e {{.CLI_ARGS}}
+
+  conformance:
+    desc: Run the Gateway API GATEWAY-HTTP Core conformance profile (spec §3/§20.1)
+    cmds:
+      - mkdir -p tests/results/conformance
+      - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/conformance/gatewayclass.yaml
+      - kind get kubeconfig --internal --name {{.KIND_CLUSTER}} > tests/results/kubeconfig-internal.yaml
+      # The conformance suite sends requests to Gateway addresses. Those are
+      # only routable from the kind docker network, so the suite runs inside a
+      # container attached to it (works on macOS and Linux alike).
+      - >-
+        docker run --rm
+        --network kind
+        -v "$PWD:/work" -w /work/tests/specs/conformance
+        -v krouter-go-mod:/go/pkg/mod
+        -v krouter-go-cache:/root/.cache/go-build
+        -e KUBECONFIG=/work/tests/results/kubeconfig-internal.yaml
+        {{.GOLANG_IMAGE}}
+        go test -v -timeout 120m -run TestConformance ./...
+        -args
+        -gateway-class=krouter
+        -organization=link-society
+        -project=krouter
+        -url=https://github.com/link-society/krouter
+        -version=dev
+        -contact=https://github.com/link-society/krouter/issues
+        -report-output=/work/tests/results/conformance/gateway-http.yaml
+        {{.CLI_ARGS}}
+
+  performance:
+    desc: Run the 10,000 concurrent-connection release gate (spec §19/§20.10)
+    deps: [install-deps]
+    cmds:
+      - pdm run -p tests pytest tests/specs/performance -m performance {{.CLI_ARGS}}
+
+  all:
+    desc: Run unit, e2e, conformance and performance suites
+    cmds:
+      - task: unit
+      - task: e2e
+      - task: conformance
+      - task: performance
+
+  bench:
+    desc: 'Benchmark one implementation (usage: task tests:bench -- krouter|nginx|traefik)'
+    deps: [install-deps]
+    cmds:
+      - pdm run -p tests python tests/src/benchmark/run.py {{.CLI_ARGS | default "krouter"}}
+
+  bench:all:
+    desc: Benchmark krouter, NGINX Gateway Fabric and Traefik side by side (spec §19/§20.11)
+    deps: [install-deps]
+    cmds:
+      - pdm run -p tests python tests/src/benchmark/run.py krouter nginx traefik
+
+  clean:
+    desc: Remove generated test artifacts and the virtualenv
+    cmds:
+      - rm -rf tests/.venv tests/.pdm-python tests/results

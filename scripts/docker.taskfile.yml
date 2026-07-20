@@ -1,0 +1,8 @@
+---
+version: '3'
+
+tasks:
+  build:
+    desc: Build the krouter container image
+    cmds:
+      - docker build -f docker/krouter.dockerfile -t {{.IMAGE}} .

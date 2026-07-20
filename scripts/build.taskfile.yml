@@ -1,0 +1,8 @@
+---
+version: '3'
+
+tasks:
+  default:
+    desc: Build all Go binaries
+    cmds:
+      - go build ./...

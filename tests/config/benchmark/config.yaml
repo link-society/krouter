@@ -1,0 +1,80 @@
+---
+# Comparative benchmark configuration (spec §19, §20.11).
+#
+# Fairness rules: every implementation is measured on the same kind cluster,
+# same worker nodes, same backend manifest, same Gateway/HTTPRoute resources
+# (only the gatewayClassName differs), same request mix, connection counts
+# and durations, driven by the same load generator (tests/src/loadgen) running on
+# the kind docker network.
+#
+# Install commands are pinned; review the pins when upstream releases move.
+
+hostname: bench.example.com
+
+scenarios:
+  # Closed-loop keep-alive throughput + latency, with a route reload
+  # published mid-measurement to record reload-window errors (spec §19).
+  http_keepalive:
+    connections: 200
+    duration_seconds: 60
+    warmup_seconds: 10
+    reload_at_seconds: 30
+
+implementations:
+  krouter:
+    namespace: bench-krouter
+    gateway_class: krouter
+    node_port: 30090
+    # krouter is installed by `task k8s:deploy`; nothing else to install.
+    install: []
+    manifests:
+      - manifests/krouter
+    # The NodePort is requested through Gateway infrastructure parameters.
+    expose: []
+    proxy_pods:
+      namespace: krouter-system
+      selector: app.kubernetes.io/name=krouter,app.kubernetes.io/component=dataplane
+
+  nginx:
+    namespace: bench-nginx
+    gateway_class: nginx
+    node_port: 30091
+    install:
+      - kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/v2.1.4/deploy/crds.yaml
+      - kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/v2.1.4/deploy/default/deploy.yaml
+      - kubectl -n nginx-gateway rollout status deployment/nginx-gateway-fabric --timeout=300s
+    manifests:
+      - manifests/nginx
+    # NGF provisions the data-plane Service once the Gateway exists; patch it
+    # onto the published NodePort. Retried until the Service appears.
+    expose:
+      - >-
+        kubectl -n bench-nginx patch svc bench-gw-nginx --type merge -p
+        '{"spec":{"type":"NodePort","externalTrafficPolicy":"Local",
+        "ports":[{"port":80,"protocol":"TCP","nodePort":30091}]}}'
+    proxy_pods:
+      namespace: bench-nginx
+      selector: app.kubernetes.io/name=nginx
+
+  traefik:
+    namespace: bench-traefik
+    gateway_class: traefik
+    node_port: 30092
+    install:
+      - helm repo add traefik https://traefik.github.io/charts
+      - helm repo update traefik
+      - >-
+        helm upgrade --install traefik traefik/traefik
+        --version 34.1.0
+        --namespace bench-traefik-system --create-namespace
+        --set providers.kubernetesGateway.enabled=true
+        --set gateway.enabled=false
+        --set service.type=NodePort
+        --set ports.web.nodePort=30092
+      - kubectl -n bench-traefik-system rollout status deployment/traefik --timeout=300s
+    manifests:
+      - manifests/traefik
+    expose: []
+    proxy_pods:
+      namespace: bench-traefik-system
+      selector: app.kubernetes.io/name=traefik

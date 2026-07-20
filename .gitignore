@@ -1,0 +1,13 @@
+# Go
+/krouter
+/loadgen
+*.test
+
+# Python
+__pycache__/
+*.pyc
+tests/.venv/
+tests/.pdm-python
+
+# Generated test artifacts
+tests/results/

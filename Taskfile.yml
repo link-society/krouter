@@ -1,0 +1,24 @@
+---
+version: '3'
+
+vars:
+  KIND_CLUSTER: krouter-e2e
+  KIND_CONTEXT: kind-{{.KIND_CLUSTER}}
+  KIND_NODE_IMAGE: '{{.KIND_NODE_IMAGE | default ""}}'
+
+  GATEWAY_API_VERSION: v1.5.1
+  IMAGE: ghcr.io/link-society/krouter:dev
+
+  GOLANG_IMAGE: golang:1.26
+
+includes:
+  build: scripts/build.taskfile.yml
+  docker: scripts/docker.taskfile.yml
+  k8s: scripts/k8s.taskfile.yml
+  tests: scripts/tests.taskfile.yml
+
+tasks:
+  default:
+    silent: true
+    cmds:
+      - task --list
