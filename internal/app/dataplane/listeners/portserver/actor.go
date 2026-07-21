@@ -92,13 +92,10 @@ func (s *Server) Start() {
 	slog.Info("listener started", "port", s.port, "tls", s.withTLS)
 }
 
-// Stop stops new accepts immediately and drains active connections in the
-// background within normal server limits (docs/spec/traffic.md), without blocking the
-// supervisor.
+// Stop stops new accepts immediately and drains active connections within
+// normal server limits (docs/spec/traffic.md) before returning.
 func (s *Server) Stop() {
-	go func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		s.server.Shutdown(shutdownCtx)
-	}()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	s.server.Shutdown(shutdownCtx)
 }

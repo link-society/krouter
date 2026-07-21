@@ -30,10 +30,12 @@ func New(
 	gwClient gwclient.Interface,
 	extClient extclient.Interface,
 	acks *snapshot.Store[gatewayapi.AckState],
+	topo *snapshot.Store[*gatewayapi.Topology],
 ) *Reconciler {
 	w := &worker{
 		engine: gatewayapi.NewEngine(cfg, client, gwClient, extClient),
 		acks:   acks,
+		topo:   topo,
 	}
 
 	return &Reconciler{Actor: actor.New(w)}

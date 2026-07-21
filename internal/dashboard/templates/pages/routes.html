@@ -1,0 +1,32 @@
+{{define "content"}}
+{{if not .Routes}}
+<div class="notification is-light">No HTTPRoute is attached to an owned Gateway.</div>
+{{else}}
+<table class="table is-fullwidth is-striped is-hoverable">
+  <thead>
+    <tr>
+      <th>Route</th>
+      <th>Hostnames</th>
+      <th>Gateway</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Routes}}
+    <tr class="is-clickable" data-yaml-url="/api/yaml/route/{{.UID}}" data-yaml-title="HTTPRoute {{.Namespace}}/{{.Name}}">
+      <td>{{.Namespace}}/{{.Name}}</td>
+      <td>{{if .Hostnames}}{{.Hostnames}}{{else}}*{{end}}</td>
+      <td>{{.Gateway}}</td>
+      <td>
+        {{if .Accepted}}<span class="tag is-success is-light">Accepted</span>
+        {{else}}<span class="tag is-danger is-light" title="{{.Reason}}">{{.Reason}}</span>{{end}}
+        {{if not .RefsResolved}}
+        <span class="tag is-danger is-light" title="{{.RefsReason}}">{{.RefsReason}}</span>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}

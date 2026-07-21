@@ -57,14 +57,16 @@ func logSyncError(step, subject string, err error) {
 // Sync runs one level-triggered reconciliation pass: it gathers a full
 // cluster snapshot, validates Gateway API semantics, compiles and publishes
 // configuration generations, provisions frontends and writes statuses.
-func (r *Engine) Sync(ctx context.Context, acks AckState) {
+// It returns the topology projection of the pass for the dashboard, or
+// nil when the cluster snapshot could not be gathered.
+func (r *Engine) Sync(ctx context.Context, acks AckState) *Topology {
 	w, err := r.gatherWorld(ctx, acks)
 	if err != nil {
 		logSyncError("gather", "world", err)
-		return
+		return nil
 	}
 
-	r.sync(ctx, w)
+	return r.sync(ctx, w)
 }
 
 func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error) {
@@ -160,7 +162,7 @@ func (r *Engine) bundleVersion(ctx context.Context) string {
 	return r.cachedBundleVersion
 }
 
-func (r *Engine) sync(ctx context.Context, w *world) {
+func (r *Engine) sync(ctx context.Context, w *world) *Topology {
 	// GatewayClasses: reconcile exactly the classes whose controllerName
 	// matches this installation (docs/spec/deployment.md); never touch foreign classes.
 	ownedClasses := map[string]bool{}
@@ -183,6 +185,7 @@ func (r *Engine) sync(ctx context.Context, w *world) {
 
 	ownedUIDs := map[string]bool{}
 	routeOutcomes := map[string][]*routeParentOutcome{}
+	topo := newTopologyBuilder(w.services)
 
 	for i := range w.gateways {
 		gw := &w.gateways[i]
@@ -193,12 +196,14 @@ func (r *Engine) sync(ctx context.Context, w *world) {
 
 		ownedUIDs[string(gw.UID)] = true
 
-		r.reconcileGateway(ctx, w, gw, allocator, routeOutcomes)
+		r.reconcileGateway(ctx, w, gw, allocator, routeOutcomes, topo)
 	}
 
 	r.writeRouteStatuses(ctx, w, routeOutcomes)
 
 	r.gcOrphans(ctx, w, ownedUIDs)
+
+	return topo.finish()
 }
 
 func (r *Engine) reconcileGateway(
@@ -207,17 +212,21 @@ func (r *Engine) reconcileGateway(
 	gw *gatewayv1.Gateway,
 	allocator *portAllocator,
 	routeOutcomes map[string][]*routeParentOutcome,
+	topo *topologyBuilder,
 ) {
 	infra, paramsErr := r.loadInfraParams(ctx, gw)
 
 	if paramsErr != nil {
 		accepted, programmed := gatewayConditions(gw, paramsErr, false, 0)
 
-		err := r.writeGatewayStatus(ctx, gw, gatewayStatusInput{
+		input := gatewayStatusInput{
 			accepted:   accepted,
 			programmed: programmed,
-		})
-		if err != nil {
+		}
+
+		topo.addGateway(gw, input, "")
+
+		if err := r.writeGatewayStatus(ctx, gw, input); err != nil {
 			logSyncError("gateway status", fmtKey(gw.Namespace, gw.Name), err)
 		}
 
@@ -230,6 +239,8 @@ func (r *Engine) reconcileGateway(
 	for _, outcome := range outcomes {
 		key := fmtKey(outcome.route.Namespace, outcome.route.Name)
 		routeOutcomes[key] = append(routeOutcomes[key], outcome)
+
+		topo.addRouteParent(gw, outcome)
 	}
 
 	validListeners := 0
@@ -259,14 +270,17 @@ func (r *Engine) reconcileGateway(
 
 	accepted, programmed := gatewayConditions(gw, nil, acked, validListeners)
 
-	err = r.writeGatewayStatus(ctx, gw, gatewayStatusInput{
+	input := gatewayStatusInput{
 		accepted:     accepted,
 		programmed:   programmed,
 		address:      address,
 		listeners:    listeners,
 		gatewayAcked: acked,
-	})
-	if err != nil {
+	}
+
+	topo.addGateway(gw, input, generation)
+
+	if err := r.writeGatewayStatus(ctx, gw, input); err != nil {
 		logSyncError("gateway status", fmtKey(gw.Namespace, gw.Name), err)
 	}
 }

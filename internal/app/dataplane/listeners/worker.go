@@ -3,6 +3,8 @@ package listeners
 import (
 	"log/slog"
 
+	"sync"
+
 	"github.com/vladopajic/go-actor/actor"
 
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/portserver"
@@ -68,9 +70,15 @@ func (w *worker) reconcile(tables *routing.Tables) {
 }
 
 // stopAll drains every listener on supervisor shutdown (docs/spec/traffic.md).
+// Stop is synchronous, so the children drain in parallel to stay within the
+// pod's termination grace period.
 func (w *worker) stopAll() {
+	var wg sync.WaitGroup
+
 	for port, srv := range w.children {
 		delete(w.children, port)
-		srv.Stop()
+		wg.Go(srv.Stop)
 	}
+
+	wg.Wait()
 }

@@ -1,0 +1,58 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} · krouter</title>
+  <link rel="stylesheet" href="/static/vendor/bulma.min.css">
+  <link rel="stylesheet" href="/static/vendor/highlight-monokai.min.css">
+  <link rel="stylesheet" href="/static/dashboard.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/vendor/htmx-sse.js" defer></script>
+  <script src="/static/vendor/d3.min.js" defer></script>
+  <script src="/static/vendor/dagre.min.js" defer></script>
+  <script src="/static/vendor/highlight.min.js" defer></script>
+  <script src="/static/graph.js" defer></script>
+  <script src="/static/modal.js" defer></script>
+</head>
+<body hx-ext="sse" sse-connect="/events">
+  <nav class="navbar is-link" role="navigation" aria-label="main navigation">
+    <div class="container">
+      <div class="navbar-brand">
+        <span class="navbar-item">
+          <strong>krouter</strong>
+        </span>
+      </div>
+      <div class="navbar-menu is-active">
+        <div class="navbar-start">
+          <a class="navbar-item{{if eq .Active "overview"}} is-active{{end}}" href="/">Overview</a>
+          <a class="navbar-item{{if eq .Active "gateways"}} is-active{{end}}" href="/gateways">Gateways</a>
+          <a class="navbar-item{{if eq .Active "routes"}} is-active{{end}}" href="/routes">Routes</a>
+          <a class="navbar-item{{if eq .Active "backends"}} is-active{{end}}" href="/backends">Backends</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <main class="section">
+    <div class="container">
+      <div id="content" hx-get="{{.Path}}" hx-trigger="sse:topology" hx-swap="innerHTML">
+        {{template "content" .}}
+      </div>
+    </div>
+  </main>
+  <div class="modal" id="yaml-modal">
+    <div class="modal-background" data-modal-close></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title" id="yaml-modal-title"></p>
+        <button class="delete" aria-label="close" data-modal-close></button>
+      </header>
+      <section class="modal-card-body">
+        <pre class="yaml-view"><code id="yaml-modal-content"></code></pre>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
+{{end}}

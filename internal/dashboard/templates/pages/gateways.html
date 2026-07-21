@@ -1,0 +1,44 @@
+{{define "content"}}
+{{if not .Gateways}}
+<div class="notification is-light">No Gateway is owned by this installation.</div>
+{{else}}
+<table class="table is-fullwidth is-striped is-hoverable">
+  <thead>
+    <tr>
+      <th>Gateway</th>
+      <th>Class</th>
+      <th>Address</th>
+      <th>Generation</th>
+      <th>Listeners</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Gateways}}
+    <tr class="is-clickable" data-yaml-url="/api/yaml/gateway/{{.UID}}" data-yaml-title="Gateway {{.Namespace}}/{{.Name}}">
+      <td>{{.Namespace}}/{{.Name}}</td>
+      <td>{{.Class}}</td>
+      <td><code>{{if .Address}}{{.Address}}{{else}}—{{end}}</code></td>
+      <td><code class="generation">{{if .Generation}}{{short .Generation}}{{else}}—{{end}}</code></td>
+      <td>
+        {{range .Listeners}}
+        <p class="is-size-7">
+          <code>{{.Protocol}} :{{.Port}} → {{.InternalPort}}</code>
+          {{if .Hostname}}{{.Hostname}}{{else}}*{{end}}
+          · {{.AttachedRoutes}} route(s)
+          {{if not .Valid}}<span class="tag is-danger is-light">{{.Reason}}</span>{{end}}
+        </p>
+        {{end}}
+      </td>
+      <td>
+        {{if .Accepted}}<span class="tag is-success is-light">Accepted</span>
+        {{else}}<span class="tag is-danger is-light" title="{{.AcceptedReason}}">Not accepted</span>{{end}}
+        {{if .Programmed}}<span class="tag is-success is-light">Programmed</span>
+        {{else}}<span class="tag is-warning is-light" title="{{.ProgrammedReason}}">Not programmed</span>{{end}}
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}

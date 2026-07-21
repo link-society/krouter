@@ -22,6 +22,7 @@ type Settings struct {
 	InternalPortMin int
 	InternalPortMax int
 	ManagementPort  int
+	DashboardPort   int
 	LogLevel        slog.Level
 }
 
@@ -45,6 +46,11 @@ func Load() (*Settings, error) {
 	}
 
 	s.ManagementPort, err = envInt("KROUTER_MANAGEMENT_PORT", 9090)
+	if err != nil {
+		return nil, err
+	}
+
+	s.DashboardPort, err = envInt("KROUTER_DASHBOARD_PORT", 8080)
 	if err != nil {
 		return nil, err
 	}

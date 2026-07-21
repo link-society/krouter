@@ -1,0 +1,24 @@
+{{define "content"}}
+<div class="columns">
+  {{range .Tiles}}
+  <div class="column">
+    <div class="notification stat-tile has-text-centered {{.State}}">
+      <p class="heading">{{.Label}}</p>
+      <p class="title is-2">{{.Value}}</p>
+      <p class="heading">{{.Detail}}</p>
+    </div>
+  </div>
+  {{end}}
+</div>
+
+<div class="box">
+  <h2 class="title is-5">Topology</h2>
+  <div id="topology-graph" data-revision="{{.Revision}}"></div>
+  <p class="is-size-7 has-text-grey">
+    <span class="graph-dot gw"></span> Gateway
+    <span class="graph-dot rt"></span> Route
+    <span class="graph-dot be"></span> Backend
+    &nbsp;—&nbsp; dashed red: degraded or rejected reference
+  </p>
+</div>
+{{end}}

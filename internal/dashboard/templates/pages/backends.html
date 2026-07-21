@@ -1,0 +1,29 @@
+{{define "content"}}
+{{if not .Backends}}
+<div class="notification is-light">No backend Service is referenced by an attached route.</div>
+{{else}}
+<table class="table is-fullwidth is-striped is-hoverable">
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Port</th>
+      <th class="has-text-right">Referencing routes</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Backends}}
+    <tr{{if .HasYAML}} class="is-clickable" data-yaml-url="/api/yaml/backend/{{.Namespace}}/{{.Name}}" data-yaml-title="Service {{.Namespace}}/{{.Name}}"{{end}}>
+      <td>{{.Namespace}}/{{.Name}}</td>
+      <td><code>{{.Port}}</code></td>
+      <td class="has-text-right">{{.Routes}}</td>
+      <td>
+        {{if .Valid}}<span class="tag is-success is-light">resolved</span>
+        {{else}}<span class="tag is-danger is-light">{{if .Reason}}{{.Reason}}{{else}}unresolved{{end}}</span>{{end}}
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}

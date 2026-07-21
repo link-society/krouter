@@ -1,0 +1,187 @@
+/* krouter dashboard — small additions on top of Bulma. */
+
+/* ------------------------------------------------------- radiusless -- */
+
+:root {
+  --bulma-radius-small: 0;
+  --bulma-radius: 0;
+  --bulma-radius-medium: 0;
+  --bulma-radius-large: 0;
+  --bulma-shadow: none;
+}
+
+.box,
+.notification,
+.tag,
+.button,
+.navbar-item {
+  border-radius: 0;
+}
+
+/* ------------------------------------------------------- flat look -- */
+
+.box,
+.notification,
+.modal-card,
+.navbar {
+  box-shadow: none;
+}
+
+.box {
+  border: 1px solid var(--bulma-border, #dbdbdb);
+}
+
+/* ------------------------------------------------------------ navbar -- */
+
+.navbar strong {
+  color: inherit;
+}
+
+.navbar .navbar-item.is-active {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-bottom: 3px solid var(--bulma-white, #ffffff);
+}
+
+/* --------------------------------------------------------- stat tiles -- */
+
+.stat-tile {
+  height: 100%;
+}
+
+.stat-tile .title {
+  margin-bottom: 0.25rem;
+}
+
+.stat-tile .heading {
+  margin-bottom: 0.25rem;
+  opacity: 0.85;
+}
+
+#topology-graph {
+  width: 100%;
+  min-height: 520px;
+}
+
+#topology-graph svg {
+  display: block;
+}
+
+/* ------------------------------------------------- flowchart nodes -- */
+
+.graph-box {
+  fill: var(--bulma-scheme-main-bis, #fafafa);
+  stroke: var(--bulma-border, #dbdbdb);
+  stroke-width: 1px;
+}
+
+.graph-node.is-broken .graph-box {
+  stroke: #ff3860;
+  stroke-width: 2px;
+  stroke-dasharray: 5 3;
+}
+
+.graph-node.kind-gateway .graph-accent { fill: #3273dc; }
+.graph-node.kind-route .graph-accent { fill: #00947e; }
+.graph-node.kind-backend .graph-accent { fill: #b86bff; }
+
+.graph-title {
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--bulma-body-color, #363636);
+}
+
+.graph-line {
+  font-size: 10.5px;
+  fill: var(--bulma-text-weak, #7a7a7a);
+}
+
+.graph-node.is-broken .graph-line:last-of-type {
+  fill: #ff3860;
+}
+
+/* ------------------------------------------------- flowchart edges -- */
+
+.graph-edge {
+  fill: none;
+  stroke: #b5b5b5;
+  stroke-width: 1.5px;
+}
+
+.graph-edge.is-broken {
+  stroke: #ff3860;
+  stroke-dasharray: 4 3;
+}
+
+marker path.arrow {
+  fill: #b5b5b5;
+}
+
+marker path.arrow-broken {
+  fill: #ff3860;
+}
+
+/* --------------------------------------------- namespace clusters -- */
+
+.graph-cluster rect {
+  fill: none;
+  stroke: var(--bulma-border, #dbdbdb);
+  stroke-width: 1.5px;
+  stroke-dasharray: 6 4;
+}
+
+.graph-cluster text {
+  font-size: 11px;
+  font-style: italic;
+  fill: var(--bulma-text-weak, #7a7a7a);
+}
+
+/* -------------------------------------------------------- yaml modal -- */
+
+.graph-node {
+  cursor: pointer;
+}
+
+#yaml-modal .modal-card-head {
+  background-color: var(--bulma-scheme-main-bis, #fafafa);
+  border-bottom: 1px solid var(--bulma-border, #dbdbdb);
+}
+
+#yaml-modal .modal-card-body {
+  background-color: var(--bulma-scheme-main, #ffffff);
+}
+
+.yaml-view {
+  max-height: 65vh;
+  overflow: auto;
+  padding: 0;
+  font-size: 0.8rem;
+  text-align: left;
+  background-color: #272822; /* monokai */
+}
+
+.yaml-view code {
+  display: block;
+  padding: 1rem 1.25rem;
+}
+
+#yaml-modal .modal-card {
+  width: min(56rem, 92vw);
+}
+
+/* ------------------------------------------------------------ misc -- */
+
+.graph-dot {
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  border-radius: 50%;
+  margin: 0 0.25em 0 0.75em;
+}
+
+.graph-dot.gw { background: #3273dc; }
+.graph-dot.rt { background: #00947e; }
+.graph-dot.be { background: #b86bff; }
+
+code.generation {
+  font-size: 0.85em;
+}

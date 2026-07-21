@@ -4,6 +4,7 @@
 //	controlplane (supervisor)
 //	 ├─ ackpoller/  — polls data-plane pods for applied generations
 //	 ├─ reconciler/ — drives the gatewayapi engine, single writer
+//	 ├─ dashboard/  — dashboard server actor
 //	 └─ mgmt        — management server actor
 package controlplane
 
@@ -17,6 +18,7 @@ import (
 	"github.com/vladopajic/go-actor/actor"
 
 	"github.com/link-society/krouter/internal/app/controlplane/ackpoller"
+	"github.com/link-society/krouter/internal/app/controlplane/dashboard"
 	"github.com/link-society/krouter/internal/app/controlplane/reconciler"
 	"github.com/link-society/krouter/internal/app/mgmt"
 	"github.com/link-society/krouter/internal/config"
@@ -31,12 +33,14 @@ func NewRoot(
 	extClient extclient.Interface,
 ) actor.Actor {
 	acks := snapshot.New(gatewayapi.EmptyAckState())
+	topo := snapshot.New(gatewayapi.EmptyTopology())
 
 	readyz := func() ([]byte, int) { return []byte(`{"ready":true}`), 200 }
 
 	return actor.Combine(
 		ackpoller.New(cfg, client, acks),
-		reconciler.New(cfg, client, gwClient, extClient, acks),
+		reconciler.New(cfg, client, gwClient, extClient, acks, topo),
+		dashboard.New(cfg, topo),
 		mgmt.New(cfg, readyz),
 	).Build()
 }
