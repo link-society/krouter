@@ -1,5 +1,5 @@
 """
-Last-valid-generation behavior (spec §9.3, §18, §20.6).
+Last-valid-generation behavior (docs/spec/configuration.md, docs/spec/failure-modes.md, docs/spec/acceptance.md criterion 6).
 
 Two distinct failure modes are covered:
 
@@ -8,9 +8,9 @@ Two distinct failure modes are covered:
    while previously accepted routes keep serving.
 
 2. Data-plane load failure: the mutable manifest ConfigMap (the commit
-   marker, spec §9.1) is corrupted. Data-plane pods must keep serving the
+   marker, docs/spec/configuration.md) is corrupted. Data-plane pods must keep serving the
    last valid generation, and the control plane must repair its generated
-   state idempotently (spec §18 "generated resource manually deleted /
+   state idempotently (docs/spec/failure-modes.md "generated resource manually deleted /
    recreate idempotently").
 """
 
@@ -63,7 +63,7 @@ def stack(gateway_class, module_namespace):
 
 def test_invalid_route_is_excluded_not_served_stale(stack):
     """
-    Spec §9.3: rejected routes get negative conditions and are excluded
+    docs/spec/configuration.md: rejected routes get negative conditions and are excluded
     from the next valid generation; accepted routes keep serving.
     """
 
@@ -110,7 +110,7 @@ def test_invalid_route_is_excluded_not_served_stale(stack):
 def _gateway_configmaps(gateway_uid: str) -> list[dict]:
     """
     Generated ConfigMaps for a Gateway, discovered without relying on exact
-    label keys (spec §9.1 only fixes their semantics, not their names):
+    label keys (docs/spec/configuration.md only fixes their semantics, not their names):
     every generated object must carry the Gateway UID in its labels.
     """
 
@@ -125,7 +125,7 @@ def _gateway_configmaps(gateway_uid: str) -> list[dict]:
 
 def test_corrupted_manifest_keeps_last_valid_generation_serving(stack):
     """
-    Spec §9.3/§18/§20.6: a generation the data plane cannot load leaves the
+    docs/spec/configuration.md, docs/spec/failure-modes.md, docs/spec/acceptance.md criterion 6: a generation the data plane cannot load leaves the
     last valid generation serving; the control plane repairs generated state.
     """
 
@@ -137,13 +137,13 @@ def test_corrupted_manifest_keeps_last_valid_generation_serving(stack):
     assert generated, (
         "no generated ConfigMaps found for the Gateway in "
         f"{config.SYSTEM_NAMESPACE}; generated objects must be labelled with "
-        "the Gateway UID (spec §9.1)"
+        "the Gateway UID (docs/spec/configuration.md)"
     )
 
-    # The manifest/commit-marker is the mutable ConfigMap (spec §9.1: all
+    # The manifest/commit-marker is the mutable ConfigMap (docs/spec/configuration.md: all
     # per-generation objects are immutable).
     mutable = [cm for cm in generated if not cm.get("immutable", False)]
-    assert mutable, "expected a mutable manifest ConfigMap (spec §9.1)"
+    assert mutable, "expected a mutable manifest ConfigMap (docs/spec/configuration.md)"
 
     manifest = mutable[0]["metadata"]["name"]
 

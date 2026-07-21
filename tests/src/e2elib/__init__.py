@@ -3,7 +3,7 @@ Shared helpers for the krouter end-to-end, performance and benchmark suites.
 
 Everything here is black-box: helpers only interact with the cluster through
 kubectl and with the proxy through published NodePorts, exactly like a user
-of the installation would (docs/SPECIFICATION.md §4, §7).
+of the installation would (docs/spec/deployment.md, docs/spec/frontend.md).
 """
 
 import uuid

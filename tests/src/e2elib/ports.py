@@ -2,7 +2,7 @@
 Static NodePort assignments for the test suites.
 
 Every NodePort used by a test is requested deterministically through Gateway
-infrastructure parameters (spec §8.2) and must be published by
+infrastructure parameters (docs/spec/parameters.md) and must be published by
 tests/config/kind/cluster.yaml. Keeping the registry central prevents port
 collisions between test modules sharing the session cluster.
 

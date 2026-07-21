@@ -1,5 +1,5 @@
 """
-Connection lifecycle across reloads (spec §10, §13, §19, §20.7).
+Connection lifecycle across reloads (docs/spec/traffic.md, docs/spec/security.md, docs/spec/performance.md, docs/spec/acceptance.md criterion 7).
 
 Established connections and in-flight requests must survive route updates
 and certificate rotations; only new connections/requests see the new
@@ -93,7 +93,7 @@ def _wait_switched(node_port: int, backend: str, scheme: str = "http"):
 
 def test_keepalive_connection_survives_route_update(stack):
     """
-    Spec §10: the same TCP connection keeps working across a reload, and
+    docs/spec/traffic.md: the same TCP connection keeps working across a reload, and
     new requests on it use the new routing table.
     """
 
@@ -117,7 +117,7 @@ def test_keepalive_connection_survives_route_update(stack):
 
 def test_in_flight_request_survives_route_update(stack):
     """
-    Spec §10/§20.7: a request already being served (delayed response) is
+    docs/spec/traffic.md, docs/spec/acceptance.md criterion 7: a request already being served (delayed response) is
     not disturbed by a configuration reload happening mid-flight.
     """
 
@@ -142,7 +142,7 @@ def test_in_flight_request_survives_route_update(stack):
 
 def test_tls_connection_survives_certificate_rotation(stack, ca):
     """
-    Spec §13: a certificate update activates atomically without terminating
+    docs/spec/security.md: a certificate update activates atomically without terminating
     connections established with the previous certificate.
     """
 
@@ -179,7 +179,7 @@ def test_tls_connection_survives_certificate_rotation(stack, ca):
 
 def test_no_dataplane_restarts_from_reloads(stack):
     """
-    Spec §10: reloads happen in process — never through pod restarts.
+    docs/spec/traffic.md: reloads happen in process — never through pod restarts.
     """
 
     restarts = kubectl.pod_restart_counts(kubectl.dataplane_pods())

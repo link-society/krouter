@@ -1,5 +1,5 @@
 ---
-# Comparative benchmark configuration (spec §19, §20.11).
+# Comparative benchmark configuration (docs/spec/performance.md, docs/spec/acceptance.md criterion 11).
 #
 # Fairness rules: every implementation is measured on the same kind cluster,
 # same worker nodes, same backend manifest, same Gateway/HTTPRoute resources
@@ -13,7 +13,7 @@ hostname: bench.example.com
 
 scenarios:
   # Closed-loop keep-alive throughput + latency, with a route reload
-  # published mid-measurement to record reload-window errors (spec §19).
+  # published mid-measurement to record reload-window errors (docs/spec/performance.md).
   http_keepalive:
     connections: 200
     duration_seconds: 60

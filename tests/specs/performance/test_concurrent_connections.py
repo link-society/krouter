@@ -1,5 +1,5 @@
 """
-The 10,000 concurrent-connection release gate (spec §19, §20.10).
+The 10,000 concurrent-connection release gate (docs/spec/performance.md, docs/spec/acceptance.md criterion 10).
 
 Each data-plane pod must sustain 10,000 simultaneous established downstream
 connections, preserve them across configuration reloads, produce no
@@ -24,7 +24,7 @@ log = logging.getLogger("performance")
 HOSTNAME = "perf.example.com"
 CONNECTIONS = 10_000
 HOLD_DURATION_S = 180
-RELOAD_AT_S = 60  # reload mid-hold (spec §19: preserved across reloads)
+RELOAD_AT_S = 60  # reload mid-hold (docs/spec/performance.md: preserved across reloads)
 
 
 def _route(ns: str, marker: str) -> dict:
@@ -127,7 +127,7 @@ def test_10k_concurrent_connections_survive_reload(stack):
         result["latency"]["p99_ms"],
     )
 
-    # Release gate (spec §19/§20.10) — all hard requirements.
+    # Release gate (docs/spec/performance.md, docs/spec/acceptance.md criterion 10) — all hard requirements.
     assert result["established"] == CONNECTIONS, (
         f"only {result['established']}/{CONNECTIONS} connections established "
         f"({result['connect_errors']} connect errors)"
@@ -150,7 +150,7 @@ def test_10k_concurrent_connections_survive_reload(stack):
         timeout=60,
     )
 
-    # Bounded memory (spec §19) is informational here: metrics-server is not
+    # Bounded memory (docs/spec/performance.md) is informational here: metrics-server is not
     # part of the kind setup, so sustained-growth analysis belongs to the
     # benchmark harness. Verify the pods are still serving.
     time.sleep(10)

@@ -2,20 +2,20 @@
 # kind cluster used by the krouter test suites.
 #
 # Topology: 1 control-plane + 2 workers. Multiple workers are required to
-# exercise the shared data-plane DaemonSet (spec §6.2), per-node frontend
-# EndpointSlices and `externalTrafficPolicy: Local` (spec §7.2).
+# exercise the shared data-plane DaemonSet (docs/spec/architecture.md), per-node frontend
+# EndpointSlices and `externalTrafficPolicy: Local` (docs/spec/frontend.md).
 #
 # NodePort reachability: kind nodes are not routable from the host (notably on
 # macOS), so a fixed window of NodePorts is published to the host through
 # extraPortMappings. Tests request deterministic NodePorts through Gateway
-# infrastructure parameters (spec §8.2) inside this window:
+# infrastructure parameters (docs/spec/parameters.md) inside this window:
 #
 #   worker  (krouter-e2e-worker):  nodePort N -> host 127.0.0.1:N
 #   worker2 (krouter-e2e-worker2): nodePort N -> host 127.0.0.1:(N + 1000)
 #
 # The window is 30080-30095 and 30443-30445. Port assignments per test module
 # live in tests/src/e2elib/ports.py. The krouter internal listener port range
-# (spec §4, default 10000-29999) must never overlap these NodePorts.
+# (docs/spec/deployment.md, default 10000-29999) must never overlap these NodePorts.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: krouter-e2e

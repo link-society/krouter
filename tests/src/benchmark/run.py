@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Comparative benchmark runner: krouter vs NGINX Gateway Fabric vs Traefik
-(spec §19, §20.11).
+(docs/spec/performance.md, docs/spec/acceptance.md criterion 11).
 
 Usage (via task):
 

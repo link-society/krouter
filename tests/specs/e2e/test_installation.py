@@ -1,5 +1,5 @@
 """
-Installation contract tests (spec §4, §14, §16, §20.12).
+Installation contract tests (docs/spec/deployment.md, docs/spec/security.md, docs/spec/observability.md, docs/spec/acceptance.md criterion 12).
 
 The installation must consist of the standard manifest only: one namespace,
 one single-replica control-plane Deployment, one shared data-plane DaemonSet,
@@ -41,7 +41,7 @@ def dataplane_pods(cluster) -> list[dict]:
 
 def test_singleton_controlplane_deployment(cluster):
     """
-    Spec §4/§6.1: single-replica Deployment, no leader election needed.
+    docs/spec/deployment.md, docs/spec/architecture.md: single-replica Deployment, no leader election needed.
     """
 
     deploy = kubectl.get(
@@ -55,7 +55,7 @@ def test_singleton_controlplane_deployment(cluster):
 
 def test_shared_dataplane_daemonset(cluster):
     """
-    Spec §4/§6.2: one shared DaemonSet serving every Gateway.
+    docs/spec/deployment.md, docs/spec/architecture.md: one shared DaemonSet serving every Gateway.
     """
 
     ds = kubectl.get("daemonset", config.DATAPLANE_DAEMONSET, config.SYSTEM_NAMESPACE)
@@ -66,7 +66,7 @@ def test_shared_dataplane_daemonset(cluster):
 
 def test_no_krouter_crds(cluster):
     """
-    Spec §2: krouter defines no custom resources.
+    docs/spec/overview.md: krouter defines no custom resources.
     """
 
     crds = kubectl.get("crd")["items"]
@@ -80,7 +80,7 @@ def test_no_krouter_crds(cluster):
 
 def test_single_image_mode_selected_by_env(controlplane_pods, dataplane_pods):
     """
-    Spec §2.8/§4: one image for both roles, selected via KROUTER_MODE.
+    docs/spec/overview.md.8, docs/spec/deployment.md: one image for both roles, selected via KROUTER_MODE.
     """
 
     cp_images = {c["image"] for pod in controlplane_pods for c in pod["spec"]["containers"]}
@@ -96,7 +96,7 @@ def test_single_image_mode_selected_by_env(controlplane_pods, dataplane_pods):
 
 def test_security_context(controlplane_pods, dataplane_pods):
     """
-    Spec §14: non-root, read-only rootfs, no privilege escalation, dropped
+    docs/spec/security.md: non-root, read-only rootfs, no privilege escalation, dropped
     capabilities, default seccomp profile.
     """
 
@@ -124,7 +124,7 @@ def test_security_context(controlplane_pods, dataplane_pods):
 
 def test_management_endpoints(controlplane_pods, dataplane_pods):
     """
-    Spec §16: /livez, /readyz and /metrics on the management port.
+    docs/spec/observability.md: /livez, /readyz and /metrics on the management port.
     """
 
     for pod in controlplane_pods + dataplane_pods:
@@ -141,7 +141,7 @@ def test_management_endpoints(controlplane_pods, dataplane_pods):
 
 def test_dataplane_readiness_reports_generations(dataplane_pods):
     """
-    Spec §15.1/§16: the data-plane readiness body carries per-Gateway
+    docs/spec/status.md, docs/spec/observability.md: the data-plane readiness body carries per-Gateway
     desired/applied generation acknowledgement.
     """
 
@@ -160,7 +160,7 @@ def test_dataplane_readiness_reports_generations(dataplane_pods):
 
 def test_dataplane_uses_internal_ports_not_host_ports(dataplane_pods):
     """
-    Spec §6.2: dynamically allocated internal ports, no host ports.
+    docs/spec/architecture.md: dynamically allocated internal ports, no host ports.
     """
 
     for pod in dataplane_pods:

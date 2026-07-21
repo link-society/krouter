@@ -2,7 +2,7 @@
 Builders for Gateway API resources and krouter parameter ConfigMaps.
 
 Parameters use core ConfigMaps holding a `krouter.hcl` key in HCL native
-syntax (spec §8) — no krouter CRDs exist by design (spec §2).
+syntax (docs/spec/parameters.md) — no krouter CRDs exist by design (docs/spec/overview.md).
 """
 
 from e2elib import config
@@ -17,7 +17,7 @@ def infra_params_hcl(
     annotations: dict[str, str] | None = None,
 ) -> str:
     """
-    Gateway infrastructure parameters (spec §8.2).
+    Gateway infrastructure parameters (docs/spec/parameters.md).
     """
 
     lines = [
@@ -53,7 +53,7 @@ def infra_params_hcl(
 
 def gatewayclass_params_hcl(algorithm: str = "round_robin") -> str:
     """
-    GatewayClass parameters (spec §8.1).
+    GatewayClass parameters (docs/spec/parameters.md).
     """
 
     return (

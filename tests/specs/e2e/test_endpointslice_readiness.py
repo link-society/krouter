@@ -1,5 +1,5 @@
 """
-Backend discovery, balancing and readiness (spec §8.1, §11, §20.8).
+Backend discovery, balancing and readiness (docs/spec/parameters.md, docs/spec/traffic.md, docs/spec/acceptance.md criterion 8).
 
 EndpointSlice condition changes must alter backend selection without any pod
 restart; round-robin distributes across ready endpoints; weights apply.
@@ -92,11 +92,26 @@ def _endpoint_ready(ns: str, pod_ip: str) -> bool | None:
 
 def test_round_robin_across_ready_endpoints(stack):
     """
-    Spec §8.1/§11: default round_robin spreads across ready endpoints.
+    docs/spec/parameters.md, docs/spec/traffic.md: default round_robin spreads across ready endpoints.
     """
 
+    expected = set(_balanced_pods(stack))
+
+    # Backend discovery is eventually consistent (docs/spec/traffic.md): wait until the
+    # data plane observes every ready endpoint before measuring the spread.
+    def all_endpoints_serving():
+        seen = set(net.sample_backends(ports.EPS_READINESS, host=HOSTNAME, count=10))
+
+        return seen == expected or None
+
+    kubectl.wait_for(
+        all_endpoints_serving,
+        timeout=60,
+        desc="data plane reaching every ready endpoint",
+    )
+
     seen = Counter(net.sample_backends(ports.EPS_READINESS, host=HOSTNAME, count=20))
-    assert set(seen) == set(_balanced_pods(stack)), \
+    assert set(seen) == expected, \
         f"round robin must reach every ready endpoint, got {dict(seen)}"
     assert min(seen.values()) >= 5, \
         f"distribution too skewed for round robin: {dict(seen)}"
@@ -104,7 +119,7 @@ def test_round_robin_across_ready_endpoints(stack):
 
 def test_readiness_flip_changes_selection_without_restarts(stack):
     """
-    Spec §11/§20.8: EndpointSlice `ready` transitions gate new traffic,
+    docs/spec/traffic.md, docs/spec/acceptance.md criterion 8: EndpointSlice `ready` transitions gate new traffic,
     with no krouter pod restart.
     """
 
@@ -150,14 +165,14 @@ def test_readiness_flip_changes_selection_without_restarts(stack):
 
     kubectl.wait_for(both_again, timeout=60, desc="traffic reaching both endpoints")
 
-    # The whole dance must not have restarted anything (spec §20.8).
+    # The whole dance must not have restarted anything (docs/spec/acceptance.md criterion 8).
     assert kubectl.pod_restart_counts(kubectl.dataplane_pods()) == dataplane_before, \
         "data-plane pods restarted during a readiness transition"
 
 
 def test_backend_weights_are_applied(stack):
     """
-    Spec §11: Gateway API backend weights shape selection (9:1).
+    docs/spec/traffic.md: Gateway API backend weights shape selection (9:1).
     """
 
     seen = Counter(
@@ -177,7 +192,7 @@ def test_backend_weights_are_applied(stack):
 
 def test_no_ready_endpoints_yields_unavailable_response(stack):
     """
-    Spec §18: no ready endpoints -> conformance-required unavailable
+    docs/spec/failure-modes.md: no ready endpoints -> conformance-required unavailable
     response, while the connection itself is served.
     """
 

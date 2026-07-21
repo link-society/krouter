@@ -1,5 +1,5 @@
 """
-TLS material for HTTPS listener tests (spec §13).
+TLS material for HTTPS listener tests (docs/spec/security.md).
 
 Certificates are issued in-test with trustme and pushed as standard
 `kubernetes.io/tls` Secrets referenced by Gateway listeners.

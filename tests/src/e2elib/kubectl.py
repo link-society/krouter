@@ -217,7 +217,7 @@ def wait_daemonset_ready(name: str, namespace: str, timeout: int = 180) -> None:
 
 def route_parent_status(route: dict, controller_name: str = config.CONTROLLER_NAME) -> list[dict]:
     """
-    status.parents[] entries written by our controller (spec §15).
+    status.parents[] entries written by our controller (docs/spec/status.md).
     """
 
     return [

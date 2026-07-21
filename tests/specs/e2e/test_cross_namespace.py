@@ -1,5 +1,5 @@
 """
-Cross-namespace attachment and references (spec §11, §13, §20.3).
+Cross-namespace attachment and references (docs/spec/traffic.md, docs/spec/security.md, docs/spec/acceptance.md criterion 3).
 
 Covers listener allowedRoutes namespace selectors, cross-namespace backend
 references gated by ReferenceGrant, and cross-namespace TLS certificate
@@ -109,7 +109,7 @@ def stack(namespaces, ca):
 
 def test_route_from_selected_namespace_is_accepted(stack):
     """
-    Spec §20.3: allowedRoutes namespace selector admits labelled namespaces.
+    docs/spec/acceptance.md criterion 3: allowedRoutes namespace selector admits labelled namespaces.
     """
 
     ns = stack
@@ -164,7 +164,7 @@ def test_route_from_unselected_namespace_is_rejected(stack):
 
 def test_cross_namespace_backend_requires_reference_grant(stack):
     """
-    Spec §11: ReferenceGrant gates cross-namespace backends; without it
+    docs/spec/traffic.md: ReferenceGrant gates cross-namespace backends; without it
     ResolvedRefs=False/RefNotPermitted and the rule answers 500.
     """
 
@@ -222,7 +222,7 @@ def test_cross_namespace_backend_requires_reference_grant(stack):
 
 def test_cross_namespace_certificate_requires_reference_grant(stack):
     """
-    Spec §13: listener certificateRefs across namespaces obey ReferenceGrant.
+    docs/spec/security.md: listener certificateRefs across namespaces obey ReferenceGrant.
     """
 
     ns = stack
@@ -267,7 +267,7 @@ def test_cross_namespace_certificate_requires_reference_grant(stack):
         desc="https listener ResolvedRefs=True with grant",
     )
 
-    # And the certificate must actually be served (spec §13).
+    # And the certificate must actually be served (docs/spec/security.md).
     def tls_served():
         try:
             cert = net.get_server_certificate(ports.CROSS_NAMESPACE_TLS, sni=TLS_HOSTNAME)

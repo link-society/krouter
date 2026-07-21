@@ -23,7 +23,7 @@ pythonpath = ["src"]
 testpaths = ["specs/e2e"]
 timeout = 600
 markers = [
-    "performance: 10,000 concurrent-connection release gate (spec §19/§20.10); run with `task tests:performance`",
+    "performance: 10,000 concurrent-connection release gate (docs/spec/performance.md, docs/spec/acceptance.md criterion 10); run with `task tests:performance`",
 ]
 log_cli = true
 log_cli_level = "INFO"

@@ -1,6 +1,6 @@
 // Command loadgen is the load generator used by the krouter performance gate
-// (docs/SPECIFICATION.md §19, §20.10) and by the comparative benchmark suite
-// (§20.11). It only uses the Go standard library so it can be executed with
+// (docs/spec/performance.md, docs/spec/acceptance.md criterion 10) and by the comparative benchmark suite
+// (docs/spec/acceptance.md criterion 11). It only uses the Go standard library so it can be executed with
 // `go run ./tests/src/loadgen` from a stock golang container attached to the kind
 // docker network.
 //
@@ -283,7 +283,7 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 					}
 					// A reconnect or a failed request on an established
 					// connection means the proxy dropped us: exactly what
-					// spec §19 forbids during reloads.
+					// docs/spec/performance.md forbids during reloads.
 					if newConn || err != nil {
 						col.disconnects.Add(1)
 					}

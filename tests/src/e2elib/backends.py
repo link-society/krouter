@@ -5,17 +5,17 @@ The suites deploy `mockserver/mockserver` pods as HTTPRoute backends. Because
 the image is distroless and MockServer templates cannot read environment
 variables, a busybox initContainer renders the expectation initializer JSON,
 substituting the pod name (downward API) so every response identifies the
-serving pod. That identity drives the round-robin (spec §11), no-leakage
-(§20.4) and EndpointSlice readiness (§20.8) assertions.
+serving pod. That identity drives the round-robin (docs/spec/traffic.md), no-leakage
+(docs/spec/acceptance.md criterion 4) and EndpointSlice readiness (docs/spec/acceptance.md criterion 8) assertions.
 
 Endpoints configured through the initializer:
 
 - GET /            -> 200 JSON {"pod": "<pod>", "backend": "<name>"}
 - GET /ready       -> 200 (readiness probe target; overridden at runtime with
                       a 503 expectation to flip the pod unready without
-                      terminating it, spec §11/§20.8)
+                      terminating it, docs/spec/traffic.md, docs/spec/acceptance.md criterion 8)
 - GET /delayed     -> 200 after a 15s server-side delay (in-flight requests
-                      across reloads, spec §10/§20.7)
+                      across reloads, docs/spec/traffic.md, docs/spec/acceptance.md criterion 7)
 
 Runtime control goes through the MockServer API on the same port
 (PUT /mockserver/expectation, PUT /mockserver/retrieve, ...) via
@@ -219,7 +219,7 @@ def set_pod_ready(pod: str, namespace: str, ready: bool) -> None:
 
     A higher-priority expectation shadows the initializer's /ready rule, so
     the kubelet flips the pod's EndpointSlice `ready` condition while the
-    process keeps running (spec §11, §20.8).
+    process keeps running (docs/spec/traffic.md, docs/spec/acceptance.md criterion 8).
     """
 
     expectation = {
@@ -239,7 +239,7 @@ def set_pod_ready(pod: str, namespace: str, ready: bool) -> None:
 
 def recorded_requests(pod: str, namespace: str, path: str = "/") -> list[dict]:
     """
-    Requests recorded by one pod (spec §12.3 header assertions).
+    Requests recorded by one pod (docs/spec/traffic.md header assertions).
     """
 
     resp = _pod_api(

@@ -1,5 +1,5 @@
 """
-Atomic configuration activation (spec §9.2, §10, §15.1, §20.5).
+Atomic configuration activation (docs/spec/configuration.md, docs/spec/traffic.md, docs/spec/status.md, docs/spec/acceptance.md criterion 5).
 
 A Gateway update must activate atomically on every healthy data-plane pod:
 while a route is switched between backends, traffic answers from the old or
@@ -56,7 +56,7 @@ def stack(gateway_class, module_namespace):
         ),
         _route(ns, "backend-a"),
 
-        # Independent Gateway used to verify generation scoping (spec §9.2).
+        # Independent Gateway used to verify generation scoping (docs/spec/configuration.md).
         gw.params_configmap(
             "quiet-params",
             ns,
@@ -98,7 +98,7 @@ def stack(gateway_class, module_namespace):
 
 
 def test_route_switch_is_atomic_and_lossless(stack):
-    """Spec §20.5: the update activates atomically on every healthy pod."""
+    """docs/spec/acceptance.md criterion 5: the update activates atomically on every healthy pod."""
     ns = stack
 
     with net.TrafficSampler(ports.ATOMIC_UPDATES_A, host=HOSTNAME) as sampler:
@@ -138,7 +138,7 @@ def test_route_switch_is_atomic_and_lossless(stack):
 
 def test_updating_one_gateway_does_not_disturb_another(stack):
     """
-    Spec §9.2: generations are Gateway-scoped — churning atomic-gw must not
+    docs/spec/configuration.md: generations are Gateway-scoped — churning atomic-gw must not
     reload or invalidate quiet-gw.
     """
 
@@ -159,7 +159,7 @@ def test_updating_one_gateway_does_not_disturb_another(stack):
 
 def test_every_dataplane_pod_acknowledges_the_generation(stack):
     """
-    Spec §15.1: Programmed=True requires every healthy data-plane pod to
+    docs/spec/status.md: Programmed=True requires every healthy data-plane pod to
     report the desired generation as applied.
     """
 
@@ -173,9 +173,23 @@ def test_every_dataplane_pod_acknowledges_the_generation(stack):
         desc="all data-plane pods acknowledging the generation",
     )
 
-    # The Programmed condition must reflect the acknowledged generation.
-    gateway = kubectl.get("gateway", "atomic-gw", ns)
-    cond = kubectl.find_condition(gateway, "Programmed")
-    assert cond and cond["status"] == "True"
-    assert cond["observedGeneration"] == gateway["metadata"]["generation"], \
-        "Programmed must reference the current Gateway generation (spec §15)"
+    # The Programmed condition must converge on the acknowledged generation
+    # (the control plane polls acks, so status is eventually consistent).
+    def programmed_current():
+        gateway = kubectl.get("gateway", "atomic-gw", ns)
+        cond = kubectl.find_condition(gateway, "Programmed")
+
+        if (
+            cond
+            and cond["status"] == "True"
+            and cond["observedGeneration"] == gateway["metadata"]["generation"]
+        ):
+            return cond
+
+        return None
+
+    kubectl.wait_for(
+        programmed_current,
+        timeout=60,
+        desc="Programmed reflecting the acknowledged generation (docs/spec/status.md)",
+    )

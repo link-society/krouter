@@ -1,9 +1,9 @@
 """
-Multiple Gateways sharing external listener ports (spec §7, §20.4).
+Multiple Gateways sharing external listener ports (docs/spec/frontend.md, docs/spec/acceptance.md criterion 4).
 
 Two Gateways expose the same external port 80 and hostname through separate
 generated Services. Traffic must never leak between them, and the generated
-frontend objects must follow the provisioning rules of spec §7.
+frontend objects must follow the provisioning rules of docs/spec/frontend.md.
 """
 
 import pytest
@@ -65,7 +65,7 @@ def stack(gateway_class, module_namespace):
 
 def _generated_service(ns: str, gateway_name: str) -> dict:
     """
-    The Service owned by the Gateway (spec §7.1).
+    The Service owned by the Gateway (docs/spec/frontend.md).
     """
 
     for svc in kubectl.get("services", namespace=ns)["items"]:
@@ -78,7 +78,7 @@ def _generated_service(ns: str, gateway_name: str) -> dict:
 
 def test_no_routing_leakage_between_gateways(stack):
     """
-    Spec §20.4: same external port and hostname, isolated routing.
+    docs/spec/acceptance.md criterion 4: same external port and hostname, isolated routing.
     """
 
     for _ in range(10):
@@ -90,7 +90,7 @@ def test_no_routing_leakage_between_gateways(stack):
 
 def test_generated_service_shape(stack):
     """
-    Spec §7.1: per-Gateway Service, selectorless, NodePort,
+    docs/spec/frontend.md: per-Gateway Service, selectorless, NodePort,
     externalTrafficPolicy Local, owned by the Gateway.
     """
 
@@ -111,7 +111,7 @@ def test_generated_service_shape(stack):
 
 def test_internal_ports_are_unique_per_gateway(stack):
     """
-    Spec §7.3: same external port 80 maps to distinct internal listener
+    docs/spec/frontend.md: same external port 80 maps to distinct internal listener
     ports within the configured unprivileged range.
     """
 
@@ -133,7 +133,7 @@ def test_internal_ports_are_unique_per_gateway(stack):
 
 def test_mirrored_endpointslices(stack):
     """
-    Spec §7.2: controller-managed EndpointSlices mirror ready data-plane
+    docs/spec/frontend.md: controller-managed EndpointSlices mirror ready data-plane
     pods with node names for externalTrafficPolicy Local.
     """
 
@@ -187,7 +187,7 @@ def test_mirrored_endpointslices(stack):
 def test_both_workers_serve_locally(stack):
     """
     externalTrafficPolicy Local + DaemonSet: every worker node answers on
-    its own NodePort (spec §6.2/§7.2).
+    its own NodePort (docs/spec/architecture.md, docs/spec/frontend.md).
     """
 
     for worker in (1, 2):

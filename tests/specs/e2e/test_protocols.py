@@ -1,5 +1,5 @@
 """
-Client protocol coverage (spec §3, §12.1, §12.3, §20.2).
+Client protocol coverage (docs/spec/overview.md, docs/spec/traffic.md, docs/spec/traffic.md, docs/spec/acceptance.md criterion 2).
 
 HTTP/1.1 and HTTP/2 must work through both HTTP and HTTPS listeners, with
 TLS termination using the referenced certificate and regenerated
@@ -109,7 +109,7 @@ def test_http2_over_https(stack):
 
 def test_http2_prior_knowledge_over_http(stack):
     """
-    Cleartext HTTP/2 (prior knowledge) on the HTTP listener (spec §12.1).
+    Cleartext HTTP/2 (prior knowledge) on the HTTP listener (docs/spec/traffic.md).
     """
 
     resp = net.request(
@@ -124,7 +124,7 @@ def test_http2_prior_knowledge_over_http(stack):
 
 def test_served_certificate_matches_listener_reference(stack, ca):
     """
-    Spec §13: TLS terminates with the certificate referenced by the listener.
+    docs/spec/security.md: TLS terminates with the certificate referenced by the listener.
     """
 
     cert = net.get_server_certificate(ports.PROTOCOLS_HTTPS, sni=HOSTNAME)
@@ -136,7 +136,7 @@ def test_served_certificate_matches_listener_reference(stack, ca):
 
 def test_unmatched_hostname_is_not_served(stack):
     """
-    Spec §12.2: listener/route hostname isolation; unmatched host -> 404.
+    docs/spec/traffic.md: listener/route hostname isolation; unmatched host -> 404.
     """
 
     resp = net.request(ports.PROTOCOLS_HTTP, host="other.example.com")
@@ -145,7 +145,7 @@ def test_unmatched_hostname_is_not_served(stack):
 
 def test_forwarded_headers_are_regenerated(stack):
     """
-    Spec §12.3: spoofed X-Forwarded-* values from the client must be
+    docs/spec/traffic.md: spoofed X-Forwarded-* values from the client must be
     replaced with values derived from the actual downstream connection.
     """
 

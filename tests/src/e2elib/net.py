@@ -35,7 +35,7 @@ def request(
     Issue one request to a published NodePort.
 
     `host` sets both the Host/:authority header and, for TLS, the SNI value,
-    which is how listener hostname matching (spec §12.2) is exercised while
+    which is how listener hostname matching (docs/spec/traffic.md) is exercised while
     connecting to 127.0.0.1.
     """
 
@@ -112,7 +112,7 @@ def sample_backends(
 
 def dataplane_readyz(pod: dict) -> dict:
     """
-    Management readiness body of one data-plane pod (spec §15.1).
+    Management readiness body of one data-plane pod (docs/spec/status.md).
     """
 
     name = pod["metadata"]["name"]
@@ -126,7 +126,7 @@ def dataplane_readyz(pod: dict) -> dict:
 def all_dataplane_pods_acked(gateway_uid: str) -> bool:
     """
     True when every healthy data-plane pod reports desired == applied for
-    the Gateway — the condition for Programmed=True (spec §15.1).
+    the Gateway — the condition for Programmed=True (docs/spec/status.md).
     """
 
     pods = kubectl.dataplane_pods()
@@ -151,7 +151,7 @@ class TrafficSampler:
     """
     Continuously samples a Gateway from a background thread.
 
-    Used to prove atomic activation (spec §9.2/§20.5): during a
+    Used to prove atomic activation (docs/spec/configuration.md, docs/spec/acceptance.md criterion 5): during a
     configuration change every response must keep succeeding, coming from
     either the old or the new configuration, never from a broken in-between
     state.
@@ -224,7 +224,7 @@ class PersistentConnection:
     One plain-text keep-alive connection pinned to a single TCP socket.
 
     Used to prove that configuration reloads never disturb established
-    connections (spec §10/§19): if the proxy closes the socket, the next
+    connections (docs/spec/traffic.md, docs/spec/performance.md): if the proxy closes the socket, the next
     request raises instead of transparently reconnecting.
     """
 
@@ -258,7 +258,7 @@ class PersistentConnection:
 
         Combined with the backend's /delayed endpoint this keeps a request
         in flight while the test triggers a configuration reload
-        (spec §10/§20.7). Call `read_response` to collect the result.
+        (docs/spec/traffic.md, docs/spec/acceptance.md criterion 7). Call `read_response` to collect the result.
         """
 
         headers = {"Host": self.host_header} if self.host_header else {}
@@ -300,7 +300,7 @@ class PersistentTLSConnection(PersistentConnection):
 
 def get_server_certificate(node_port: int, sni: str, worker: int = 1) -> x509.Certificate:
     """
-    Fetch the certificate presented for `sni` (spec §13 activation checks).
+    Fetch the certificate presented for `sni` (docs/spec/security.md activation checks).
     """
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

@@ -1,7 +1,7 @@
 // Package conformance runs the official Gateway API conformance suite
 // against a live cluster running krouter.
 //
-// The POC conformance target (docs/SPECIFICATION.md §3, §20.1) is: all Core
+// The POC conformance target (docs/spec/overview.md, docs/spec/acceptance.md criterion 1) is: all Core
 // tests of the GATEWAY-HTTP profile, Gateway API v1.5.1 Standard channel.
 // The profile is therefore forced here rather than left to a flag.
 //
@@ -23,11 +23,11 @@ import (
 func TestConformance(t *testing.T) {
 	opts := conformance.DefaultOptions(t)
 
-	// Spec §20.1: the GATEWAY-HTTP Core profile must pass in full.
+	// docs/spec/acceptance.md criterion 1: the GATEWAY-HTTP Core profile must pass in full.
 	opts.ConformanceProfiles = sets.New(suite.GatewayHTTPConformanceProfileName)
 
 	// Core-only target: Extended features are out of scope for the POC
-	// (spec §3) unless a Core test requires them, so nothing is enabled here.
+	// (docs/spec/overview.md) unless a Core test requires them, so nothing is enabled here.
 	// Implementation metadata (organization, project, ...) and the
 	// GatewayClass name are provided as flags by `task tests:conformance`.
 

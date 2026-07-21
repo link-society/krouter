@@ -1,5 +1,5 @@
 """
-Gateway API status and conditions (spec §3, §5, §8, §15, §18, §20.9).
+Gateway API status and conditions (docs/spec/overview.md, docs/spec/deployment.md, docs/spec/parameters.md, docs/spec/status.md, docs/spec/failure-modes.md, docs/spec/acceptance.md criterion 9).
 
 The control plane is the sole status writer and must publish accurate
 conditions, reasons and observedGeneration values for every owned resource —
@@ -55,7 +55,7 @@ def stack(gateway_class, module_namespace):
 
 def test_gatewayclass_accepted_and_supported_version(gateway_class):
     """
-    Spec §3/§15: GatewayClass Accepted and SupportedVersion published
+    docs/spec/overview.md, docs/spec/status.md: GatewayClass Accepted and SupportedVersion published
     against the installed CRD bundle version.
     """
 
@@ -73,7 +73,7 @@ def test_gatewayclass_accepted_and_supported_version(gateway_class):
 
 def test_foreign_gatewayclass_is_ignored(cluster, cluster_scoped_cleanup):
     """
-    Spec §5: only classes matching KROUTER_CONTROLLER_NAME are reconciled.
+    docs/spec/deployment.md: only classes matching KROUTER_CONTROLLER_NAME are reconciled.
     """
 
     name = unique_name("foreign-class")
@@ -94,7 +94,7 @@ def test_foreign_gatewayclass_is_ignored(cluster, cluster_scoped_cleanup):
 
 def test_gateway_conditions_and_listener_status(stack):
     """
-    Spec §15: Gateway Accepted/Programmed with correct observedGeneration,
+    docs/spec/status.md: Gateway Accepted/Programmed with correct observedGeneration,
     per-listener conditions and attachedRoutes counts.
     """
 
@@ -124,12 +124,12 @@ def test_gateway_conditions_and_listener_status(stack):
             f"listener condition {cond_type} must be True"
 
     addresses = obj["status"].get("addresses", [])
-    assert addresses, "a programmed Gateway must publish addresses (spec §15)"
+    assert addresses, "a programmed Gateway must publish addresses (docs/spec/status.md)"
 
 
 def test_route_parent_status(stack):
     """
-    Spec §15: parents[] entry with our controllerName and required conditions.
+    docs/spec/status.md: parents[] entry with our controllerName and required conditions.
     """
 
     route = kubectl.get("httproute", "status-route", stack)
@@ -148,7 +148,7 @@ def test_route_parent_status(stack):
 
 def test_invalid_infrastructure_parameters(gateway_class, namespace):
     """
-    Spec §8: missing or invalid parameter ConfigMaps produce the
+    docs/spec/parameters.md: missing or invalid parameter ConfigMaps produce the
     InvalidParameters reason and never crash the controller.
     """
 
@@ -177,7 +177,7 @@ def test_invalid_infrastructure_parameters(gateway_class, namespace):
         desc="InvalidParameters on missing parameters ConfigMap",
     )
 
-    # Unknown fields must be rejected too (spec §8: reject unknown fields).
+    # Unknown fields must be rejected too (docs/spec/parameters.md: reject unknown fields).
     kubectl.apply(gw.params_configmap("bad-hcl", ns, 'version = 1\nbogus_field = "boom"\n'))
     kubectl.apply(gw.gateway(
         "bad-hcl-gw",
@@ -213,7 +213,7 @@ def test_invalid_infrastructure_parameters(gateway_class, namespace):
 
 def test_missing_tls_secret_sets_resolved_refs_false(gateway_class, namespace):
     """
-    Spec §18: missing TLS material -> ResolvedRefs=False, safe behavior,
+    docs/spec/failure-modes.md: missing TLS material -> ResolvedRefs=False, safe behavior,
     and recovery once the secret appears.
     """
 
