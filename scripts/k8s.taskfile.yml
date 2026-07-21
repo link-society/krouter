@@ -15,7 +15,7 @@ tasks:
       - task: install-gateway-api
 
   install-gateway-api:
-    desc: Install the Gateway API Standard channel CRDs (spec requires them pre-installed, §2/§4)
+    desc: Install the Gateway API Standard channel CRDs (spec requires them pre-installed, docs/spec/overview.md, docs/spec/deployment.md)
     cmds:
       - kubectl --context {{.KIND_CONTEXT}} apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
       - kubectl --context {{.KIND_CONTEXT}} wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io crd/referencegrants.gateway.networking.k8s.io
@@ -32,7 +32,7 @@ tasks:
       - kind delete cluster --name {{.KIND_CLUSTER}}
 
   deploy:
-    desc: Deploy krouter (static manifest, spec §4) into the kind cluster
+    desc: Deploy krouter (static manifest, docs/spec/deployment.md) into the kind cluster
     deps: [load-image]
     cmds:
       - kubectl --context {{.KIND_CONTEXT}} apply -f k8s/

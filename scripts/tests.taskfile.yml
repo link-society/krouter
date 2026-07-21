@@ -26,7 +26,7 @@ tasks:
       - pdm run -p tests pytest tests/specs/e2e {{.CLI_ARGS}}
 
   conformance:
-    desc: Run the Gateway API GATEWAY-HTTP Core conformance profile (spec §3/§20.1)
+    desc: Run the Gateway API GATEWAY-HTTP Core conformance profile (docs/spec/overview.md, docs/spec/acceptance.md criterion 1)
     cmds:
       - mkdir -p tests/results/conformance
       - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/conformance/gatewayclass.yaml
@@ -54,7 +54,7 @@ tasks:
         {{.CLI_ARGS}}
 
   performance:
-    desc: Run the 10,000 concurrent-connection release gate (spec §19/§20.10)
+    desc: Run the 10,000 concurrent-connection release gate (docs/spec/performance.md, docs/spec/acceptance.md criterion 10)
     deps: [install-deps]
     cmds:
       - pdm run -p tests pytest tests/specs/performance -m performance {{.CLI_ARGS}}
@@ -74,7 +74,7 @@ tasks:
       - pdm run -p tests python tests/src/benchmark/run.py {{.CLI_ARGS | default "krouter"}}
 
   bench:all:
-    desc: Benchmark krouter, NGINX Gateway Fabric and Traefik side by side (spec §19/§20.11)
+    desc: Benchmark krouter, NGINX Gateway Fabric and Traefik side by side (docs/spec/performance.md, docs/spec/acceptance.md criterion 11)
     deps: [install-deps]
     cmds:
       - pdm run -p tests python tests/src/benchmark/run.py krouter nginx traefik
