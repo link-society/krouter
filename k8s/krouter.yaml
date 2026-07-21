@@ -150,6 +150,9 @@ spec:
         app.kubernetes.io/component: controlplane
     spec:
       serviceAccountName: krouter-controlplane
+      # Keep generated <SERVICE>_PORT variables out of the environment:
+      # they would collide with the KROUTER_* settings.
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -171,11 +174,15 @@ spec:
               value: "29999"
             - name: KROUTER_MANAGEMENT_PORT
               value: "9090"
+            - name: KROUTER_DASHBOARD_PORT
+              value: "8080"
             - name: KROUTER_LOG_LEVEL
               value: info
           ports:
             - name: mgmt
               containerPort: 9090
+            - name: dashboard
+              containerPort: 8080
           livenessProbe:
             httpGet:
               path: /livez
@@ -192,6 +199,26 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+---
+# Control-plane dashboard: reach it with
+#   kubectl -n krouter-system port-forward svc/krouter-dashboard 8080
+apiVersion: v1
+kind: Service
+metadata:
+  name: krouter-dashboard
+  namespace: krouter-system
+  labels:
+    app.kubernetes.io/name: krouter
+    app.kubernetes.io/component: controlplane
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: krouter
+    app.kubernetes.io/component: controlplane
+  ports:
+    - name: dashboard
+      port: 8080
+      targetPort: dashboard
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -213,6 +240,9 @@ spec:
         app.kubernetes.io/component: dataplane
     spec:
       serviceAccountName: krouter-dataplane
+      # Keep generated <SERVICE>_PORT variables out of the environment:
+      # they would collide with the KROUTER_* settings.
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         seccompProfile:
