@@ -6,6 +6,7 @@ FROM scratch AS sources
 
 ADD go.mod go.su[m] /src/
 ADD cmd /src/cmd
+ADD internal /src/internal
 
 ##############################
 ## BUILD GO CODE
