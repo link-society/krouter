@@ -5,10 +5,10 @@
 krouter is a Kubernetes Gateway API implementation and HTTP/HTTPS reverse
 proxy.
 
-The proof of concept (POC) implements the Gateway API `GATEWAY-HTTP` Core
-conformance profile. The architecture MUST remain extensible to the other
-Standard Gateway API route types and features without introducing
-krouter-specific Kubernetes custom resources.
+krouter implements the Gateway API `GATEWAY-HTTP` Core conformance
+profile. The architecture MUST remain extensible to the other Standard
+Gateway API route types and features without introducing krouter-specific
+Kubernetes custom resources.
 
 ## Design principles
 
@@ -26,13 +26,13 @@ krouter-specific Kubernetes custom resources.
 
 ## Scope and compatibility
 
-| Item | POC requirement |
+| Item | Requirement |
 |---|---|
 | Kubernetes | v1.31 or newer |
 | Gateway API | v1.5.1, Standard channel |
 | Conformance target | All Core tests in `GATEWAY-HTTP` |
 | Client protocols | HTTP/1.1 and HTTP/2 |
-| Backend protocol | HTTP/1.1 for the POC |
+| Backend protocol | HTTP/1.1 |
 | Listeners | HTTP and HTTPS with TLS termination |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |

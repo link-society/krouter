@@ -27,6 +27,6 @@ mix, and connection counts. It reports:
 - Peak and steady-state memory.
 - Time and errors during configuration reload.
 
-Comparative benchmark results are published for the POC; a precise parity
+Comparative benchmark results are published; a precise parity
 threshold is set only after the common harness establishes stable
 baselines.

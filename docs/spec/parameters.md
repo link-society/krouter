@@ -17,7 +17,7 @@ data plane to crash.
 ## GatewayClass parameters
 
 `GatewayClass.spec.parametersRef` configures proxy behavior shared by that
-class. The POC schema contains:
+class. The schema contains:
 
 ```hcl
 version = 1
@@ -27,13 +27,13 @@ load_balancing {
 }
 ```
 
-The POC supports `round_robin`. The field is versioned so other algorithms
+krouter supports `round_robin`. The field is versioned so other algorithms
 can be added without changing Gateway infrastructure parameters.
 
 ## Gateway infrastructure parameters
 
 `Gateway.spec.infrastructure.parametersRef` configures the concrete Service
-created for that Gateway. The POC schema is equivalent to:
+created for that Gateway. The schema is equivalent to:
 
 ```hcl
 version = 1

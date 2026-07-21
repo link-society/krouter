@@ -67,7 +67,7 @@ subjects:
     namespace: krouter-system
 ---
 # Data-plane permissions (docs/spec/security.md): backend Services and EndpointSlices
-# only. The POC grants cluster-wide read instead of per-namespace
+# only. Cluster-wide read is granted instead of per-namespace
 # RoleBindings; the data plane never reads source TLS Secrets.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

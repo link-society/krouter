@@ -42,7 +42,7 @@ func NewHandler(state *routing.State) *Handler {
 	return &Handler{
 		state: state,
 		transport: &http.Transport{
-			// Backend protocol is HTTP/1.1 for the POC (docs/spec/overview.md).
+			// Backend protocol is HTTP/1.1 (docs/spec/overview.md).
 			ForceAttemptHTTP2:   false,
 			MaxIdleConns:        1024,
 			MaxIdleConnsPerHost: 256,

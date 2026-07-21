@@ -1,4 +1,4 @@
-# krouter — Proof-of-Concept Specification
+# krouter — Specification
 
 krouter (Kubernetes Router) is a Kubernetes Gateway API implementation and
 HTTP/HTTPS reverse proxy.
@@ -30,7 +30,7 @@ self-contained enough to be consulted on its own.
 | [observability.md](observability.md) | Health endpoints, logging, metrics |
 | [failure-modes.md](failure-modes.md) | Required behavior under failure |
 | [performance.md](performance.md) | Performance requirements and comparative benchmarks |
-| [acceptance.md](acceptance.md) | Acceptance criteria for the proof of concept |
+| [acceptance.md](acceptance.md) | Acceptance criteria |
 
 ## Authoritative references
 

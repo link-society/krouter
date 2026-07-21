@@ -1,6 +1,6 @@
 # Acceptance criteria
 
-The POC is complete when:
+The implementation is accepted when:
 
 1. The Gateway API v1.5.1 `GATEWAY-HTTP` Core conformance suite passes in
    full.

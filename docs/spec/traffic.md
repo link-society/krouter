@@ -1,7 +1,7 @@
 # Traffic
 
-The data-plane request path, its lifecycle guarantees, and the HTTP behavior
-required by the POC.
+The data-plane request path, its lifecycle guarantees, and the required
+HTTP behavior.
 
 ## Request path
 
@@ -48,7 +48,7 @@ For every accepted backend Service reference, the data plane:
 5. Applies Gateway API backend weights before selecting an endpoint.
 6. Selects an endpoint using the GatewayClass load-balancing algorithm.
 
-The POC default is round-robin. Active health checks are not performed.
+The default is round-robin. Active health checks are not performed.
 Kubernetes workload probes and EndpointSlice conditions remain the source of
 backend health.
 
@@ -58,7 +58,7 @@ plane access to or compiling a cross-namespace backend reference.
 ## Protocol handling
 
 - Accept HTTP/1.1 and HTTP/2 downstream connections.
-- Use HTTP/1.1 for POC connections to backend endpoints.
+- Use HTTP/1.1 for connections to backend endpoints.
 - Terminate HTTPS using certificates referenced by Gateway listeners.
 - Support standard HTTP upgrade behavior required by the Core conformance
   profile.
@@ -71,8 +71,7 @@ krouter implements the exact matching, precedence, backend weighting,
 listener isolation, reference resolution, and filter behavior required by
 the Gateway API v1.5.1 `GATEWAY-HTTP` Core conformance profile.
 
-No implementation-specific annotations or Route extensions are added in the
-POC.
+No implementation-specific annotations or Route extensions are added.
 
 ## Forwarding headers
 
