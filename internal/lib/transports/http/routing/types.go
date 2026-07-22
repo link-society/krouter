@@ -9,6 +9,8 @@ import (
 
 	"crypto/tls"
 
+	"net/http"
+
 	"sync/atomic"
 	"time"
 
@@ -167,12 +169,27 @@ type BackendTable struct {
 	port      int32
 	weight    int32
 	valid     bool
-	counter   atomic.Int64
+
+	// tlsTransport carries requests to a backend covered by a
+	// BackendTLSPolicy; tlsInvalid marks a rejected policy whose backend
+	// MUST fail closed (docs/spec/traffic.md Backend TLS).
+	tlsTransport *http.Transport
+	tlsInvalid   bool
+
+	counter atomic.Int64
 }
 
 // Valid reports whether the backend reference resolved (invalid refs answer
 // 500 for their traffic share, per the Gateway API).
 func (b *BackendTable) Valid() bool { return b.valid }
+
+// TLSTransport returns the verified-TLS transport of the backend, or nil
+// for cleartext backends (docs/spec/traffic.md Backend TLS).
+func (b *BackendTable) TLSTransport() *http.Transport { return b.tlsTransport }
+
+// TLSInvalid reports a rejected BackendTLSPolicy: requests MUST fail
+// closed instead of falling back to cleartext (docs/spec/traffic.md).
+func (b *BackendTable) TLSInvalid() bool { return b.tlsInvalid }
 
 // GatewayTable is one gateway's slice of the routing tables.
 type GatewayTable struct {

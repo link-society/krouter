@@ -130,6 +130,14 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		return nil, err
 	}
 
+	backendTLSList, err := r.gwClient.GatewayV1().BackendTLSPolicies(metav1.NamespaceAll).
+		List(ctx, metav1.ListOptions{})
+	if err == nil {
+		w.backendTLSPolicies = backendTLSList.Items
+	} else if !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+
 	grantList, err := r.gwClient.GatewayV1beta1().ReferenceGrants(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -217,6 +225,8 @@ func (r *Engine) sync(ctx context.Context, w *world) *Topology {
 	allocator := newPortAllocator(
 		r.settings.InternalPortMin, r.settings.InternalPortMax, w.krouterServices)
 
+	r.resolveBackendTLSPolicies(ctx, w)
+
 	ownedUIDs := map[string]bool{}
 	routeOutcomes := map[string][]*routeParentOutcome{}
 	topo := newTopologyBuilder(w.services)
@@ -234,6 +244,9 @@ func (r *Engine) sync(ctx context.Context, w *world) *Topology {
 	}
 
 	r.writeRouteStatuses(ctx, w, routeOutcomes)
+
+	collectBackendTLSAncestors(w, routeOutcomes)
+	r.writeBackendTLSPolicyStatuses(ctx, w)
 
 	r.gcOrphans(ctx, w, ownedUIDs)
 

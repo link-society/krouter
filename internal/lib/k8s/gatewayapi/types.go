@@ -23,6 +23,10 @@ type world struct {
 	grants     []gatewayv1beta1.ReferenceGrant
 	namespaces map[string]map[string]string
 
+	backendTLSPolicies []gatewayv1.BackendTLSPolicy
+	backendTLSStates   []*backendTLSPolicyState
+	backendTLS         map[string][]*backendTLSBinding // "ns/service" -> bindings
+
 	services         map[string]*corev1.Service
 	krouterServices  []*corev1.Service
 	generatedCMs     []corev1.ConfigMap

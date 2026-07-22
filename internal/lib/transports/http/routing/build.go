@@ -6,6 +6,10 @@ import (
 	"sort"
 
 	"crypto/tls"
+	"crypto/x509"
+
+	"net"
+	"net/http"
 
 	"time"
 
@@ -93,13 +97,7 @@ func BuildGatewayTable(
 				}
 
 				entry.mirrors = append(entry.mirrors, &MirrorTable{
-					backend: &BackendTable{
-						namespace: filter.Mirror.Namespace,
-						name:      filter.Mirror.Name,
-						port:      filter.Mirror.Port,
-						weight:    1,
-						valid:     filter.Mirror.Valid,
-					},
+					backend: buildBackendTable(*filter.Mirror),
 					percent: percent,
 				})
 
@@ -114,13 +112,7 @@ func BuildGatewayTable(
 					continue
 				}
 
-				entry.backends = append(entry.backends, &BackendTable{
-					namespace: backend.Namespace,
-					name:      backend.Name,
-					port:      backend.Port,
-					weight:    weight,
-					valid:     backend.Valid,
-				})
+				entry.backends = append(entry.backends, buildBackendTable(backend))
 				entry.total += int64(weight)
 
 				if backend.Valid {
@@ -147,6 +139,55 @@ func BuildGatewayTable(
 	}
 
 	return table, nil
+}
+
+// buildBackendTable compiles one backend, including its BackendTLSPolicy
+// transport when present (docs/spec/traffic.md Backend TLS): the transport
+// verifies the backend certificate against the policy CAs and sends the
+// policy hostname as SNI. Rejected policies fail closed.
+func buildBackendTable(backend compiled.Backend) *BackendTable {
+	entry := &BackendTable{
+		namespace: backend.Namespace,
+		name:      backend.Name,
+		port:      backend.Port,
+		weight:    backend.Weight,
+		valid:     backend.Valid,
+	}
+
+	if backend.TLS == nil {
+		return entry
+	}
+
+	if backend.TLS.Invalid {
+		entry.tlsInvalid = true
+		return entry
+	}
+
+	config := &tls.Config{ServerName: backend.TLS.Hostname}
+
+	if !backend.TLS.SystemCAs {
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM([]byte(backend.TLS.CAPem)) {
+			entry.tlsInvalid = true
+			return entry
+		}
+
+		config.RootCAs = pool
+	}
+
+	entry.tlsTransport = &http.Transport{
+		TLSClientConfig:     config,
+		ForceAttemptHTTP2:   false,
+		MaxIdleConns:        256,
+		MaxIdleConnsPerHost: 64,
+		IdleConnTimeout:     90 * time.Second,
+		DialContext: (&net.Dialer{
+			Timeout:   10 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+	}
+
+	return entry
 }
 
 // MergeTables combines every gateway's table into the swap-ready set.

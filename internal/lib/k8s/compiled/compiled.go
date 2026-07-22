@@ -139,6 +139,20 @@ type Backend struct {
 	Weight        int32  `json:"weight"`
 	Valid         bool   `json:"valid"`
 	InvalidReason string `json:"invalidReason,omitempty"`
+	// TLS carries the BackendTLSPolicy verification parameters for this
+	// backend; nil means cleartext (docs/spec/traffic.md).
+	TLS *BackendTLS `json:"tls,omitempty"`
+}
+
+// BackendTLS is the compiled BackendTLSPolicy applied to one backend
+// (docs/spec/traffic.md): connections are upgraded to TLS with SNI and
+// certificate verification. Invalid marks a rejected policy whose backends
+// MUST fail closed.
+type BackendTLS struct {
+	Hostname  string `json:"hostname,omitempty"`
+	CAPem     string `json:"caPem,omitempty"`
+	SystemCAs bool   `json:"systemCAs,omitempty"`
+	Invalid   bool   `json:"invalid,omitempty"`
 }
 
 // Manifest is the mutable commit marker identifying the desired generation

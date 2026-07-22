@@ -1282,7 +1282,30 @@ func (r *Engine) compileBackend(
 		return backend
 	}
 
+	// BackendTLSPolicy (docs/spec/traffic.md Backend TLS): connections to
+	// this backend are upgraded to verified TLS; rejected policies fail
+	// closed.
+	backend.TLS = backendTLSFor(w, backend.Namespace, backend.Name,
+		servicePortName(w, backend.Namespace, backend.Name, backend.Port))
+
 	return backend
+}
+
+// servicePortName resolves the name of the Service port a backend
+// references, for BackendTLSPolicy sectionName matching.
+func servicePortName(w *world, namespace, name string, port int32) string {
+	svc, ok := w.services[namespace+"/"+name]
+	if !ok {
+		return ""
+	}
+
+	for _, svcPort := range svc.Spec.Ports {
+		if svcPort.Port == port {
+			return svcPort.Name
+		}
+	}
+
+	return ""
 }
 
 // --------------------------------------------------------------- helpers --

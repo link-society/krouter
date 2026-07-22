@@ -236,6 +236,13 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 		return http.StatusInternalServerError
 	}
 
+	// Fail closed for a rejected BackendTLSPolicy (docs/spec/traffic.md
+	// Backend TLS): never fall back to cleartext.
+	if backend.TLSInvalid() {
+		http.Error(w, "bad gateway", http.StatusBadGateway)
+		return http.StatusBadGateway
+	}
+
 	target, ok := backend.Pick(h.state.Endpoints.Load())
 	if !ok {
 		// Required unavailable response (docs/spec/failure-modes.md).
@@ -251,6 +258,13 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 	transport := h.transport
 	if rule.GRPC() {
 		transport = h.grpcTransport
+	}
+
+	// BackendTLSPolicy transport (docs/spec/traffic.md Backend TLS).
+	scheme := "http"
+	if tlsTransport := backend.TLSTransport(); tlsTransport != nil {
+		transport = tlsTransport
+		scheme = "https"
 	}
 
 	// Request mirroring (docs/spec/traffic.md): sample the targets now,
@@ -284,7 +298,7 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 		FlushInterval: -1, // preserve streaming, never buffer bodies (docs/spec/traffic.md)
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(&url.URL{
-				Scheme: "http",
+				Scheme: scheme,
 				Host:   fmt.Sprintf("%s:%d", target.Address, target.Port),
 			})
 			pr.Out.Host = pr.In.Host
@@ -366,13 +380,24 @@ func (h *Handler) fireMirrors(
 	index := h.state.Endpoints.Load()
 
 	for _, mirror := range mirrors {
+		if mirror.Backend().TLSInvalid() {
+			continue
+		}
+
 		endpoint, ok := mirror.Backend().Pick(index)
 		if !ok {
 			continue
 		}
 
+		mirrorTransport := transport
+		mirrorScheme := "http"
+		if tlsTransport := mirror.Backend().TLSTransport(); tlsTransport != nil {
+			mirrorTransport = tlsTransport
+			mirrorScheme = "https"
+		}
+
 		mirrored := req.Clone(req.Context())
-		mirrored.URL.Scheme = "http"
+		mirrored.URL.Scheme = mirrorScheme
 		mirrored.URL.Host = fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port)
 		mirrored.Body = nil
 		mirrored.ContentLength = 0
@@ -386,7 +411,7 @@ func (h *Handler) fireMirrors(
 			ctx, cancel := context.WithTimeout(mirrored.Context(), 10*time.Second)
 			defer cancel()
 
-			resp, err := transport.RoundTrip(mirrored.WithContext(ctx))
+			resp, err := mirrorTransport.RoundTrip(mirrored.WithContext(ctx))
 			if err != nil {
 				slog.Debug("mirror request failed", "error", err)
 				return
