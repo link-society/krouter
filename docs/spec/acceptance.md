@@ -29,3 +29,7 @@ The implementation is accepted when:
 14. TLS passthrough listeners route by SNI to TLSRoute backends without
     terminating the session, with the same guarantees as TCP forwarding,
     and the `GATEWAY-TLS` Core conformance tests pass.
+15. GRPCRoute traffic — method and header matching, h2c backend
+    forwarding, streaming and trailer preservation — passes the
+    `GATEWAY-GRPC` Core conformance tests, with the same guarantees as
+    HTTP traffic.

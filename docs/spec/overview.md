@@ -5,10 +5,11 @@
 krouter is a Kubernetes Gateway API implementation and HTTP/HTTPS reverse
 proxy.
 
-krouter implements the Gateway API `GATEWAY-HTTP` and `GATEWAY-TLS` Core
-conformance profiles, plus TCPRoute support. The architecture MUST remain
-extensible to the other Standard Gateway API route types and features
-without introducing krouter-specific Kubernetes custom resources.
+krouter implements the Gateway API `GATEWAY-HTTP`, `GATEWAY-GRPC`, and
+`GATEWAY-TLS` Core conformance profiles, plus TCPRoute support. The
+architecture MUST remain extensible to the other Standard Gateway API route
+types and features without introducing krouter-specific Kubernetes custom
+resources.
 
 ## Design principles
 
@@ -30,10 +31,10 @@ without introducing krouter-specific Kubernetes custom resources.
 |---|---|
 | Kubernetes | v1.31 or newer |
 | Gateway API | v1.5.1, Experimental channel CRDs (the Standard resources plus `TCPRoute` and `TLSRoute`) |
-| Conformance target | All Core tests in `GATEWAY-HTTP` and `GATEWAY-TLS`; TCPRoute has no conformance profile in v1.5.1 and is verified by the krouter test suite |
-| Route types | HTTPRoute, TCPRoute, and TLSRoute |
-| Client protocols | HTTP/1.1, HTTP/2, raw TCP, and TLS passthrough |
-| Backend protocol | HTTP/1.1; raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends |
+| Conformance target | All Core tests in `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`; TCPRoute has no conformance profile in v1.5.1 and is verified by the krouter test suite |
+| Route types | HTTPRoute, GRPCRoute, TCPRoute, and TLSRoute |
+| Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, and TLS passthrough |
+| Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends; raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends |
 | Listeners | HTTP, HTTPS with TLS termination, TCP, and TLS in Passthrough mode |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
@@ -59,7 +60,7 @@ the SNI value and never holds the certificate. TLS listeners in
 
 ## Explicitly deferred work
 
-- GRPCRoute and UDPRoute.
+- UDPRoute.
 - TLS listeners in `Terminate` mode (TLSRoute is passthrough-only).
 - Gateway API Standard Extended features not required by Core conformance.
 - Experimental-channel resources and fields other than TCPRoute and

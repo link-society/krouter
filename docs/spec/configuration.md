@@ -43,8 +43,8 @@ erDiagram
     }
 ```
 
-A Route (HTTPRoute, TCPRoute, or TLSRoute) attached to multiple Gateways
-produces a separate attachment configuration for each Gateway.
+A Route (HTTPRoute, GRPCRoute, TCPRoute, or TLSRoute) attached to multiple
+Gateways produces a separate attachment configuration for each Gateway.
 
 Every object carries labels identifying the installation, Gateway UID,
 source object UID, and generation. User-provided names are informational;

@@ -1,7 +1,7 @@
 # Traffic
 
 The data-plane request path, its lifecycle guarantees, and the required
-HTTP, TCP, and TLS passthrough behavior.
+HTTP, gRPC, TCP, and TLS passthrough behavior.
 
 ## Request path
 
@@ -20,6 +20,23 @@ sequenceDiagram
     E->>B: HTTP/1.1 request (streamed)
     B-->>C: response (streamed through the proxy)
 ```
+
+## gRPC routing
+
+gRPC traffic is HTTP/2 traffic: GRPCRoutes attach to HTTP and HTTPS
+listeners, alongside HTTPRoutes, with the same hostname semantics.
+
+- Method matches select by gRPC service and method (exact matching for the
+  Core profile), evaluated on their canonical HTTP/2 request form; header
+  matches and `RequestHeaderModifier` filters behave as for HTTPRoute
+  rules.
+- Backend endpoints receive gRPC over cleartext HTTP/2 (h2c), selected per
+  request with the same weights, eligibility rules and load-balancing
+  algorithm as every other route type.
+- Streaming in every direction (unary, server, client, bidirectional) MUST
+  flow without buffering, and gRPC trailers MUST be preserved end to end.
+- A gRPC request matching no rule receives the gRPC `UNIMPLEMENTED`
+  status, as required by the Gateway API.
 
 ## TCP forwarding
 
@@ -101,7 +118,8 @@ plane access to or compiling a cross-namespace backend reference.
   interpretation.
 - Accept TLS connections on TLS passthrough listeners, route by SNI, and
   forward them still encrypted.
-- Use HTTP/1.1 for connections to backend endpoints of HTTP routes.
+- Use HTTP/1.1 for connections to backend endpoints of HTTP routes, and
+  cleartext HTTP/2 (h2c) with preserved trailers for gRPC routes.
 - Terminate HTTPS using certificates referenced by Gateway listeners.
 - Support standard HTTP upgrade behavior required by the Core conformance
   profile.
@@ -112,9 +130,9 @@ plane access to or compiling a cross-namespace backend reference.
 
 krouter implements the exact matching, precedence, backend weighting,
 listener isolation, reference resolution, and filter behavior required by
-the Gateway API v1.5.1 `GATEWAY-HTTP` and `GATEWAY-TLS` Core conformance
-profiles, and the TCPRoute attachment semantics defined by the upstream
-API specification.
+the Gateway API v1.5.1 `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`
+Core conformance profiles, and the TCPRoute attachment semantics defined by
+the upstream API specification.
 
 No implementation-specific annotations or Route extensions are added.
 
