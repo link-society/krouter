@@ -6,6 +6,8 @@ import (
 
 	"strings"
 
+	stdtls "crypto/tls"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -233,6 +235,14 @@ func (r *Engine) resolveCertificates(
 			state.refsResolved = false
 			state.refsReason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
 			state.refsMessage = fmt.Sprintf("Secret %s/%s has no TLS material", namespace, ref.Name)
+			return
+		}
+
+		if _, err := stdtls.X509KeyPair(cert, key); err != nil {
+			state.refsResolved = false
+			state.refsReason = string(gatewayv1.ListenerReasonInvalidCertificateRef)
+			state.refsMessage = fmt.Sprintf(
+				"Secret %s/%s has malformed TLS material: %v", namespace, ref.Name, err)
 			return
 		}
 
