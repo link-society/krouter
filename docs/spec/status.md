@@ -17,6 +17,9 @@ v1.5.1, including:
   name.
 - Route `Accepted`, `ResolvedRefs`, and `Programmed` conditions where
   required.
+- ListenerSet `Accepted` and `Programmed` conditions, per-listener entry
+  statuses (supported kinds, attached routes, conditions), and the parent
+  Gateway's `attachedListenerSets` count.
 - Correct `reason`, `message`, `lastTransitionTime`, and
   `observedGeneration` values.
 

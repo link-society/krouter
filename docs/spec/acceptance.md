@@ -50,3 +50,7 @@ The implementation is accepted when:
 20. BackendTLSPolicy re-encryption — SNI, CA verification, fail-closed
     mismatches, conflict resolution, and ancestor status — passes the
     corresponding conformance tests.
+21. ListenerSet attachment — allowed-listeners gating, listener merging
+    with conflict rejection, per-set route binding, ReferenceGrant
+    semantics, and set statuses — passes the corresponding conformance
+    tests.

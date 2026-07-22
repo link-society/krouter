@@ -40,7 +40,7 @@ resources.
 | Backend health | EndpointSlice conditions only |
 | Authentication | Out of scope |
 | Rate limiting | Out of scope |
-| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`), TLSRoute (`v1`), UDPRoute (`v1alpha2`), and BackendTLSPolicy (`v1alpha3`) |
+| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`), TLSRoute (`v1`), UDPRoute (`v1alpha2`), BackendTLSPolicy (`v1alpha3`), and ListenerSet (`v1`) |
 | Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring) and HTTPRoute rule timeouts are supported and verified by their Extended conformance tests; other Extended features are out of scope |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
@@ -65,8 +65,9 @@ the SNI value and never holds the certificate. TLS listeners in
   HTTPRoute filters: CORS, HTTP method and query-parameter matching,
   per-backendRef filters, named rules, and non-default backend protocols.
 - BackendTLSPolicy `subjectAltNames` validation and `options`.
+- Policy attachment to ListenerSets.
 - Experimental-channel resources and fields other than TCPRoute,
-  TLSRoute, UDPRoute, and BackendTLSPolicy.
+  TLSRoute, UDPRoute, BackendTLSPolicy, and ListenerSet.
 - Authentication and authorization policies.
 - Rate limiting.
 - Active backend health checks.

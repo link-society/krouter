@@ -36,7 +36,7 @@ The control plane:
 - Runs as a single-replica Deployment.
 - Performs no leader election.
 - Watches GatewayClass, Gateway, HTTPRoute, GRPCRoute, TCPRoute, TLSRoute,
-  UDPRoute,
+  UDPRoute, ListenerSet,
   ReferenceGrant, Service, Secret,
   Namespace, Pod, and EndpointSlice resources required by the
   implementation.

@@ -87,3 +87,26 @@ port for each `(Gateway UID, external port, listener protocol)` group.
   and reconstructed from that state after a control-plane restart.
 - An exhausted internal port range sets an appropriate negative Programmed
   condition and MUST NOT steal or renumber an active allocation.
+
+## Listener sets
+
+A ListenerSet attaches additional listeners to a parent Gateway. Merged
+listeners get the same validation, internal port allocation, Service
+exposure, and data-plane treatment as the Gateway's own listeners.
+
+- A Gateway MUST NOT accept ListenerSets unless its `allowedListeners`
+  field admits the set's namespace; the default admits none, and rejected
+  sets receive `Accepted=False` with reason `NotAllowed`.
+- Effective listeners are merged in precedence order: the Gateway's own
+  listeners first, then each accepted ListenerSet by creation time.
+- Two effective listeners sharing a port conflict when their protocols
+  differ (`ProtocolConflict`) or when their protocol and hostname are both
+  equal (`HostnameConflict`): the lower-precedence listener is rejected
+  with a `Conflicted` condition and serves nothing.
+- Routes attach to a ListenerSet by naming it in `parentRefs`; such routes
+  bind only to that set's listeners, and routes attached to the Gateway
+  bind only to the Gateway's own listeners.
+- Certificate references of ListenerSet listeners resolve in the set's
+  namespace; cross-namespace references require a ReferenceGrant naming
+  the ListenerSet kind. Grants for the parent Gateway are not inherited.
+- The Gateway status publishes the number of attached ListenerSets.
