@@ -13,7 +13,7 @@
 #   worker  (krouter-e2e-worker):  nodePort N -> host 127.0.0.1:N
 #   worker2 (krouter-e2e-worker2): nodePort N -> host 127.0.0.1:(N + 1000)
 #
-# The window is 30080-30095 and 30443-30445. Port assignments per test module
+# The window is 30080-30100 and 30443-30445. Port assignments per test module
 # live in tests/src/e2elib/ports.py. The krouter internal listener port range
 # (docs/spec/deployment.md, default 10000-29999) must never overlap these NodePorts.
 kind: Cluster
@@ -39,6 +39,11 @@ nodes:
       - { containerPort: 30093, hostPort: 30093, listenAddress: 127.0.0.1 }
       - { containerPort: 30094, hostPort: 30094, listenAddress: 127.0.0.1 }
       - { containerPort: 30095, hostPort: 30095, listenAddress: 127.0.0.1 }
+      - { containerPort: 30096, hostPort: 30096, listenAddress: 127.0.0.1 }
+      - { containerPort: 30097, hostPort: 30097, listenAddress: 127.0.0.1 }
+      - { containerPort: 30098, hostPort: 30098, listenAddress: 127.0.0.1 }
+      - { containerPort: 30099, hostPort: 30099, listenAddress: 127.0.0.1 }
+      - { containerPort: 30100, hostPort: 30100, listenAddress: 127.0.0.1 }
       - { containerPort: 30443, hostPort: 30443, listenAddress: 127.0.0.1 }
       - { containerPort: 30444, hostPort: 30444, listenAddress: 127.0.0.1 }
       - { containerPort: 30445, hostPort: 30445, listenAddress: 127.0.0.1 }
@@ -60,6 +65,11 @@ nodes:
       - { containerPort: 30093, hostPort: 31093, listenAddress: 127.0.0.1 }
       - { containerPort: 30094, hostPort: 31094, listenAddress: 127.0.0.1 }
       - { containerPort: 30095, hostPort: 31095, listenAddress: 127.0.0.1 }
+      - { containerPort: 30096, hostPort: 31096, listenAddress: 127.0.0.1 }
+      - { containerPort: 30097, hostPort: 31097, listenAddress: 127.0.0.1 }
+      - { containerPort: 30098, hostPort: 31098, listenAddress: 127.0.0.1 }
+      - { containerPort: 30099, hostPort: 31099, listenAddress: 127.0.0.1 }
+      - { containerPort: 30100, hostPort: 31100, listenAddress: 127.0.0.1 }
       - { containerPort: 30443, hostPort: 31443, listenAddress: 127.0.0.1 }
       - { containerPort: 30444, hostPort: 31444, listenAddress: 127.0.0.1 }
       - { containerPort: 30445, hostPort: 31445, listenAddress: 127.0.0.1 }

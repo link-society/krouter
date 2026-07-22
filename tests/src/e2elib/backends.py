@@ -358,6 +358,75 @@ def tls_echo_backend(
     ]
 
 
+# ------------------------------------------------------------ grpc echo --
+
+GRPC_GREETER_IMAGE = "grpc/java-example-hostname:1.71.0"
+GRPC_BACKEND_PORT = 50051
+
+
+def grpc_greeter_backend(name: str, namespace: str, replicas: int = 1) -> list[dict]:
+    """
+    Deployment + Service for one gRPC backend (docs/spec/traffic.md gRPC
+    routing): the standard helloworld.Greeter service replying with the
+    serving pod's hostname — the identity driving routing and balancing
+    assertions.
+    """
+
+    labels = {"app": name}
+
+    return [
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "replicas": replicas,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "greeter",
+                                "image": GRPC_GREETER_IMAGE,
+                                "ports": [{"containerPort": GRPC_BACKEND_PORT}],
+                                "env": [
+                                    # Keep the JVM small: many pods share a
+                                    # laptop-sized kind cluster.
+                                    {
+                                        "name": "JAVA_TOOL_OPTIONS",
+                                        "value": "-Xms32m -Xmx128m",
+                                    },
+                                ],
+                                "readinessProbe": {
+                                    "tcpSocket": {"port": GRPC_BACKEND_PORT},
+                                    "periodSeconds": 2,
+                                    "failureThreshold": 2,
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "selector": labels,
+                "ports": [
+                    {
+                        "name": "grpc",
+                        "port": GRPC_BACKEND_PORT,
+                        "targetPort": GRPC_BACKEND_PORT,
+                    },
+                ],
+            },
+        },
+    ]
+
+
 # --------------------------------------------------- runtime pod control --
 
 def _pod_api(

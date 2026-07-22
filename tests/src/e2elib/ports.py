@@ -6,7 +6,7 @@ infrastructure parameters (docs/spec/parameters.md) and must be published by
 tests/config/kind/cluster.yaml. Keeping the registry central prevents port
 collisions between test modules sharing the session cluster.
 
-Published window: 30080-30095 and 30443-30445.
+Published window: 30080-30100 and 30443-30445.
 """
 
 from e2elib import config
@@ -28,10 +28,12 @@ BENCH_KROUTER = 30090
 BENCH_NGINX = 30091
 BENCH_TRAEFIK = 30092
 
-# spares: none
 LAST_VALID = 30093
 TCP_ROUTES = 30094
 TLS_ROUTES = 30095
+GRPC_ROUTES = 30096
+
+# spares: 30097-30100
 
 # TLS listeners
 PROTOCOLS_HTTPS = 30443

@@ -1,11 +1,11 @@
 // Package conformance runs the official Gateway API conformance suite
 // against a live cluster running krouter.
 //
-// The conformance target (docs/spec/overview.md, docs/spec/acceptance.md criterion 1
-// and criterion 14) is: all Core tests of the GATEWAY-HTTP and GATEWAY-TLS
-// profiles, Gateway API v1.5.1. TCPRoute has no conformance profile in this
-// release (docs/spec/acceptance.md criterion 13); it is verified by the e2e
-// suite instead.
+// The conformance target (docs/spec/overview.md, docs/spec/acceptance.md criteria 1,
+// 14 and 15) is: all Core tests of the GATEWAY-HTTP, GATEWAY-GRPC and
+// GATEWAY-TLS profiles, Gateway API v1.5.1. TCPRoute has no conformance
+// profile in this release (docs/spec/acceptance.md criterion 13); it is
+// verified by the e2e suite instead.
 // The profile is therefore forced here rather than left to a flag.
 //
 // The suite dials the addresses published on Gateway status, which are only
@@ -26,10 +26,11 @@ import (
 func TestConformance(t *testing.T) {
 	opts := conformance.DefaultOptions(t)
 
-	// docs/spec/acceptance.md criteria 1 and 14: the GATEWAY-HTTP and
-	// GATEWAY-TLS Core profiles must pass in full.
+	// docs/spec/acceptance.md criteria 1, 14 and 15: the GATEWAY-HTTP,
+	// GATEWAY-GRPC and GATEWAY-TLS Core profiles must pass in full.
 	opts.ConformanceProfiles = sets.New(
 		suite.GatewayHTTPConformanceProfileName,
+		suite.GatewayGRPCConformanceProfileName,
 		suite.GatewayTLSConformanceProfileName,
 	)
 

@@ -249,6 +249,34 @@ def tls_route(
     }
 
 
+def grpc_route(
+    name: str,
+    namespace: str,
+    parent_refs: list[dict],
+    hostnames: list[str] | None = None,
+    rules: list[dict] | None = None,
+) -> dict:
+    """
+    GRPCRoute (Standard channel, docs/spec/overview.md): method and header
+    matched gRPC routing over HTTP/2 (docs/spec/traffic.md).
+    """
+
+    spec: dict = {"parentRefs": parent_refs}
+
+    if hostnames:
+        spec["hostnames"] = hostnames
+
+    if rules is not None:
+        spec["rules"] = rules
+
+    return {
+        "apiVersion": "gateway.networking.k8s.io/v1",
+        "kind": "GRPCRoute",
+        "metadata": {"name": name, "namespace": namespace},
+        "spec": spec,
+    }
+
+
 def parent_ref(
     name: str,
     namespace: str | None = None,

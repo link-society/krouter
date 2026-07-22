@@ -234,6 +234,107 @@ def wait_tls_ready(node_port: int, sni: str, timeout: float = 120, worker: int =
     )
 
 
+# ---------------------------------------------------------------- grpc --
+
+def _grpc_frame(message: bytes) -> bytes:
+    """
+    gRPC length-prefixed message framing (uncompressed).
+    """
+
+    return b"\x00" + len(message).to_bytes(4, "big") + message
+
+
+def _protobuf_string(field: int, value: str) -> bytes:
+    """
+    Encode one short protobuf string field (wire type 2, length < 128).
+    """
+
+    payload = value.encode()
+    assert len(payload) < 128, "helper only encodes short strings"
+
+    return bytes([field << 3 | 2, len(payload)]) + payload
+
+
+def _protobuf_first_string(message: bytes) -> str:
+    """
+    Decode the first short protobuf string field of a message.
+    """
+
+    assert len(message) >= 2 and message[0] & 0x07 == 2, \
+        f"expected a string field, got {message[:8]!r}"
+
+    length = message[1]
+
+    return message[2 : 2 + length].decode()
+
+
+def grpc_hello(
+    node_port: int,
+    host: str,
+    name: str = "krouter",
+    path: str = "/helloworld.Greeter/SayHello",
+    headers: dict[str, str] | None = None,
+    worker: int = 1,
+) -> tuple[int | None, str]:
+    """
+    One unary call to the hostname greeter through a published NodePort,
+    speaking gRPC over cleartext HTTP/2 (docs/spec/traffic.md gRPC routing).
+
+    Returns (grpc_status, reply). The status comes from the response
+    HEADERS frame and is therefore only visible for trailers-only failure
+    responses; successful replies return (None, "Hello <name> from <pod>").
+    """
+
+    url = base_url(node_port, "http", worker) + path
+
+    all_headers = {
+        "content-type": "application/grpc",
+        "te": "trailers",
+        "host": host,
+        **(headers or {}),
+    }
+
+    body = _grpc_frame(_protobuf_string(1, name))
+
+    with httpx.Client(http1=False, http2=True, timeout=10) as client:
+        resp = client.post(url, content=body, headers=all_headers)
+
+    status = resp.headers.get("grpc-status")
+    grpc_status = int(status) if status is not None else None
+
+    reply = ""
+    if len(resp.content) > 5:
+        reply = _protobuf_first_string(resp.content[5:])
+
+    return grpc_status, reply
+
+
+def wait_grpc_ready(
+    node_port: int,
+    host: str,
+    timeout: float = 120,
+    worker: int = 1,
+) -> str:
+    """
+    Wait until the greeter answers through the Gateway.
+    """
+
+    def check():
+        try:
+            _, reply = grpc_hello(node_port, host, worker=worker)
+
+        except (httpx.HTTPError, OSError):
+            return None
+
+        return reply if reply.startswith("Hello") else None
+
+    return kubectl.wait_for(
+        check,
+        timeout=timeout,
+        desc=f"gRPC greeting from …:{node_port} (host={host})",
+    )
+
+
 # --------------------------------------------------------- traffic probe --
 
 def dataplane_readyz(pod: dict) -> dict:
