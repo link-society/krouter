@@ -89,6 +89,7 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		features.SupportUDPRoute,
 		features.SupportReferenceGrant,
 		features.SupportBackendTLSPolicy,
+		features.SupportListenerSet,
 
 		// Extended HTTPRoute filters (docs/spec/acceptance.md criterion 16).
 		features.SupportHTTPRouteResponseHeaderModification,

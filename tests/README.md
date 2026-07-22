@@ -70,6 +70,7 @@ task k8s:down
 | 18 | GatewayClass supportedFeatures publication | `task tests:conformance` |
 | 19 | UDPRoute per-flow forwarding, same guarantees | `task tests:e2e` + `task tests:conformance` |
 | 20 | BackendTLSPolicy re-encryption | `task tests:conformance` |
+| 21 | ListenerSet attachment and merging | `task tests:conformance` |
 
 The e2e suite is organized as one test module per criterion (plus one for
 the installation contract of docs/spec/deployment.md, docs/spec/security.md, docs/spec/observability.md); discover them with
