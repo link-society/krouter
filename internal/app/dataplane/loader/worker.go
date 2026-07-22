@@ -60,6 +60,19 @@ func (w *worker) rebuild(ctx actor.Context, raw configwatcher.RawConfig) {
 		if err == nil {
 			status.DesiredGeneration = manifest.Generation
 
+			// Generations are content-addressed: reuse the live table when
+			// the desired generation is already applied, so long-lived state
+			// (weighted round-robin counters) survives watcher ticks and
+			// only real changes swap tables (docs/spec/configuration.md).
+			if previous, ok := w.applied[uid]; ok &&
+				previous.Generation == manifest.Generation {
+				applied[uid] = previous
+				status.AppliedGeneration = manifest.Generation
+				statuses[uid] = status
+
+				continue
+			}
+
 			var table *routing.GatewayTable
 			table, err = routing.LoadGeneration(manifest, raw.ConfigMaps, raw.Secrets)
 			if err == nil {
