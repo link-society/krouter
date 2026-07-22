@@ -30,17 +30,17 @@ resources.
 | Item | Requirement |
 |---|---|
 | Kubernetes | v1.31 or newer |
-| Gateway API | v1.5.1, Experimental channel CRDs (the Standard resources plus `TCPRoute` and `TLSRoute`) |
-| Conformance target | All Core tests in `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`; TCPRoute has no conformance profile in v1.5.1 and is verified by the krouter test suite |
-| Route types | HTTPRoute, GRPCRoute, TCPRoute, and TLSRoute |
-| Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, and TLS passthrough |
-| Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends; raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends |
-| Listeners | HTTP, HTTPS with TLS termination, TCP, and TLS in Passthrough mode |
+| Gateway API | v1.5.1, Experimental channel CRDs (the Standard resources plus `TCPRoute`, `TLSRoute`, and `UDPRoute`) |
+| Conformance target | All Core tests in `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`; TCPRoute and UDPRoute have no conformance profile in v1.5.1 and are verified by the krouter test suite (plus the provisional UDPRoute conformance test) |
+| Route types | HTTPRoute, GRPCRoute, TCPRoute, TLSRoute, and UDPRoute |
+| Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, TLS passthrough, and UDP |
+| Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends; raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends; UDP datagrams for UDPRoute backends |
+| Listeners | HTTP, HTTPS with TLS termination, TCP, TLS in Passthrough mode, and UDP |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
 | Authentication | Out of scope |
 | Rate limiting | Out of scope |
-| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`) and TLSRoute (`v1`) |
+| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`), TLSRoute (`v1`), and UDPRoute (`v1alpha2`) |
 | Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring) and HTTPRoute rule timeouts are supported and verified by their Extended conformance tests; other Extended features are out of scope |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
@@ -48,7 +48,7 @@ annotation on installed Gateway API CRDs and publish the GatewayClass
 `SupportedVersion` condition. Unsupported bundles MUST NOT be reconciled as
 if they were compatible.
 
-TCPRoute and TLSRoute support requires the corresponding
+TCPRoute, TLSRoute, and UDPRoute support requires the corresponding
 Experimental-channel CRDs. When such a CRD is not installed, krouter MUST
 reconcile the remaining resources normally and MUST NOT crash or degrade
 HTTP behavior; the affected listeners then receive a negative condition for
@@ -60,7 +60,6 @@ the SNI value and never holds the certificate. TLS listeners in
 
 ## Explicitly deferred work
 
-- UDPRoute.
 - TLS listeners in `Terminate` mode (TLSRoute is passthrough-only).
 - Gateway API Standard Extended features other than the supported
   HTTPRoute filters: CORS, HTTP method and query-parameter matching,

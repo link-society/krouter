@@ -34,7 +34,8 @@ at least:
 
 For TCP and TLS passthrough listeners, the data plane writes one event per
 closed connection with the same fields minus the HTTP-specific ones (plus
-the SNI value for TLS passthrough). gRPC requests are logged like HTTP
+the SNI value for TLS passthrough); UDP listeners write one event per
+expired flow. gRPC requests are logged like HTTP
 requests, additionally carrying the gRPC status code.
 
 ## Metrics

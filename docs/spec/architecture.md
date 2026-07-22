@@ -36,12 +36,14 @@ The control plane:
 - Runs as a single-replica Deployment.
 - Performs no leader election.
 - Watches GatewayClass, Gateway, HTTPRoute, GRPCRoute, TCPRoute, TLSRoute,
+  UDPRoute,
   ReferenceGrant, Service, Secret,
   Namespace, Pod, and EndpointSlice resources required by the
   implementation.
 - Validates attachment, references, listener conflicts, parameters, and all
   other Gateway API semantics.
-- Compiles accepted Gateway, HTTPRoute, GRPCRoute, TCPRoute, and TLSRoute
+- Compiles accepted Gateway, HTTPRoute, GRPCRoute, TCPRoute, TLSRoute, and
+  UDPRoute
   configuration
   (see [configuration.md](configuration.md)).
 - Allocates internal listener ports (see [frontend.md](frontend.md)).

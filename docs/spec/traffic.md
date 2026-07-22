@@ -53,6 +53,22 @@ rewritten.
   reloads; listener removal stops new accepts while established connections
   finish.
 
+## UDP forwarding
+
+A UDP listener forwards datagrams; nothing is interpreted or rewritten.
+
+- A UDPRoute attaches to a UDP listener and carries no hostname, path,
+  header, or filter semantics: every datagram received by the listener is
+  forwarded to one of the route's backend endpoints.
+- Datagrams are associated into flows by client source address: a flow
+  keeps its selected backend endpoint until it has been idle for a bounded
+  period, and responses from the backend are relayed to the flow's client.
+- The backend endpoint is selected once per flow, applying Gateway API
+  backend weights and the GatewayClass load-balancing algorithm over
+  eligible endpoints, exactly as for TCP connections.
+- Established flows keep their selected backend across configuration
+  reloads; listener removal stops the listener and expires its flows.
+
 ## TLS passthrough
 
 A TLS listener in `Passthrough` mode routes on the SNI value of the
@@ -114,6 +130,8 @@ plane access to or compiling a cross-namespace backend reference.
 - Accept HTTP/1.1 and HTTP/2 downstream connections on HTTP and HTTPS
   listeners.
 - Accept raw TCP connections on TCP listeners and forward them without
+  interpretation.
+- Accept UDP datagrams on UDP listeners and forward them per flow without
   interpretation.
 - Accept TLS connections on TLS passthrough listeners, route by SNI, and
   forward them still encrypted.

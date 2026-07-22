@@ -77,11 +77,12 @@ port for each `(Gateway UID, external port, listener protocol)` group.
 - HTTP and HTTPS listeners use different internal listeners.
 - TLS passthrough listeners sharing an external port for the same Gateway
   share one internal listener and are distinguished by SNI.
-- TCP listeners carry no hostname, so a Gateway MUST NOT declare more than
-  one TCP listener per external port; each TCP listener group maps to its
-  own internal listener.
+- TCP and UDP listeners carry no hostname, so a Gateway MUST NOT declare
+  more than one TCP listener and one UDP listener per external port; each
+  such listener group maps to its own internal listener.
 - The Service maps the Gateway's declared external listener port to the
-  allocated internal port.
+  allocated internal port, using the listener's transport protocol (TCP,
+  or UDP for UDP listeners).
 - The allocation MUST be persisted in generated Service/configuration state
   and reconstructed from that state after a control-plane restart.
 - An exhausted internal port range sets an appropriate negative Programmed

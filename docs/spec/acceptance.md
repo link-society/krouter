@@ -42,3 +42,8 @@ The implementation is accepted when:
 18. The GatewayClass publishes `status.supportedFeatures`, and the
     conformance suite derives its feature set from it without manual
     declaration.
+19. UDP listeners forward datagrams to UDPRoute backends with per-flow
+    backend association and the same atomic-update and last-valid
+    guarantees as TCP traffic. UDPRoute has no conformance profile in
+    Gateway API v1.5.1; the krouter end-to-end suite and the provisional
+    UDPRoute conformance test are the verification.
