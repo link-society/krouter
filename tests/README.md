@@ -66,6 +66,7 @@ task k8s:down
 | 14 | TLSRoute SNI passthrough, same guarantees | `task tests:e2e` + `task tests:conformance` |
 | 15 | GRPCRoute matching and h2c forwarding | `task tests:e2e` + `task tests:conformance` |
 | 16 | Extended HTTPRoute filters | `task tests:conformance` |
+| 17 | HTTPRoute rule timeouts | `task tests:conformance` |
 
 The e2e suite is organized as one test module per criterion (plus one for
 the installation contract of docs/spec/deployment.md, docs/spec/security.md, docs/spec/observability.md); discover them with

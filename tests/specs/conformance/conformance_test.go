@@ -61,6 +61,10 @@ func TestConformance(t *testing.T) {
 		features.SupportHTTPRouteRequestMirror,
 		features.SupportHTTPRouteRequestMultipleMirrors,
 		features.SupportHTTPRouteRequestPercentageMirror,
+
+		// HTTPRoute rule timeouts (docs/spec/acceptance.md criterion 17).
+		features.SupportHTTPRouteRequestTimeout,
+		features.SupportHTTPRouteBackendTimeout,
 	)
 
 	// Implementation metadata (organization, project, ...) and the
