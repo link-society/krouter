@@ -1,8 +1,8 @@
 ---
 # Demo topology for the control-plane dashboard: one Gateway serving all
-# three route kinds (HTTP, TCP, TLS passthrough), a same-namespace backend,
-# an authorized cross-namespace backend and one intentionally missing
-# backend to show degraded rendering.
+# four route kinds (HTTP, gRPC, TCP, TLS passthrough), a same-namespace
+# backend, an authorized cross-namespace backend and one intentionally
+# missing backend to show degraded rendering.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -51,6 +51,19 @@ spec:
     - name: https
       port: 8200
       targetPort: 8200
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemetry
+  namespace: dashboard-demo
+spec:
+  selector:
+    app: telemetry
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
 ---
 apiVersion: v1
 kind: Service
@@ -162,6 +175,26 @@ spec:
     - backendRefs:
         - name: db
           port: 5432
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: telemetry
+  namespace: dashboard-demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: http
+  hostnames:
+    - grpc.demo.example.com
+  rules:
+    - matches:
+        - method:
+            service: telemetry.v1.Collector
+            method: Push
+      backendRefs:
+        - name: telemetry
+          port: 50051
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: TLSRoute
