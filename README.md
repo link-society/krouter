@@ -49,15 +49,19 @@ required by the [deployment specification](docs/spec/deployment.md).
 
 ### Trying it out
 
-A self-contained example topology is provided:
+A self-contained example topology is provided: one Gateway serving HTTP,
+gRPC, TCP, UDP and TLS-passthrough routes, backed by real mock services
+(httpbin, tcpbin, udpbin, grpcbin — built from [tests/mocks](tests/mocks/)):
 
 ```sh
-kubectl apply -f k8s/demo.yaml
-kubectl -n krouter-system port-forward svc/krouter-dashboard 8080
+task k8s:serve  # build + load the mock images, deploy the demo, forward the dashboard
 ```
 
 Then open <http://localhost:8080> to explore the demo Gateway, its routes
-and backends in the dashboard.
+and backends in the dashboard. The header of
+[tests/config/mocks/manifest.yml](tests/config/mocks/manifest.yml) lists
+ready-to-paste `curl`, `grpcurl` and `nc` commands to exercise every route
+from the host.
 
 ## Testing
 

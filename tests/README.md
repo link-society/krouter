@@ -108,6 +108,15 @@ at runtime without terminating it, records received requests so forwarded
 headers can be asserted, and can delay responses to keep requests in flight
 while a reload happens.
 
+The demo topology (tests/config/mocks/manifest.yml) uses purpose-built mock
+backends instead: the `tests/mocks` Go module provides `httpbin` (HTTP
+request inspection), `tcpbin` (TCP echo), `udpbin` (UDP echo) and `grpcbin`
+(gRPC greeter + health + reflection, plaintext and TLS) services, each
+replying with the serving pod's hostname so load balancing is observable.
+Their images are built from `docker/mocks/*.dockerfile` by
+`task mocks:build` and loaded into kind by `task mocks:load` (both run
+automatically as part of `task k8s:serve`).
+
 ## Environment notes
 
 - Suites that must reach Gateway or node addresses directly run where
