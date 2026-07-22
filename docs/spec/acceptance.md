@@ -22,3 +22,7 @@ The implementation is accepted when:
     published.
 12. The installation requires only the standard manifest plus preinstalled
     Gateway API CRDs.
+13. TCP listeners forward raw streams to TCPRoute backends with the same
+    atomic-update, last-valid, and connection-survival guarantees as HTTP
+    traffic. TCPRoute has no conformance profile in Gateway API v1.5.1;
+    the krouter end-to-end suite is the verification.

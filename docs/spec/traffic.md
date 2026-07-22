@@ -1,7 +1,7 @@
 # Traffic
 
 The data-plane request path, its lifecycle guarantees, and the required
-HTTP behavior.
+HTTP and TCP behavior.
 
 ## Request path
 
@@ -20,6 +20,22 @@ sequenceDiagram
     E->>B: HTTP/1.1 request (streamed)
     B-->>C: response (streamed through the proxy)
 ```
+
+## TCP forwarding
+
+A TCP listener forwards raw byte streams; nothing is interpreted or
+rewritten.
+
+- A TCPRoute attaches to a TCP listener and carries no hostname, path,
+  header, or filter semantics: every connection accepted by the listener
+  is forwarded to one of the route's backend endpoints.
+- The backend endpoint is selected once per downstream connection, applying
+  Gateway API backend weights and the GatewayClass load-balancing algorithm
+  over eligible endpoints, exactly as for HTTP backends.
+- Bytes flow in both directions until either side closes the connection.
+- An established connection keeps its selected backend across configuration
+  reloads; listener removal stops new accepts while established connections
+  finish.
 
 ## Connection lifecycle and hot reload
 
@@ -57,8 +73,11 @@ plane access to or compiling a cross-namespace backend reference.
 
 ## Protocol handling
 
-- Accept HTTP/1.1 and HTTP/2 downstream connections.
-- Use HTTP/1.1 for connections to backend endpoints.
+- Accept HTTP/1.1 and HTTP/2 downstream connections on HTTP and HTTPS
+  listeners.
+- Accept raw TCP connections on TCP listeners and forward them without
+  interpretation.
+- Use HTTP/1.1 for connections to backend endpoints of HTTP routes.
 - Terminate HTTPS using certificates referenced by Gateway listeners.
 - Support standard HTTP upgrade behavior required by the Core conformance
   profile.
@@ -69,7 +88,8 @@ plane access to or compiling a cross-namespace backend reference.
 
 krouter implements the exact matching, precedence, backend weighting,
 listener isolation, reference resolution, and filter behavior required by
-the Gateway API v1.5.1 `GATEWAY-HTTP` Core conformance profile.
+the Gateway API v1.5.1 `GATEWAY-HTTP` Core conformance profile, and the
+TCPRoute attachment semantics defined by the upstream API specification.
 
 No implementation-specific annotations or Route extensions are added.
 

@@ -32,6 +32,9 @@ at least:
 - Actual client IP.
 - Error classification when applicable.
 
+For TCP listeners, the data plane writes one event per closed connection
+with the same fields minus the HTTP-specific ones.
+
 ## Metrics
 
 Prometheus metrics MUST cover at least:

@@ -6,9 +6,9 @@ krouter is a Kubernetes Gateway API implementation and HTTP/HTTPS reverse
 proxy.
 
 krouter implements the Gateway API `GATEWAY-HTTP` Core conformance
-profile. The architecture MUST remain extensible to the other Standard
-Gateway API route types and features without introducing krouter-specific
-Kubernetes custom resources.
+profile, plus TCPRoute support. The architecture MUST remain extensible to
+the other Standard Gateway API route types and features without introducing
+krouter-specific Kubernetes custom resources.
 
 ## Design principles
 
@@ -29,16 +29,17 @@ Kubernetes custom resources.
 | Item | Requirement |
 |---|---|
 | Kubernetes | v1.31 or newer |
-| Gateway API | v1.5.1, Standard channel |
-| Conformance target | All Core tests in `GATEWAY-HTTP` |
-| Client protocols | HTTP/1.1 and HTTP/2 |
-| Backend protocol | HTTP/1.1 |
-| Listeners | HTTP and HTTPS with TLS termination |
+| Gateway API | v1.5.1, Standard channel, plus the Experimental `TCPRoute` CRD |
+| Conformance target | All Core tests in `GATEWAY-HTTP`; TCPRoute has no conformance profile in v1.5.1 and is verified by the krouter test suite |
+| Route types | HTTPRoute and TCPRoute |
+| Client protocols | HTTP/1.1, HTTP/2, and raw TCP |
+| Backend protocol | HTTP/1.1; raw TCP for TCPRoute backends |
+| Listeners | HTTP, HTTPS with TLS termination, and TCP |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
 | Authentication | Out of scope |
 | Rate limiting | Out of scope |
-| Experimental Gateway API features | Out of scope |
+| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`) |
 | Standard-channel Extended features | Out of scope unless required by a Core conformance test |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
@@ -46,11 +47,16 @@ annotation on installed Gateway API CRDs and publish the GatewayClass
 `SupportedVersion` condition. Unsupported bundles MUST NOT be reconciled as
 if they were compatible.
 
+TCPRoute support requires the Experimental-channel `TCPRoute` CRD. When
+that CRD is not installed, krouter MUST reconcile the remaining resources
+normally and MUST NOT crash or degrade HTTP behavior; TCP listeners then
+receive a negative condition for lack of an attachable route kind.
+
 ## Explicitly deferred work
 
-- GRPCRoute, TLSRoute, TCPRoute, and UDPRoute.
+- GRPCRoute, TLSRoute, and UDPRoute.
 - Gateway API Standard Extended features not required by Core conformance.
-- Experimental-channel resources and fields.
+- Experimental-channel resources and fields other than TCPRoute.
 - Authentication and authorization policies.
 - Rate limiting.
 - Active backend health checks.
