@@ -286,6 +286,55 @@ func parentRefMatches(ref gatewayv1.ParentReference, routeNamespace string, gw *
 	return namespace == gw.Namespace && string(ref.Name) == gw.Name
 }
 
+// admitListeners applies the attachment admission ladder shared by every
+// route kind (docs/spec/status.md): sectionName narrowing first, then
+// listener kind admission, then namespace policy. It returns the admitted
+// listeners, or the Accepted-condition reason for the rejection.
+func admitListeners(
+	listeners []*listenerState,
+	parentRef gatewayv1.ParentReference,
+	routeKind string,
+	routeNamespace, gatewayNamespace string,
+	namespaces map[string]map[string]string,
+) ([]*listenerState, string) {
+	var candidates []*listenerState
+	for _, lst := range listeners {
+		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
+			continue
+		}
+
+		candidates = append(candidates, lst)
+	}
+
+	if len(candidates) == 0 {
+		return nil, string(gatewayv1.RouteReasonNoMatchingParent)
+	}
+
+	var kindAdmitted []*listenerState
+	for _, lst := range candidates {
+		if lst.allowedKinds[routeKind] {
+			kindAdmitted = append(kindAdmitted, lst)
+		}
+	}
+
+	if len(kindAdmitted) == 0 {
+		return nil, string(gatewayv1.RouteReasonNotAllowedByListeners)
+	}
+
+	var admitted []*listenerState
+	for _, lst := range kindAdmitted {
+		if namespaceAllowed(lst.spec.AllowedRoutes, routeNamespace, gatewayNamespace, namespaces) {
+			admitted = append(admitted, lst)
+		}
+	}
+
+	if len(admitted) == 0 {
+		return nil, string(gatewayv1.RouteReasonNotAllowedByListeners)
+	}
+
+	return admitted, ""
+}
+
 func (r *Engine) attachRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
@@ -300,37 +349,10 @@ func (r *Engine) attachRoute(
 		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
 	}
 
-	// Select candidate listeners (sectionName narrows them, the route kind
-	// must be compatible with the listener protocol).
-	var candidates []*listenerState
-	for _, lst := range listeners {
-		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
-			continue
-		}
-
-		if lst.spec.Protocol != gatewayv1.HTTPProtocolType &&
-			lst.spec.Protocol != gatewayv1.HTTPSProtocolType {
-			continue
-		}
-
-		candidates = append(candidates, lst)
-	}
-
-	if len(candidates) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingParent)
-		return outcome
-	}
-
-	// Listener admission: namespace policy, then hostname intersection.
-	var namespaceAdmitted []*listenerState
-	for _, lst := range candidates {
-		if namespaceAllowed(lst.spec.AllowedRoutes, route.Namespace, gw.Namespace, w.namespaces) {
-			namespaceAdmitted = append(namespaceAdmitted, lst)
-		}
-	}
-
-	if len(namespaceAdmitted) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+	namespaceAdmitted, reason := admitListeners(
+		listeners, parentRef, "HTTPRoute", route.Namespace, gw.Namespace, w.namespaces)
+	if reason != "" {
+		outcome.acceptedReason = reason
 		return outcome
 	}
 
@@ -398,33 +420,10 @@ func (r *Engine) attachTCPRoute(
 		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
 	}
 
-	var candidates []*listenerState
-	for _, lst := range listeners {
-		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
-			continue
-		}
-
-		if lst.spec.Protocol != gatewayv1.TCPProtocolType {
-			continue
-		}
-
-		candidates = append(candidates, lst)
-	}
-
-	if len(candidates) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingParent)
-		return outcome
-	}
-
-	var admitted []*listenerState
-	for _, lst := range candidates {
-		if namespaceAllowed(lst.spec.AllowedRoutes, route.Namespace, gw.Namespace, w.namespaces) {
-			admitted = append(admitted, lst)
-		}
-	}
-
-	if len(admitted) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+	admitted, reason := admitListeners(
+		listeners, parentRef, "TCPRoute", route.Namespace, gw.Namespace, w.namespaces)
+	if reason != "" {
+		outcome.acceptedReason = reason
 		return outcome
 	}
 
@@ -505,33 +504,10 @@ func (r *Engine) attachTLSRoute(
 		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
 	}
 
-	var candidates []*listenerState
-	for _, lst := range listeners {
-		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
-			continue
-		}
-
-		if lst.spec.Protocol != gatewayv1.TLSProtocolType {
-			continue
-		}
-
-		candidates = append(candidates, lst)
-	}
-
-	if len(candidates) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingParent)
-		return outcome
-	}
-
-	var namespaceAdmitted []*listenerState
-	for _, lst := range candidates {
-		if namespaceAllowed(lst.spec.AllowedRoutes, route.Namespace, gw.Namespace, w.namespaces) {
-			namespaceAdmitted = append(namespaceAdmitted, lst)
-		}
-	}
-
-	if len(namespaceAdmitted) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+	namespaceAdmitted, reason := admitListeners(
+		listeners, parentRef, "TLSRoute", route.Namespace, gw.Namespace, w.namespaces)
+	if reason != "" {
+		outcome.acceptedReason = reason
 		return outcome
 	}
 
@@ -628,34 +604,10 @@ func (r *Engine) attachGRPCRoute(
 		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
 	}
 
-	var candidates []*listenerState
-	for _, lst := range listeners {
-		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
-			continue
-		}
-
-		if lst.spec.Protocol != gatewayv1.HTTPProtocolType &&
-			lst.spec.Protocol != gatewayv1.HTTPSProtocolType {
-			continue
-		}
-
-		candidates = append(candidates, lst)
-	}
-
-	if len(candidates) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingParent)
-		return outcome
-	}
-
-	var namespaceAdmitted []*listenerState
-	for _, lst := range candidates {
-		if namespaceAllowed(lst.spec.AllowedRoutes, route.Namespace, gw.Namespace, w.namespaces) {
-			namespaceAdmitted = append(namespaceAdmitted, lst)
-		}
-	}
-
-	if len(namespaceAdmitted) == 0 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+	namespaceAdmitted, reason := admitListeners(
+		listeners, parentRef, "GRPCRoute", route.Namespace, gw.Namespace, w.namespaces)
+	if reason != "" {
+		outcome.acceptedReason = reason
 		return outcome
 	}
 
@@ -1018,20 +970,6 @@ func namespaceAllowed(
 	routeNamespace, gatewayNamespace string,
 	namespaces map[string]map[string]string,
 ) bool {
-	if allowed != nil && len(allowed.Kinds) > 0 {
-		kindOK := false
-		for _, kind := range allowed.Kinds {
-			if string(kind.Kind) == "HTTPRoute" {
-				kindOK = true
-				break
-			}
-		}
-
-		if !kindOK {
-			return false
-		}
-	}
-
 	from := gatewayv1.NamespacesFromSame
 	var selector *metav1.LabelSelector
 
