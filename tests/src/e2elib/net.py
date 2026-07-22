@@ -183,6 +183,57 @@ def wait_tcp_ready(node_port: int, timeout: float = 120, worker: int = 1) -> str
     )
 
 
+class TlsStream(TcpStream):
+    """
+    One TLS connection through a passthrough listener (docs/spec/traffic.md).
+
+    The handshake is performed by the BACKEND: krouter only routes on the
+    SNI value and forwards the still-encrypted stream. Verification is
+    disabled because the test backends use self-issued certificates.
+    """
+
+    def __init__(self, node_port: int, sni: str, worker: int = 1, timeout: float = 10):
+        raw = socket.create_connection(
+            (config.TEST_HOST, ports.host_port(node_port, worker)),
+            timeout=timeout,
+        )
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+
+        self.sock = context.wrap_socket(raw, server_hostname=sni)
+        self.reader = self.sock.makefile("rb")
+
+
+def tls_greeting(node_port: int, sni: str, worker: int = 1) -> str:
+    """
+    Connect once with the SNI value and return the greeted backend pod.
+    """
+
+    with TlsStream(node_port, sni, worker=worker) as stream:
+        return stream.read_line()
+
+
+def wait_tls_ready(node_port: int, sni: str, timeout: float = 120, worker: int = 1) -> str:
+    """
+    Wait until the TLS passthrough listener forwards the SNI to a backend.
+    """
+
+    def check():
+        try:
+            return tls_greeting(node_port, sni, worker=worker) or None
+
+        except (OSError, ssl.SSLError):
+            return None
+
+    return kubectl.wait_for(
+        check,
+        timeout=timeout,
+        desc=f"TLS greeting from …:{node_port} (sni={sni})",
+    )
+
+
 # --------------------------------------------------------- traffic probe --
 
 def dataplane_readyz(pod: dict) -> dict:

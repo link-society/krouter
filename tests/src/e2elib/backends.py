@@ -261,6 +261,103 @@ def tcp_echo_backend(name: str, namespace: str, replicas: int = 1) -> list[dict]
     ]
 
 
+# ------------------------------------------------------------ tls echo --
+
+TLS_BACKEND_PORT = 9443
+
+
+def tls_echo_backend(
+    name: str,
+    namespace: str,
+    secret_name: str,
+    replicas: int = 1,
+) -> list[dict]:
+    """
+    Deployment + Service for one TLS-terminating backend
+    (docs/spec/traffic.md TLS passthrough): the BACKEND owns the TLS
+    session, proving krouter forwarded the stream without terminating it.
+
+    Same greeting-then-echo protocol as the raw TCP backend, inside TLS.
+    The certificate comes from an ordinary kubernetes.io/tls Secret; an
+    initContainer concatenates it into the single PEM file socat expects.
+    """
+
+    labels = {"app": name}
+
+    return [
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "replicas": replicas,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "initContainers": [
+                            {
+                                "name": "render-pem",
+                                "image": "busybox:1.36",
+                                "command": [
+                                    "sh", "-c",
+                                    "cat /tls/tls.key /tls/tls.crt > /rendered/server.pem",
+                                ],
+                                "volumeMounts": [
+                                    {"name": "tls", "mountPath": "/tls"},
+                                    {"name": "rendered", "mountPath": "/rendered"},
+                                ],
+                            },
+                        ],
+                        "containers": [
+                            {
+                                "name": "echo",
+                                "image": TCP_ECHO_IMAGE,
+                                "args": [
+                                    f"OPENSSL-LISTEN:{TLS_BACKEND_PORT},fork,reuseaddr,"
+                                    "cert=/rendered/server.pem,verify=0",
+                                    "SYSTEM:hostname; cat",
+                                ],
+                                "ports": [{"containerPort": TLS_BACKEND_PORT}],
+                                "volumeMounts": [
+                                    {"name": "rendered", "mountPath": "/rendered"},
+                                ],
+                                "readinessProbe": {
+                                    "tcpSocket": {"port": TLS_BACKEND_PORT},
+                                    "periodSeconds": 2,
+                                    "failureThreshold": 2,
+                                },
+                            },
+                        ],
+                        "volumes": [
+                            {
+                                "name": "tls",
+                                "secret": {"secretName": secret_name},
+                            },
+                            {"name": "rendered", "emptyDir": {}},
+                        ],
+                    },
+                },
+            },
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "selector": labels,
+                "ports": [
+                    {
+                        "name": "tls",
+                        "port": TLS_BACKEND_PORT,
+                        "targetPort": TLS_BACKEND_PORT,
+                    },
+                ],
+            },
+        },
+    ]
+
+
 # --------------------------------------------------- runtime pod control --
 
 def _pod_api(

@@ -120,6 +120,11 @@ def listener(
 
         entry["tls"] = {"mode": "Terminate", "certificateRefs": [ref]}
 
+    if protocol == "TLS":
+        # Passthrough only (docs/spec/overview.md): krouter never holds the
+        # certificate, the backend owns the TLS session.
+        entry["tls"] = {"mode": "Passthrough"}
+
     if allowed_routes:
         entry["allowedRoutes"] = allowed_routes
 
@@ -210,6 +215,33 @@ def tcp_route(
         "metadata": {"name": name, "namespace": namespace},
         "spec": {
             "parentRefs": parent_refs,
+            "rules": [
+                {"backendRefs": backend_refs},
+            ],
+        },
+    }
+
+
+def tls_route(
+    name: str,
+    namespace: str,
+    parent_refs: list[dict],
+    hostnames: list[str],
+    backend_refs: list[dict],
+) -> dict:
+    """
+    TLSRoute (Experimental channel, docs/spec/overview.md): SNI-matched
+    passthrough of still-encrypted streams to backends
+    (docs/spec/traffic.md).
+    """
+
+    return {
+        "apiVersion": "gateway.networking.k8s.io/v1",
+        "kind": "TLSRoute",
+        "metadata": {"name": name, "namespace": namespace},
+        "spec": {
+            "parentRefs": parent_refs,
+            "hostnames": hostnames,
             "rules": [
                 {"backendRefs": backend_refs},
             ],
