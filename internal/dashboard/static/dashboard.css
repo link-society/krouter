@@ -80,9 +80,11 @@
   stroke-dasharray: 5 3;
 }
 
-.graph-node.kind-gateway .graph-accent { fill: #3273dc; }
-.graph-node.kind-route .graph-accent { fill: #00947e; }
-.graph-node.kind-backend .graph-accent { fill: #b86bff; }
+.graph-node.kind-Gateway .graph-accent { fill: #3273dc; }
+.graph-node.kind-HTTPRoute .graph-accent,
+.graph-node.kind-TCPRoute .graph-accent,
+.graph-node.kind-TLSRoute .graph-accent { fill: #00947e; }
+.graph-node.kind-Service .graph-accent { fill: #b86bff; }
 
 .graph-title {
   font-size: 12px;

@@ -91,7 +91,7 @@ func buildGraph(topo *gatewayapi.Topology) graphData {
 
 		addNode(graphNode{
 			ID:        "gw:" + gw.UID,
-			Kind:      "gateway",
+			Kind:      "Gateway",
 			Namespace: gw.Namespace,
 			Title:     gw.Namespace + "/" + gw.Name,
 			Lines:     lines,
@@ -141,7 +141,7 @@ func buildGraph(topo *gatewayapi.Topology) graphData {
 
 		addNode(graphNode{
 			ID:        routeID,
-			Kind:      "route",
+			Kind:      route.Kind,
 			Namespace: route.Namespace,
 			Title:     route.Namespace + "/" + route.Name,
 			Lines:     lines,
@@ -175,7 +175,7 @@ func buildGraph(topo *gatewayapi.Topology) graphData {
 
 					addNode(graphNode{
 						ID:        backendID,
-						Kind:      "backend",
+						Kind:      "Service",
 						Namespace: backend.Namespace,
 						Title:     backend.Namespace + "/" + backend.Name,
 						Lines:     lines,
