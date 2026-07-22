@@ -18,7 +18,7 @@ import (
 
 	"github.com/vladopajic/go-actor/actor"
 
-	"github.com/link-society/krouter/internal/lib/http/proxy"
+	"github.com/link-society/krouter/internal/lib/transports/http/proxy"
 )
 
 // Server is one internal listener actor. The socket is bound before the

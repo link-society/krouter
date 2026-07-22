@@ -10,8 +10,9 @@
 //	 └─ mgmt                 — management server actor
 //
 // Actors communicate through mailboxes and publish immutable snapshots of
-// the routing domain (lib/http/routing) for the request path
-// (lib/http/proxy); there is no shared mutable state.
+// the routing domain (lib/transports/http/routing) for the request path
+// (lib/transports/http/proxy, lib/transports/tcp); there is no shared
+// mutable state.
 package dataplane
 
 import (
@@ -25,7 +26,7 @@ import (
 	"github.com/link-society/krouter/internal/app/dataplane/resolver"
 	"github.com/link-society/krouter/internal/app/mgmt"
 	"github.com/link-society/krouter/internal/config"
-	"github.com/link-society/krouter/internal/lib/http/routing"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
 func NewRoot(cfg *config.Settings, client kubernetes.Interface, state *routing.State) actor.Actor {

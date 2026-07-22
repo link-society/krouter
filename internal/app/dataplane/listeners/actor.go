@@ -9,9 +9,9 @@ package listeners
 import (
 	"github.com/vladopajic/go-actor/actor"
 
-	"github.com/link-society/krouter/internal/lib/http/proxy"
-	"github.com/link-society/krouter/internal/lib/http/routing"
-	"github.com/link-society/krouter/internal/lib/tcp"
+	"github.com/link-society/krouter/internal/lib/transports/http/proxy"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
+	"github.com/link-society/krouter/internal/lib/transports/tcp"
 )
 
 // Manager is the dynamic supervisor actor.

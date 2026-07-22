@@ -9,8 +9,8 @@ import (
 	"github.com/vladopajic/go-actor/actor"
 
 	"github.com/link-society/krouter/internal/app/dataplane/configwatcher"
-	"github.com/link-society/krouter/internal/lib/http/routing"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
 // worker rebuilds and publishes the routing tables for every configuration

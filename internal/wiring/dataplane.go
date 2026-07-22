@@ -4,7 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/link-society/krouter/internal/app/dataplane"
-	"github.com/link-society/krouter/internal/lib/http/routing"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
 var dataPlaneModule = fx.Module("dataplane",

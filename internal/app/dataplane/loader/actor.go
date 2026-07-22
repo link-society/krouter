@@ -9,7 +9,7 @@ import (
 	"github.com/vladopajic/go-actor/actor"
 
 	"github.com/link-society/krouter/internal/app/dataplane/configwatcher"
-	"github.com/link-society/krouter/internal/lib/http/routing"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
 // Loader is the table loading actor.

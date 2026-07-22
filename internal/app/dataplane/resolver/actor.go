@@ -8,8 +8,8 @@ import (
 
 	"github.com/vladopajic/go-actor/actor"
 
-	"github.com/link-society/krouter/internal/lib/http/routing"
 	"github.com/link-society/krouter/internal/lib/snapshot"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
 // Resolver is the backend discovery actor.

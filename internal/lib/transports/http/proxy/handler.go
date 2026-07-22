@@ -19,8 +19,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/link-society/krouter/internal/lib/http/routing"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
 var requestsTotal = promauto.NewCounterVec(

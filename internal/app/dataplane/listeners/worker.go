@@ -9,9 +9,9 @@ import (
 
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/portserver"
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/tcpserver"
-	"github.com/link-society/krouter/internal/lib/http/proxy"
-	"github.com/link-society/krouter/internal/lib/http/routing"
-	"github.com/link-society/krouter/internal/lib/tcp"
+	"github.com/link-society/krouter/internal/lib/transports/http/proxy"
+	"github.com/link-society/krouter/internal/lib/transports/http/routing"
+	"github.com/link-society/krouter/internal/lib/transports/tcp"
 )
 
 // worker reconciles the listener children against the published tables.

@@ -11,7 +11,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
-	"github.com/link-society/krouter/internal/lib/tcp"
+	"github.com/link-society/krouter/internal/lib/transports/tcp"
 )
 
 // Match resolves the rule serving a request: most specific listener first,

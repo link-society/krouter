@@ -17,7 +17,7 @@ import (
 
 	"github.com/vladopajic/go-actor/actor"
 
-	"github.com/link-society/krouter/internal/lib/tcp"
+	"github.com/link-society/krouter/internal/lib/transports/tcp"
 )
 
 // Server is one internal TCP listener actor. The socket is bound before
