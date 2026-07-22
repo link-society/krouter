@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"slices"
+
 	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
@@ -63,13 +65,31 @@ func (r *Engine) publishGeneration(
 
 	gatewayPayload := compiled.MarshalPayload(gatewayConfig)
 
-	attachments := map[string][]byte{}
+	// A route may attach through several parentRefs to the same Gateway
+	// (e.g. two sectionNames): the attachment payload is one per route, so
+	// their listener sets are merged (docs/spec/configuration.md).
+	routeConfigs := map[string]*compiled.RouteConfig{}
 	for _, outcome := range outcomes {
 		if outcome.config == nil || len(outcome.config.Listeners) == 0 {
 			continue
 		}
 
-		attachments[outcome.config.UID] = compiled.MarshalPayload(outcome.config)
+		existing, ok := routeConfigs[outcome.config.UID]
+		if !ok {
+			routeConfigs[outcome.config.UID] = outcome.config
+			continue
+		}
+
+		for _, name := range outcome.config.Listeners {
+			if !slices.Contains(existing.Listeners, name) {
+				existing.Listeners = append(existing.Listeners, name)
+			}
+		}
+	}
+
+	attachments := map[string][]byte{}
+	for uid, config := range routeConfigs {
+		attachments[uid] = compiled.MarshalPayload(config)
 	}
 
 	secretChecksum := ""
