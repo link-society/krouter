@@ -62,6 +62,7 @@ task k8s:down
 | 10 | 10,000 concurrent connections | `task tests:performance` |
 | 11 | Reproducible NGINX/Traefik benchmarks | `task tests:bench:all` |
 | 12 | Standard manifest + CRDs only | `task tests:e2e` |
+| 13 | TCPRoute raw-stream forwarding, same guarantees | `task tests:e2e` |
 
 The e2e suite is organized as one test module per criterion (plus one for
 the installation contract of docs/spec/deployment.md, docs/spec/security.md, docs/spec/observability.md); discover them with

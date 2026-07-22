@@ -2,7 +2,9 @@
 // against a live cluster running krouter.
 //
 // The conformance target (docs/spec/overview.md, docs/spec/acceptance.md criterion 1) is: all Core
-// tests of the GATEWAY-HTTP profile, Gateway API v1.5.1 Standard channel.
+// tests of the GATEWAY-HTTP profile, Gateway API v1.5.1. TCPRoute has no
+// conformance profile in this release (docs/spec/acceptance.md criterion 13);
+// it is verified by the e2e suite instead.
 // The profile is therefore forced here rather than left to a flag.
 //
 // The suite dials the addresses published on Gateway status, which are only

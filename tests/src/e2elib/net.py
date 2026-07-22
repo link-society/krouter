@@ -108,6 +108,81 @@ def sample_backends(
     return seen
 
 
+# ------------------------------------------------------------ raw tcp --
+
+class TcpStream:
+    """
+    One raw TCP connection to a published NodePort (docs/spec/traffic.md).
+
+    The test echo backend greets with one line holding the serving pod name,
+    then echoes every line it receives.
+    """
+
+    def __init__(self, node_port: int, worker: int = 1, timeout: float = 10):
+        self.sock = socket.create_connection(
+            (config.TEST_HOST, ports.host_port(node_port, worker)),
+            timeout=timeout,
+        )
+        self.reader = self.sock.makefile("rb")
+
+    def read_line(self) -> str:
+        line = self.reader.readline()
+        if not line:
+            raise ConnectionError("connection closed by peer")
+
+        return line.decode().strip()
+
+    def echo(self, payload: str) -> str:
+        """
+        Send one line and return the line echoed back.
+        """
+
+        self.sock.sendall((payload + "\n").encode())
+
+        return self.read_line()
+
+    def close(self):
+        try:
+            self.reader.close()
+
+        finally:
+            self.sock.close()
+
+    def __enter__(self) -> "TcpStream":
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+
+def tcp_greeting(node_port: int, worker: int = 1) -> str:
+    """
+    Connect once and return the greeted backend pod name.
+    """
+
+    with TcpStream(node_port, worker=worker) as stream:
+        return stream.read_line()
+
+
+def wait_tcp_ready(node_port: int, timeout: float = 120, worker: int = 1) -> str:
+    """
+    Wait until the TCP listener forwards to a greeting backend.
+    """
+
+    def check():
+        try:
+            return tcp_greeting(node_port, worker=worker) or None
+
+        except OSError:
+            return None
+
+    return kubectl.wait_for(
+        check,
+        timeout=timeout,
+        desc=f"TCP greeting from …:{node_port}",
+    )
+
+
 # --------------------------------------------------------- traffic probe --
 
 def dataplane_readyz(pod: dict) -> dict:

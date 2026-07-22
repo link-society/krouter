@@ -192,6 +192,31 @@ def http_route(
     }
 
 
+def tcp_route(
+    name: str,
+    namespace: str,
+    parent_refs: list[dict],
+    backend_refs: list[dict],
+) -> dict:
+    """
+    TCPRoute (Experimental channel, docs/spec/overview.md): no hostname,
+    path or filter semantics — one rule forwarding raw streams to backends
+    (docs/spec/traffic.md).
+    """
+
+    return {
+        "apiVersion": "gateway.networking.k8s.io/v1alpha2",
+        "kind": "TCPRoute",
+        "metadata": {"name": name, "namespace": namespace},
+        "spec": {
+            "parentRefs": parent_refs,
+            "rules": [
+                {"backendRefs": backend_refs},
+            ],
+        },
+    }
+
+
 def parent_ref(
     name: str,
     namespace: str | None = None,

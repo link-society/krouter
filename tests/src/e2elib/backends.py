@@ -195,6 +195,72 @@ echo_backend = mockserver_backend
 BACKEND_PORT = MOCKSERVER_PORT
 
 
+# ------------------------------------------------------------ tcp echo --
+
+TCP_ECHO_IMAGE = "alpine/socat:1.8.0.3"
+TCP_BACKEND_PORT = 9000
+
+
+def tcp_echo_backend(name: str, namespace: str, replicas: int = 1) -> list[dict]:
+    """
+    Deployment + Service for one raw TCP backend (docs/spec/traffic.md).
+
+    Each accepted connection first receives one line holding the pod name —
+    the identity driving distribution assertions — then every received byte
+    is echoed back until the peer closes.
+    """
+
+    labels = {"app": name}
+
+    return [
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "replicas": replicas,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "echo",
+                                "image": TCP_ECHO_IMAGE,
+                                "args": [
+                                    f"TCP-LISTEN:{TCP_BACKEND_PORT},fork,reuseaddr",
+                                    "SYSTEM:hostname; cat",
+                                ],
+                                "ports": [{"containerPort": TCP_BACKEND_PORT}],
+                                "readinessProbe": {
+                                    "tcpSocket": {"port": TCP_BACKEND_PORT},
+                                    "periodSeconds": 2,
+                                    "failureThreshold": 2,
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "selector": labels,
+                "ports": [
+                    {
+                        "name": "tcp",
+                        "port": TCP_BACKEND_PORT,
+                        "targetPort": TCP_BACKEND_PORT,
+                    },
+                ],
+            },
+        },
+    ]
+
+
 # --------------------------------------------------- runtime pod control --
 
 def _pod_api(

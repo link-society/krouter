@@ -232,9 +232,10 @@ def wait_route_parent_condition(
     cond_type: str,
     status: str = "True",
     timeout: float = 120,
+    kind: str = "httproute",
 ) -> dict:
     def check():
-        route = get_or_none("httproute", name, namespace)
+        route = get_or_none(kind, name, namespace)
         if not route:
             return None
 
@@ -248,7 +249,7 @@ def wait_route_parent_condition(
     return wait_for(
         check,
         timeout=timeout,
-        desc=f"httproute/{namespace}/{name} parent condition {cond_type}={status}",
+        desc=f"{kind}/{namespace}/{name} parent condition {cond_type}={status}",
     )
 
 
