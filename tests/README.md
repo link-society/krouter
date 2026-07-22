@@ -32,9 +32,9 @@ task k8s:down
 - **Unit** — pure logic tested with `go test`, next to the package it
   belongs to (see below).
 - **Conformance** — the official Gateway API conformance suite, running the
-  Core profile required by the spec (docs/spec/overview.md, docs/spec/acceptance.md criterion 1). It is executed inside a
-  container attached to the kind docker network, because the suite dials
-  Gateway addresses that are not routable from the host.
+  Core profile required by the spec (docs/spec/overview.md, docs/spec/acceptance.md criterion 1). The compiled test
+  binary is executed inside the cluster, because the suite dials the
+  addresses published on Gateway status, which are cluster-internal.
 - **End-to-end** — pytest suite driving a real krouter installation solely
   through the Kubernetes API and published entry points, like an operator
   would.
@@ -104,9 +104,10 @@ while a reload happens.
 
 ## Environment notes
 
-- Suites that must reach Gateway or node addresses directly (conformance,
-  load generation) run inside containers attached to the kind docker
-  network, since kind nodes are not routable from the host (notably on
+- Suites that must reach Gateway or node addresses directly run where
+  those addresses are routable: the conformance suite executes inside the
+  cluster, and the load generator runs in a container attached to the kind
+  docker network (kind nodes are not routable from the host, notably on
   macOS).
 - The e2e suite reaches Gateways through deterministic NodePorts, requested
   via Gateway infrastructure parameters (docs/spec/parameters.md) and published to the host by

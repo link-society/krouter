@@ -26,31 +26,36 @@ tasks:
       - pdm run -p tests pytest tests/specs/e2e {{.CLI_ARGS}}
 
   conformance:
-    desc: Run the Gateway API GATEWAY-HTTP Core conformance profile (docs/spec/overview.md, docs/spec/acceptance.md criterion 1)
+    desc: Run the Gateway API Core conformance profiles (docs/spec/overview.md, docs/spec/acceptance.md criteria 1, 14, 15)
+    vars:
+      NODE_ARCH:
+        sh: kubectl --context {{.KIND_CONTEXT}} get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}'
     cmds:
       - mkdir -p tests/results/conformance
       - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/conformance/gatewayclass.yaml
-      - kind get kubeconfig --internal --name {{.KIND_CLUSTER}} > tests/results/kubeconfig-internal.yaml
-      # The conformance suite sends requests to Gateway addresses. Those are
-      # only routable from the kind docker network, so the suite runs inside a
-      # container attached to it (works on macOS and Linux alike).
+      # The conformance suite dials the addresses published on Gateway
+      # status, which are cluster-internal, so the compiled test binary runs
+      # inside a pod (it picks up the in-cluster config and its manifests are
+      # embedded in the binary).
       - >-
-        docker run --rm
-        --network kind
-        -v "$PWD:/work" -w /work/tests/specs/conformance
-        -v krouter-go-mod:/go/pkg/mod
-        -v krouter-go-cache:/root/.cache/go-build
-        -e KUBECONFIG=/work/tests/results/kubeconfig-internal.yaml
-        {{.GOLANG_IMAGE}}
-        go test -v -timeout 120m -run TestConformance ./...
-        -args
+        cd tests/specs/conformance &&
+        CGO_ENABLED=0 GOOS=linux GOARCH={{.NODE_ARCH}}
+        go test -c -o ../../results/conformance/conformance.test .
+      - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/conformance/runner.yaml
+      - kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance wait --for=condition=Ready --timeout=120s pod/conformance-runner
+      - kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance cp tests/results/conformance/conformance.test conformance-runner:/work/conformance.test
+      - defer: kubectl --context {{.KIND_CONTEXT}} delete -f tests/config/conformance/runner.yaml --ignore-not-found
+      - defer: kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance cp conformance-runner:/work/report.yaml tests/results/conformance/report.yaml
+      - >-
+        kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance exec conformance-runner --
+        /work/conformance.test -test.v -test.timeout 120m -test.run TestConformance
         -gateway-class=krouter
         -organization=link-society
         -project=krouter
         -url=https://github.com/link-society/krouter
         -version=dev
         -contact=https://github.com/link-society/krouter/issues
-        -report-output=/work/tests/results/conformance/gateway-http.yaml
+        -report-output=/work/report.yaml
         {{.CLI_ARGS}}
 
   performance:

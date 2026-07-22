@@ -8,10 +8,11 @@
 // verified by the e2e suite instead.
 // The profile is therefore forced here rather than left to a flag.
 //
-// The suite dials the addresses published on Gateway status, which are only
-// routable from the kind docker network. Run it through `task
-// tests:conformance`, which executes this test inside a container attached to
-// that network.
+// The suite dials the addresses published on Gateway status, which are
+// cluster-internal. Run it through `task tests:conformance`, which compiles
+// this test into a static binary and executes it inside the cluster (the
+// suite manifests are embedded in the binary and the Kubernetes client picks
+// up the in-cluster config).
 package conformance
 
 import (
@@ -21,6 +22,7 @@ import (
 
 	"sigs.k8s.io/gateway-api/conformance"
 	"sigs.k8s.io/gateway-api/conformance/utils/suite"
+	"sigs.k8s.io/gateway-api/pkg/features"
 )
 
 func TestConformance(t *testing.T) {
@@ -34,8 +36,19 @@ func TestConformance(t *testing.T) {
 		suite.GatewayTLSConformanceProfileName,
 	)
 
-	// Core-only target: Extended features are out of scope
-	// (docs/spec/overview.md) unless a Core test requires them, so nothing is enabled here.
+	// krouter does not publish GatewayClass status.supportedFeatures (an
+	// Experimental field), so the suite cannot infer the feature set and it
+	// is declared here instead: the Core features of the profiles above are
+	// implied by the profile selection, and no Extended feature is enabled
+	// (Extended features are out of scope, docs/spec/overview.md, unless a
+	// Core test requires them).
+	opts.SupportedFeatures = sets.New(
+		features.SupportGateway,
+		features.SupportHTTPRoute,
+		features.SupportGRPCRoute,
+		features.SupportTLSRoute,
+	)
+
 	// Implementation metadata (organization, project, ...) and the
 	// GatewayClass name are provided as flags by `task tests:conformance`.
 
