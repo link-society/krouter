@@ -176,7 +176,10 @@ func matchApplies(match compiled.Match, r *http.Request) bool {
 }
 
 func pathPrefixMatches(prefix, path string) bool {
-	if prefix == "/" {
+	// Prefix matching is segment-wise (docs/spec/traffic.md): a trailing
+	// slash on the prefix is not a segment of its own.
+	prefix = strings.TrimSuffix(prefix, "/")
+	if prefix == "" {
 		return true
 	}
 
