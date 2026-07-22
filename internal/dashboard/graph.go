@@ -128,6 +128,10 @@ func buildGraph(topo *gatewayapi.Topology) graphData {
 
 		var lines []string
 
+		// The route kind distinguishes HTTP, TCP and TLS routing on the
+		// topology (docs/spec/overview.md route types).
+		lines = append(lines, route.Kind)
+
 		if len(route.Hostnames) > 0 {
 			lines = append(lines, strings.Join(route.Hostnames, ", "))
 		}

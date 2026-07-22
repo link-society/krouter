@@ -1,11 +1,12 @@
 {{define "content"}}
 {{if not .Routes}}
-<div class="notification is-light">No HTTPRoute is attached to an owned Gateway.</div>
+<div class="notification is-light">No route is attached to an owned Gateway.</div>
 {{else}}
 <table class="table is-fullwidth is-striped is-hoverable">
   <thead>
     <tr>
       <th>Route</th>
+      <th>Kind</th>
       <th>Hostnames</th>
       <th>Gateway</th>
       <th>Status</th>
@@ -14,7 +15,8 @@
   <tbody>
     {{range .Routes}}
     <tr class="is-clickable" data-yaml-url="/api/yaml/route/{{.UID}}" data-yaml-title="{{.Kind}} {{.Namespace}}/{{.Name}}">
-      <td>{{.Namespace}}/{{.Name}} <span class="tag is-light">{{.Kind}}</span></td>
+      <td>{{.Namespace}}/{{.Name}}</td>
+      <td><span class="tag is-light kind-{{.Kind}}">{{.Kind}}</span></td>
       <td>{{if .Hostnames}}{{.Hostnames}}{{else}}*{{end}}</td>
       <td>{{.Gateway}}</td>
       <td>

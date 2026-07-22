@@ -1,7 +1,8 @@
 ---
-# Demo topology for the control-plane dashboard: one Gateway, two routes,
-# a same-namespace backend, an authorized cross-namespace backend and one
-# intentionally missing backend to show degraded rendering.
+# Demo topology for the control-plane dashboard: one Gateway serving all
+# three route kinds (HTTP, TCP, TLS passthrough), a same-namespace backend,
+# an authorized cross-namespace backend and one intentionally missing
+# backend to show degraded rendering.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -24,6 +25,32 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: dashboard-demo
+spec:
+  selector:
+    app: db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+  namespace: dashboard-demo
+spec:
+  selector:
+    app: vault
+  ports:
+    - name: https
+      port: 8200
+      targetPort: 8200
 ---
 apiVersion: v1
 kind: Service
@@ -63,6 +90,20 @@ spec:
     - name: http
       protocol: HTTP
       port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: vault
+      protocol: TLS
+      port: 8443
+      tls:
+        mode: Passthrough
       allowedRoutes:
         namespaces:
           from: Same
@@ -107,3 +148,33 @@ spec:
           port: 9100
         - name: missing
           port: 9000
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: db
+  namespace: dashboard-demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: postgres
+  rules:
+    - backendRefs:
+        - name: db
+          port: 5432
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: TLSRoute
+metadata:
+  name: vault
+  namespace: dashboard-demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: vault
+  hostnames:
+    - vault.demo.example.com
+  rules:
+    - backendRefs:
+        - name: vault
+          port: 8200

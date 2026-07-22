@@ -185,3 +185,8 @@ marker path.arrow-broken {
 code.generation {
   font-size: 0.85em;
 }
+
+/* Route kinds (routes table). */
+.tag.kind-HTTPRoute { border-left: 3px solid #00947e; }
+.tag.kind-TCPRoute { border-left: 3px solid #3273dc; }
+.tag.kind-TLSRoute { border-left: 3px solid #b86bff; }
