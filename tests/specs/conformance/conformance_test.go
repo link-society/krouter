@@ -22,7 +22,6 @@ import (
 
 	"sigs.k8s.io/gateway-api/conformance"
 	"sigs.k8s.io/gateway-api/conformance/utils/suite"
-	"sigs.k8s.io/gateway-api/pkg/features"
 )
 
 func TestConformance(t *testing.T) {
@@ -36,36 +35,11 @@ func TestConformance(t *testing.T) {
 		suite.GatewayTLSConformanceProfileName,
 	)
 
-	// krouter does not publish GatewayClass status.supportedFeatures (an
-	// Experimental field), so the suite cannot infer the feature set and it
-	// is declared here instead: the Core features of the profiles above are
-	// implied by the profile selection, and the Extended features below
-	// match the supported scope (docs/spec/overview.md,
-	// docs/spec/traffic.md, docs/spec/acceptance.md criterion 16).
-	opts.SupportedFeatures = sets.New(
-		features.SupportGateway,
-		features.SupportHTTPRoute,
-		features.SupportGRPCRoute,
-		features.SupportTLSRoute,
-
-		// Extended HTTPRoute filters (docs/spec/acceptance.md criterion 16).
-		features.SupportHTTPRouteResponseHeaderModification,
-		features.SupportHTTPRouteHostRewrite,
-		features.SupportHTTPRoutePathRewrite,
-		features.SupportHTTPRoutePathRedirect,
-		features.SupportHTTPRouteSchemeRedirect,
-		features.SupportHTTPRoutePortRedirect,
-		features.SupportHTTPRoute303RedirectStatusCode,
-		features.SupportHTTPRoute307RedirectStatusCode,
-		features.SupportHTTPRoute308RedirectStatusCode,
-		features.SupportHTTPRouteRequestMirror,
-		features.SupportHTTPRouteRequestMultipleMirrors,
-		features.SupportHTTPRouteRequestPercentageMirror,
-
-		// HTTPRoute rule timeouts (docs/spec/acceptance.md criterion 17).
-		features.SupportHTTPRouteRequestTimeout,
-		features.SupportHTTPRouteBackendTimeout,
-	)
+	// No feature is declared manually: the suite infers the supported
+	// feature set from GatewayClass status.supportedFeatures, which the
+	// control plane publishes (docs/spec/status.md, docs/spec/acceptance.md
+	// criterion 18). This also verifies the published set stays accurate:
+	// an over-declared feature fails its conformance tests.
 
 	// Implementation metadata (organization, project, ...) and the
 	// GatewayClass name are provided as flags by `task tests:conformance`.
