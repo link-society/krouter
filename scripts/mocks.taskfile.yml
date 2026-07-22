@@ -1,0 +1,20 @@
+---
+version: '3'
+
+vars:
+  MOCKS: httpbin tcpbin udpbin grpcbin
+  MOCK_IMAGE_PREFIX: ghcr.io/link-society/krouter-mock
+
+tasks:
+  build:
+    desc: Build the mock backend images (tests/mocks, docker/mocks)
+    cmds:
+      - for: { var: MOCKS }
+        cmd: docker build -f docker/mocks/{{.ITEM}}.dockerfile -t {{.MOCK_IMAGE_PREFIX}}-{{.ITEM}}:dev .
+
+  load:
+    desc: Build the mock backend images and load them into the kind cluster
+    deps: [build]
+    cmds:
+      - for: { var: MOCKS }
+        cmd: kind load docker-image {{.MOCK_IMAGE_PREFIX}}-{{.ITEM}}:dev --name {{.KIND_CLUSTER}}

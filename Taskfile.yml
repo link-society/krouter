@@ -15,6 +15,7 @@ includes:
   build: scripts/build.taskfile.yml
   docker: scripts/docker.taskfile.yml
   k8s: scripts/k8s.taskfile.yml
+  mocks: scripts/mocks.taskfile.yml
   tests: scripts/tests.taskfile.yml
 
 tasks:
