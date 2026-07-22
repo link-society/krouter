@@ -41,7 +41,7 @@ resources.
 | Authentication | Out of scope |
 | Rate limiting | Out of scope |
 | Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`) and TLSRoute (`v1`) |
-| Standard-channel Extended features | Out of scope unless required by a Core conformance test |
+| Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring) are supported and verified by their Extended conformance tests; other Extended features are out of scope |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
 annotation on installed Gateway API CRDs and publish the GatewayClass
@@ -62,7 +62,9 @@ the SNI value and never holds the certificate. TLS listeners in
 
 - UDPRoute.
 - TLS listeners in `Terminate` mode (TLSRoute is passthrough-only).
-- Gateway API Standard Extended features not required by Core conformance.
+- Gateway API Standard Extended features other than the supported
+  HTTPRoute filters: CORS, HTTP method and query-parameter matching,
+  per-backendRef filters, named rules, and non-default backend protocols.
 - Experimental-channel resources and fields other than TCPRoute and
   TLSRoute.
 - Authentication and authorization policies.

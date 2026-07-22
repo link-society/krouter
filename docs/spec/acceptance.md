@@ -33,3 +33,7 @@ The implementation is accepted when:
     forwarding, streaming and trailer preservation — passes the
     `GATEWAY-GRPC` Core conformance tests, with the same guarantees as
     HTTP traffic.
+16. The supported Extended HTTPRoute filters — response header
+    modification, URL rewriting, redirect path/scheme/port and
+    alternative status codes, and request mirroring — pass the
+    corresponding Extended conformance tests.

@@ -28,8 +28,7 @@ listeners, alongside HTTPRoutes, with the same hostname semantics.
 
 - Method matches select by gRPC service and method (exact matching for the
   Core profile), evaluated on their canonical HTTP/2 request form; header
-  matches and `RequestHeaderModifier` filters behave as for HTTPRoute
-  rules.
+  matches and the supported filters behave as for HTTPRoute rules.
 - Backend endpoints receive gRPC over cleartext HTTP/2 (h2c), selected per
   request with the same weights, eligibility rules and load-balancing
   algorithm as every other route type.
@@ -133,6 +132,30 @@ listener isolation, reference resolution, and filter behavior required by
 the Gateway API v1.5.1 `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`
 Core conformance profiles, and the TCPRoute attachment semantics defined by
 the upstream API specification.
+
+The following HTTPRoute rule filters MUST be supported with the upstream
+Gateway API semantics:
+
+- `RequestHeaderModifier` and `ResponseHeaderModifier` — add, set, and
+  remove headers on the proxied request or response.
+- `RequestRedirect` — scheme, hostname, port, path replacement
+  (`ReplaceFullPath` and `ReplacePrefixMatch`), and the status codes
+  permitted by the API. Unset values MUST be inherited from the incoming
+  request, and default scheme ports MUST be omitted from the `Location`
+  header.
+- `URLRewrite` — hostname replacement and path replacement
+  (`ReplaceFullPath` and `ReplacePrefixMatch`) before forwarding.
+- `RequestMirror` — a copy of the request is delivered to a single
+  endpoint of the mirror backend without influencing the client response;
+  mirror failures and responses MUST be ignored. Several mirrors on one
+  rule and percentage or fraction sampling MUST be honored.
+
+GRPCRoute rules support `RequestHeaderModifier`, `ResponseHeaderModifier`,
+and `RequestMirror` with the same semantics.
+
+A route using any other filter type, or a filter value outside the
+supported set, MUST be rejected with reason `UnsupportedValue` and MUST NOT
+be partially applied.
 
 No implementation-specific annotations or Route extensions are added.
 
