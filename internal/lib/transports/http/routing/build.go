@@ -70,7 +70,11 @@ func BuildGatewayTable(
 		}
 
 		for _, rule := range route.Rules {
-			entry := &RuleTable{matches: rule.Matches, filters: rule.Filters}
+			entry := &RuleTable{
+				matches: rule.Matches,
+				filters: rule.Filters,
+				grpc:    route.GRPC,
+			}
 
 			for _, backend := range rule.Backends {
 				weight := backend.Weight

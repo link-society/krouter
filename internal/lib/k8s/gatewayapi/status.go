@@ -185,21 +185,34 @@ func (r *Engine) writeGatewayStatus(
 				}
 			}
 
-			supportedKind := gatewayv1.Kind("HTTPRoute")
+			supportedKinds := []gatewayv1.RouteGroupKind{
+				{
+					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
+					Kind:  "HTTPRoute",
+				},
+				{
+					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
+					Kind:  "GRPCRoute",
+				},
+			}
+
 			switch lst.spec.Protocol {
 			case gatewayv1.TCPProtocolType:
-				supportedKind = "TCPRoute"
+				supportedKinds = []gatewayv1.RouteGroupKind{{
+					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
+					Kind:  "TCPRoute",
+				}}
 
 			case gatewayv1.TLSProtocolType:
-				supportedKind = "TLSRoute"
+				supportedKinds = []gatewayv1.RouteGroupKind{{
+					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
+					Kind:  "TLSRoute",
+				}}
 			}
 
 			desired.Listeners = append(desired.Listeners, gatewayv1.ListenerStatus{
-				Name: lst.spec.Name,
-				SupportedKinds: []gatewayv1.RouteGroupKind{{
-					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-					Kind:  supportedKind,
-				}},
+				Name:           lst.spec.Name,
+				SupportedKinds: supportedKinds,
 				AttachedRoutes: lst.attachedRoutes,
 				Conditions:     mergeConditions(existingConditions, listenerConditions),
 			})
@@ -265,6 +278,36 @@ func (r *Engine) writeRouteStatuses(
 		})
 		if err != nil {
 			logSyncError("route status", fmtKey(route.Namespace, route.Name), err)
+		}
+	}
+
+	for i := range w.grpcRoutes {
+		route := &w.grpcRoutes[i]
+		key := outcomeKey("GRPCRoute", route.Namespace, route.Name)
+
+		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
+
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			fresh, err := r.gwClient.GatewayV1().GRPCRoutes(route.Namespace).
+				Get(ctx, route.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
+			if !changed {
+				return nil
+			}
+
+			fresh.Status.Parents = desired
+
+			_, err = r.gwClient.GatewayV1().GRPCRoutes(route.Namespace).
+				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
+
+			return err
+		})
+		if err != nil {
+			logSyncError("grpcroute status", fmtKey(route.Namespace, route.Name), err)
 		}
 	}
 

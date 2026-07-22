@@ -72,7 +72,11 @@ type RouteConfig struct {
 	Name      string   `json:"name"`
 	Listeners []string `json:"listeners"`
 	Hostnames []string `json:"hostnames,omitempty"`
-	Rules     []Rule   `json:"rules"`
+	// GRPC marks a GRPCRoute attachment: its rules only match gRPC
+	// requests and its backends speak cleartext HTTP/2
+	// (docs/spec/traffic.md gRPC routing).
+	GRPC  bool   `json:"grpc,omitempty"`
+	Rules []Rule `json:"rules"`
 }
 
 type Rule struct {

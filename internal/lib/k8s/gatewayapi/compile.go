@@ -497,6 +497,219 @@ func (r *Engine) attachTLSRoute(
 	return outcome
 }
 
+// attachGRPCRoutes computes every (GRPCRoute, gateway) attachment outcome
+// (docs/spec/traffic.md gRPC routing): GRPCRoutes attach to HTTP and HTTPS
+// listeners alongside HTTPRoutes, with the same hostname semantics.
+func (r *Engine) attachGRPCRoutes(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+) []*routeParentOutcome {
+	var outcomes []*routeParentOutcome
+
+	for i := range w.grpcRoutes {
+		route := &w.grpcRoutes[i]
+
+		for _, parentRef := range route.Spec.ParentRefs {
+			if !parentRefMatches(parentRef, route.Namespace, gw) {
+				continue
+			}
+
+			outcome := r.attachGRPCRoute(w, gw, listeners, route, parentRef)
+			outcomes = append(outcomes, outcome)
+		}
+	}
+
+	return outcomes
+}
+
+func (r *Engine) attachGRPCRoute(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+	route *gatewayv1.GRPCRoute,
+	parentRef gatewayv1.ParentReference,
+) *routeParentOutcome {
+	outcome := &routeParentOutcome{
+		grpcRoute:    route,
+		parentRef:    parentRef,
+		refsResolved: true,
+		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
+	}
+
+	var candidates []*listenerState
+	for _, lst := range listeners {
+		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
+			continue
+		}
+
+		if lst.spec.Protocol != gatewayv1.HTTPProtocolType &&
+			lst.spec.Protocol != gatewayv1.HTTPSProtocolType {
+			continue
+		}
+
+		candidates = append(candidates, lst)
+	}
+
+	if len(candidates) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingParent)
+		return outcome
+	}
+
+	var namespaceAdmitted []*listenerState
+	for _, lst := range candidates {
+		if namespaceAllowed(lst.spec.AllowedRoutes, route.Namespace, gw.Namespace, w.namespaces) {
+			namespaceAdmitted = append(namespaceAdmitted, lst)
+		}
+	}
+
+	if len(namespaceAdmitted) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+		return outcome
+	}
+
+	var admitted []*listenerState
+	for _, lst := range namespaceAdmitted {
+		if hostnamesIntersect(lst.spec.Hostname, route.Spec.Hostnames) {
+			admitted = append(admitted, lst)
+		}
+	}
+
+	if len(admitted) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingListenerHostname)
+		return outcome
+	}
+
+	config := &compiled.RouteConfig{
+		UID:       string(route.UID),
+		Namespace: route.Namespace,
+		Name:      route.Name,
+		GRPC:      true,
+	}
+
+	for _, hostname := range route.Spec.Hostnames {
+		config.Hostnames = append(config.Hostnames, string(hostname))
+	}
+
+	for _, rule := range route.Spec.Rules {
+		compiledRule, err := r.compileGRPCRule(w, route, rule, outcome)
+		if err != nil {
+			outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
+			return outcome
+		}
+
+		config.Rules = append(config.Rules, compiledRule)
+	}
+
+	outcome.accepted = true
+	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
+
+	for _, lst := range admitted {
+		lst.attachedRoutes++
+
+		if lst.valid() {
+			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+		}
+	}
+
+	outcome.config = config
+
+	return outcome
+}
+
+// compileGRPCRule translates one GRPCRoute rule into its canonical HTTP/2
+// form (docs/spec/traffic.md gRPC routing): exact method matches become
+// exact path matches on "/service/method".
+func (r *Engine) compileGRPCRule(
+	w *world,
+	route *gatewayv1.GRPCRoute,
+	rule gatewayv1.GRPCRouteRule,
+	outcome *routeParentOutcome,
+) (compiled.Rule, error) {
+	compiledRule := compiled.Rule{}
+
+	for _, match := range rule.Matches {
+		entry := compiled.Match{}
+
+		if match.Method != nil {
+			if match.Method.Type != nil &&
+				*match.Method.Type != gatewayv1.GRPCMethodMatchExact {
+				return compiled.Rule{}, fmt.Errorf("unsupported method match type")
+			}
+
+			service := ""
+			if match.Method.Service != nil {
+				service = *match.Method.Service
+			}
+
+			method := ""
+			if match.Method.Method != nil {
+				method = *match.Method.Method
+			}
+
+			switch {
+			case service != "" && method != "":
+				entry.PathType = "Exact"
+				entry.PathValue = "/" + service + "/" + method
+
+			case service != "":
+				entry.PathType = "PathPrefix"
+				entry.PathValue = "/" + service
+
+			default:
+				// Method without service requires suffix matching, which
+				// is not part of the Core profile.
+				return compiled.Rule{}, fmt.Errorf("method match requires a service")
+			}
+		}
+
+		for _, header := range match.Headers {
+			if header.Type != nil && *header.Type != gatewayv1.GRPCHeaderMatchExact {
+				return compiled.Rule{}, fmt.Errorf("unsupported header match type")
+			}
+
+			entry.Headers = append(entry.Headers, compiled.HeaderMatch{
+				Name:  string(header.Name),
+				Value: header.Value,
+			})
+		}
+
+		compiledRule.Matches = append(compiledRule.Matches, entry)
+	}
+
+	for _, filter := range rule.Filters {
+		if filter.Type != gatewayv1.GRPCRouteFilterRequestHeaderModifier ||
+			filter.RequestHeaderModifier == nil {
+			continue
+		}
+
+		entry := compiled.Filter{
+			Type:       "RequestHeaderModifier",
+			SetHeaders: map[string]string{},
+			AddHeaders: map[string]string{},
+		}
+
+		for _, header := range filter.RequestHeaderModifier.Set {
+			entry.SetHeaders[string(header.Name)] = header.Value
+		}
+
+		for _, header := range filter.RequestHeaderModifier.Add {
+			entry.AddHeaders[string(header.Name)] = header.Value
+		}
+
+		entry.RemoveHeaders = filter.RequestHeaderModifier.Remove
+
+		compiledRule.Filters = append(compiledRule.Filters, entry)
+	}
+
+	for _, backendRef := range rule.BackendRefs {
+		compiledRule.Backends = append(compiledRule.Backends,
+			r.compileBackend(w, route.Namespace, "GRPCRoute", backendRef.BackendRef, outcome))
+	}
+
+	return compiledRule, nil
+}
+
 // compileRoute builds the (Gateway, Route) attachment payload, validating
 // backend references and ReferenceGrants (docs/spec/traffic.md).
 func (r *Engine) compileRoute(

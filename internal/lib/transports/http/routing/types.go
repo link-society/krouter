@@ -110,12 +110,18 @@ type RuleTable struct {
 	matches  []compiled.Match
 	filters  []compiled.Filter
 	backends []*BackendTable
+	grpc     bool
 	total    int64
 	counter  atomic.Int64
 }
 
 // Filters returns the compiled filters of the rule.
 func (r *RuleTable) Filters() []compiled.Filter { return r.filters }
+
+// GRPC reports whether the rule belongs to a GRPCRoute: it only matches
+// gRPC requests and its backends speak cleartext HTTP/2
+// (docs/spec/traffic.md gRPC routing).
+func (r *RuleTable) GRPC() bool { return r.grpc }
 
 type BackendTable struct {
 	namespace string

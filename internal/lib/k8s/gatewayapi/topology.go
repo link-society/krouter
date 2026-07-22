@@ -211,6 +211,15 @@ func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routePa
 		}
 
 		switch {
+		case outcome.grpcRoute != nil:
+			clone := outcome.grpcRoute.DeepCopy()
+			info.YAML = objectYAML(clone,
+				gatewayv1.GroupVersion.String(), "GRPCRoute", &clone.ObjectMeta)
+
+			for _, hostname := range outcome.grpcRoute.Spec.Hostnames {
+				info.Hostnames = append(info.Hostnames, string(hostname))
+			}
+
 		case outcome.tcpRoute != nil:
 			clone := outcome.tcpRoute.DeepCopy()
 			info.YAML = objectYAML(clone,

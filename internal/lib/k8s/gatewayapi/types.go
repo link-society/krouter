@@ -16,6 +16,7 @@ type world struct {
 	classes    []gatewayv1.GatewayClass
 	gateways   []gatewayv1.Gateway
 	routes     []gatewayv1.HTTPRoute
+	grpcRoutes []gatewayv1.GRPCRoute
 	tcpRoutes  []gatewayv1alpha2.TCPRoute
 	tlsRoutes  []gatewayv1alpha2.TLSRoute
 	grants     []gatewayv1beta1.ReferenceGrant
@@ -52,10 +53,11 @@ func (l *listenerState) valid() bool {
 }
 
 // routeParentOutcome is the computed status of one (route, gateway)
-// attachment, plus its compiled form. Exactly one of route/tcpRoute/
-// tlsRoute is set, depending on the attachment kind.
+// attachment, plus its compiled form. Exactly one of route/grpcRoute/
+// tcpRoute/tlsRoute is set, depending on the attachment kind.
 type routeParentOutcome struct {
 	route     *gatewayv1.HTTPRoute
+	grpcRoute *gatewayv1.GRPCRoute
 	tcpRoute  *gatewayv1alpha2.TCPRoute
 	tlsRoute  *gatewayv1alpha2.TLSRoute
 	parentRef gatewayv1.ParentReference
@@ -72,6 +74,9 @@ type routeParentOutcome struct {
 
 func (o *routeParentOutcome) routeKind() string {
 	switch {
+	case o.grpcRoute != nil:
+		return "GRPCRoute"
+
 	case o.tcpRoute != nil:
 		return "TCPRoute"
 
@@ -85,6 +90,9 @@ func (o *routeParentOutcome) routeKind() string {
 
 func (o *routeParentOutcome) routeMeta() metav1.ObjectMeta {
 	switch {
+	case o.grpcRoute != nil:
+		return o.grpcRoute.ObjectMeta
+
 	case o.tcpRoute != nil:
 		return o.tcpRoute.ObjectMeta
 

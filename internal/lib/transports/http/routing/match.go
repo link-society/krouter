@@ -11,13 +11,31 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
+	"github.com/link-society/krouter/internal/lib/transports/grpc"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
 	"github.com/link-society/krouter/internal/lib/transports/tls"
 )
 
 // Match resolves the rule serving a request: most specific listener first,
-// then route hostnames, then rule matches (docs/spec/traffic.md).
+// then route hostnames, then rule matches (docs/spec/traffic.md). gRPC
+// requests prefer GRPCRoute rules and MAY fall back to HTTPRoute rules;
+// plain requests never match GRPCRoute rules.
 func (t *Tables) Match(port int32, host string, r *http.Request) (*RuleTable, *ListenerTable, *RouteTable) {
+	if grpc.IsRequest(r) {
+		if rule, listener, route := t.match(port, host, r, true); rule != nil {
+			return rule, listener, route
+		}
+	}
+
+	return t.match(port, host, r, false)
+}
+
+func (t *Tables) match(
+	port int32,
+	host string,
+	r *http.Request,
+	wantGRPC bool,
+) (*RuleTable, *ListenerTable, *RouteTable) {
 	table := t.byPort[port]
 	if table == nil {
 		return nil, nil, nil
@@ -34,6 +52,10 @@ func (t *Tables) Match(port int32, host string, r *http.Request) (*RuleTable, *L
 			}
 
 			for _, rule := range route.rules {
+				if rule.grpc != wantGRPC {
+					continue
+				}
+
 				if ruleMatches(rule, r) {
 					return rule, listener, route
 				}

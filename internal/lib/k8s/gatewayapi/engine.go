@@ -97,6 +97,13 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 	}
 	w.routes = routeList.Items
 
+	grpcRouteList, err := r.gwClient.GatewayV1().GRPCRoutes(metav1.NamespaceAll).
+		List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	w.grpcRoutes = grpcRouteList.Items
+
 	// TCPRoute and TLSRoute require the Experimental-channel CRDs; their
 	// absence MUST NOT crash or degrade HTTP behavior (docs/spec/overview.md).
 	tcpRouteList, err := r.gwClient.GatewayV1alpha2().TCPRoutes(metav1.NamespaceAll).
@@ -255,6 +262,7 @@ func (r *Engine) reconcileGateway(
 	listeners := r.validateListeners(ctx, w, gw, allocator)
 
 	outcomes := r.attachRoutes(w, gw, listeners)
+	outcomes = append(outcomes, r.attachGRPCRoutes(w, gw, listeners)...)
 	outcomes = append(outcomes, r.attachTCPRoutes(w, gw, listeners)...)
 	outcomes = append(outcomes, r.attachTLSRoutes(w, gw, listeners)...)
 

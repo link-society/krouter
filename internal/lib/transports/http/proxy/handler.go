@@ -20,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
+	"github.com/link-society/krouter/internal/lib/transports/grpc"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
@@ -34,8 +35,9 @@ var requestsTotal = promauto.NewCounterVec(
 // Handler is the request path shared by every port server. It only reads
 // the snapshots published by the loader and resolver actors.
 type Handler struct {
-	state     *routing.State
-	transport *http.Transport
+	state         *routing.State
+	transport     *http.Transport
+	grpcTransport *http.Transport
 }
 
 func NewHandler(state *routing.State) *Handler {
@@ -52,6 +54,8 @@ func NewHandler(state *routing.State) *Handler {
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 		},
+		// gRPC backends speak cleartext HTTP/2 (docs/spec/traffic.md).
+		grpcTransport: grpc.NewTransport(),
 	}
 }
 
@@ -76,6 +80,14 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 
 	rule, listener, route := h.state.Tables.Load().Match(port, host, r)
 	if rule == nil {
+		if grpc.IsRequest(r) {
+			// docs/spec/traffic.md gRPC routing: unmatched gRPC requests
+			// receive UNIMPLEMENTED.
+			grpc.Unimplemented(w)
+			requestsTotal.WithLabelValues("2xx").Inc()
+			return
+		}
+
 		http.Error(w, "not found", http.StatusNotFound)
 		requestsTotal.WithLabelValues("4xx").Inc()
 		return
@@ -85,8 +97,9 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 
 	requestsTotal.WithLabelValues(fmt.Sprintf("%dxx", status/100)).Inc()
 
-	// Access log event (docs/spec/observability.md).
-	slog.Info("request",
+	// Access log event (docs/spec/observability.md); gRPC requests
+	// additionally carry the gRPC status code.
+	attrs := []any{
 		"listener", listener.Name(),
 		"route", route.Key(),
 		"method", r.Method,
@@ -95,19 +108,37 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 		"duration", time.Since(start),
 		"proto", r.Proto,
 		"client", r.RemoteAddr,
-	)
+	}
+
+	if rule.GRPC() {
+		if grpcStatus, ok := grpc.StatusFromHeader(w.Header()); ok {
+			attrs = append(attrs, "grpc_status", grpcStatus)
+		}
+	}
+
+	slog.Info("request", attrs...)
 }
 
 // forward proxies one request to a selected backend endpoint.
 func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.RuleTable, withTLS bool) int {
 	backend := rule.PickBackend()
 	if backend == nil {
+		if rule.GRPC() {
+			grpc.Unavailable(w)
+			return http.StatusOK
+		}
+
 		http.Error(w, "no available backend", http.StatusInternalServerError)
 		return http.StatusInternalServerError
 	}
 
 	if !backend.Valid() {
-		// Unresolvable refs answer 500 for their traffic share (Gateway API).
+		// Unresolvable refs answer for their traffic share (Gateway API).
+		if rule.GRPC() {
+			grpc.Internal(w)
+			return http.StatusOK
+		}
+
 		http.Error(w, "invalid backend reference", http.StatusInternalServerError)
 		return http.StatusInternalServerError
 	}
@@ -115,13 +146,23 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 	target, ok := backend.Pick(h.state.Endpoints.Load())
 	if !ok {
 		// Required unavailable response (docs/spec/failure-modes.md).
+		if rule.GRPC() {
+			grpc.Unavailable(w)
+			return http.StatusOK
+		}
+
 		http.Error(w, "no ready endpoints", http.StatusServiceUnavailable)
 		return http.StatusServiceUnavailable
 	}
 
+	transport := h.transport
+	if rule.GRPC() {
+		transport = h.grpcTransport
+	}
+
 	status := http.StatusOK
 	reverseProxy := &httputil.ReverseProxy{
-		Transport:     h.transport,
+		Transport:     transport,
 		FlushInterval: -1, // preserve streaming, never buffer bodies (docs/spec/traffic.md)
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(&url.URL{
