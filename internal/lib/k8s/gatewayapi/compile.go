@@ -43,11 +43,12 @@ func (r *Engine) validateListeners(
 
 		case gatewayv1.TLSProtocolType:
 			// Passthrough only (docs/spec/overview.md): krouter routes on the
-			// SNI value and never holds the certificate.
+			// SNI value and never holds the certificate. Terminate is a
+			// valid protocol with an unsupported mode value.
 			if spec.TLS == nil || spec.TLS.Mode == nil ||
 				*spec.TLS.Mode != gatewayv1.TLSModePassthrough {
 				state.accepted = false
-				state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedProtocol)
+				state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedValue)
 			}
 
 		case gatewayv1.TCPProtocolType:
