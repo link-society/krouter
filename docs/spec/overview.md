@@ -41,7 +41,7 @@ resources.
 | Authentication | Out of scope |
 | Rate limiting | Out of scope |
 | Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`) and TLSRoute (`v1`) |
-| Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring) are supported and verified by their Extended conformance tests; other Extended features are out of scope |
+| Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring) and HTTPRoute rule timeouts are supported and verified by their Extended conformance tests; other Extended features are out of scope |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
 annotation on installed Gateway API CRDs and publish the GatewayClass

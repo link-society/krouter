@@ -159,6 +159,20 @@ be partially applied.
 
 No implementation-specific annotations or Route extensions are added.
 
+## Timeouts
+
+HTTPRoute `rules[].timeouts` MUST be honored with the upstream Gateway API
+semantics:
+
+- `request` bounds the time from the start of the downstream request to
+  the start of the gateway's response; exceeding it answers
+  `504 Gateway Timeout`.
+- `backendRequest` bounds one request to a backend endpoint and MUST NOT
+  exceed the effective `request` timeout.
+- A zero duration disables the corresponding timeout.
+- Timeouts apply per rule; rules without timeouts keep the default
+  behavior (no timeout beyond ordinary server limits).
+
 ## Forwarding headers
 
 By default, krouter regenerates spoof-sensitive `Forwarded` and

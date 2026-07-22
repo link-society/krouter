@@ -37,3 +37,5 @@ The implementation is accepted when:
     modification, URL rewriting, redirect path/scheme/port and
     alternative status codes, and request mirroring — pass the
     corresponding Extended conformance tests.
+17. HTTPRoute rule timeouts (`request` and `backendRequest`) pass the
+    corresponding Extended conformance tests.
