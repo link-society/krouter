@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"reflect"
+	"slices"
 	"strings"
 
 	"time"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	"sigs.k8s.io/gateway-api/pkg/features"
 )
 
 func labelsSet(m map[string]string) labels.Set {
@@ -74,6 +76,49 @@ func mergeConditions(existing, desired []metav1.Condition) []metav1.Condition {
 
 // ------------------------------------------------------------ GatewayClass --
 
+// supportedFeatures is the exact Gateway API feature set implemented by
+// krouter, published on GatewayClass status (docs/spec/status.md,
+// docs/spec/overview.md) and consumed by conformance tooling. It MUST stay
+// sorted by name.
+var supportedFeatures = func() []gatewayv1.SupportedFeature {
+	names := []features.FeatureName{
+		features.SupportGateway,
+		features.SupportHTTPRoute,
+		features.SupportGRPCRoute,
+		features.SupportTLSRoute,
+		features.SupportReferenceGrant,
+
+		// Extended HTTPRoute filters (docs/spec/acceptance.md criterion 16).
+		features.SupportHTTPRouteResponseHeaderModification,
+		features.SupportHTTPRouteHostRewrite,
+		features.SupportHTTPRoutePathRewrite,
+		features.SupportHTTPRoutePathRedirect,
+		features.SupportHTTPRouteSchemeRedirect,
+		features.SupportHTTPRoutePortRedirect,
+		features.SupportHTTPRoute303RedirectStatusCode,
+		features.SupportHTTPRoute307RedirectStatusCode,
+		features.SupportHTTPRoute308RedirectStatusCode,
+		features.SupportHTTPRouteRequestMirror,
+		features.SupportHTTPRouteRequestMultipleMirrors,
+		features.SupportHTTPRouteRequestPercentageMirror,
+
+		// HTTPRoute rule timeouts (docs/spec/acceptance.md criterion 17).
+		features.SupportHTTPRouteRequestTimeout,
+		features.SupportHTTPRouteBackendTimeout,
+	}
+
+	slices.Sort(names)
+
+	entries := make([]gatewayv1.SupportedFeature, 0, len(names))
+	for _, name := range names {
+		entries = append(entries, gatewayv1.SupportedFeature{
+			Name: gatewayv1.FeatureName(name),
+		})
+	}
+
+	return entries
+}()
+
 func (r *Engine) writeClassStatus(ctx context.Context, w *world, name string) error {
 	supported := strings.HasPrefix(w.bundleVersion, "v1.5")
 
@@ -109,11 +154,13 @@ func (r *Engine) writeClassStatus(ctx context.Context, w *world, name string) er
 		desired := mergeConditions(class.Status.Conditions,
 			[]metav1.Condition{accepted, supportedCondition})
 
-		if reflect.DeepEqual(class.Status.Conditions, desired) {
+		if reflect.DeepEqual(class.Status.Conditions, desired) &&
+			reflect.DeepEqual(class.Status.SupportedFeatures, supportedFeatures) {
 			return nil
 		}
 
 		class.Status.Conditions = desired
+		class.Status.SupportedFeatures = supportedFeatures
 
 		_, err = r.gwClient.GatewayV1().GatewayClasses().UpdateStatus(ctx, class, metav1.UpdateOptions{})
 
