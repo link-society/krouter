@@ -43,6 +43,16 @@ type listenerState struct {
 	refsReason   string
 	refsMessage  string
 
+	// supportedKinds is published on the listener status: the route kinds
+	// requested by allowedRoutes.kinds (or all protocol-compatible kinds
+	// when unspecified) that this listener can actually serve
+	// (docs/spec/frontend.md).
+	supportedKinds []gatewayv1.RouteGroupKind
+
+	// allowedKinds gates route attachment: a route kind absent from this
+	// set is rejected with NotAllowedByListeners (docs/spec/status.md).
+	allowedKinds map[string]bool
+
 	certData map[string][]byte // keys "<name>.tls.crt" / "<name>.tls.key"
 
 	attachedRoutes int32

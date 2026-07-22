@@ -185,34 +185,9 @@ func (r *Engine) writeGatewayStatus(
 				}
 			}
 
-			supportedKinds := []gatewayv1.RouteGroupKind{
-				{
-					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-					Kind:  "HTTPRoute",
-				},
-				{
-					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-					Kind:  "GRPCRoute",
-				},
-			}
-
-			switch lst.spec.Protocol {
-			case gatewayv1.TCPProtocolType:
-				supportedKinds = []gatewayv1.RouteGroupKind{{
-					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-					Kind:  "TCPRoute",
-				}}
-
-			case gatewayv1.TLSProtocolType:
-				supportedKinds = []gatewayv1.RouteGroupKind{{
-					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-					Kind:  "TLSRoute",
-				}}
-			}
-
 			desired.Listeners = append(desired.Listeners, gatewayv1.ListenerStatus{
 				Name:           lst.spec.Name,
-				SupportedKinds: supportedKinds,
+				SupportedKinds: lst.supportedKinds,
 				AttachedRoutes: lst.attachedRoutes,
 				Conditions:     mergeConditions(existingConditions, listenerConditions),
 			})

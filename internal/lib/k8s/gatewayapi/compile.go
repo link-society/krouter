@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
@@ -63,7 +64,9 @@ func (r *Engine) validateListeners(
 			state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedProtocol)
 		}
 
-		if spec.Protocol == gatewayv1.HTTPSProtocolType {
+		resolveRouteKinds(state)
+
+		if spec.Protocol == gatewayv1.HTTPSProtocolType && state.refsResolved {
 			r.resolveCertificates(ctx, w, gw, state)
 		}
 
@@ -80,6 +83,92 @@ func (r *Engine) validateListeners(
 	}
 
 	return listeners
+}
+
+// protocolRouteKinds returns the route kinds a listener protocol can serve
+// (docs/spec/frontend.md).
+func protocolRouteKinds(protocol gatewayv1.ProtocolType) []string {
+	switch protocol {
+	case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
+		return []string{"HTTPRoute", "GRPCRoute"}
+
+	case gatewayv1.TCPProtocolType:
+		return []string{"TCPRoute"}
+
+	case gatewayv1.TLSProtocolType:
+		return []string{"TLSRoute"}
+
+	default:
+		return nil
+	}
+}
+
+// resolveRouteKinds computes the listener's supported and allowed route
+// kinds from allowedRoutes.kinds. Requested kinds the listener cannot serve
+// surface as ResolvedRefs=False with reason InvalidRouteKinds, and
+// supportedKinds only advertises the kinds that remain (docs/spec/status.md).
+func resolveRouteKinds(state *listenerState) {
+	state.allowedKinds = map[string]bool{}
+	state.supportedKinds = []gatewayv1.RouteGroupKind{}
+
+	// A rejected listener serves nothing: it advertises no supported kinds
+	// and admits no routes (docs/spec/status.md).
+	if !state.accepted {
+		return
+	}
+
+	compatible := protocolRouteKinds(state.spec.Protocol)
+
+	requested := []gatewayv1.RouteGroupKind{}
+	if state.spec.AllowedRoutes != nil {
+		requested = state.spec.AllowedRoutes.Kinds
+	}
+
+	if len(requested) == 0 {
+		for _, kind := range compatible {
+			state.allowedKinds[kind] = true
+			state.supportedKinds = append(state.supportedKinds, gatewayv1.RouteGroupKind{
+				Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
+				Kind:  gatewayv1.Kind(kind),
+			})
+		}
+
+		return
+	}
+
+	invalid := false
+	for _, kind := range requested {
+		groupOK := kind.Group == nil || *kind.Group == gatewayv1.GroupName
+
+		kindOK := false
+		for _, candidate := range compatible {
+			if string(kind.Kind) == candidate {
+				kindOK = true
+				break
+			}
+		}
+
+		if !groupOK || !kindOK {
+			invalid = true
+			continue
+		}
+
+		if state.allowedKinds[string(kind.Kind)] {
+			continue
+		}
+
+		state.allowedKinds[string(kind.Kind)] = true
+		state.supportedKinds = append(state.supportedKinds, gatewayv1.RouteGroupKind{
+			Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
+			Kind:  kind.Kind,
+		})
+	}
+
+	if invalid && state.refsResolved {
+		state.refsResolved = false
+		state.refsReason = string(gatewayv1.ListenerReasonInvalidRouteKinds)
+		state.refsMessage = "allowedRoutes.kinds contains kinds this listener cannot serve"
+	}
 }
 
 // resolveCertificates validates listener certificate references and
