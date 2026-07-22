@@ -39,3 +39,6 @@ The implementation is accepted when:
     corresponding Extended conformance tests.
 17. HTTPRoute rule timeouts (`request` and `backendRequest`) pass the
     corresponding Extended conformance tests.
+18. The GatewayClass publishes `status.supportedFeatures`, and the
+    conformance suite derives its feature set from it without manual
+    declaration.

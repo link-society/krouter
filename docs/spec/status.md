@@ -8,6 +8,9 @@ It MUST implement all status fields and conditions required by Gateway API
 v1.5.1, including:
 
 - GatewayClass `Accepted` and `SupportedVersion`.
+- GatewayClass `status.supportedFeatures`, listing exactly the Gateway API
+  features this implementation supports, sorted by name, so conformance
+  tooling can derive the feature set from the cluster.
 - Gateway `Accepted` and `Programmed`.
 - Per-listener status and attached Route counts.
 - Route `status.parents[]` entries with this installation's controller
