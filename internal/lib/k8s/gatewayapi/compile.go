@@ -843,6 +843,38 @@ func compileHTTPFilter(filter gatewayv1.HTTPRouteFilter) (compiled.Filter, error
 
 		return compileHeaderModifier(filter.RequestHeaderModifier), nil
 
+	case gatewayv1.HTTPRouteFilterRequestRedirect:
+		redirect := filter.RequestRedirect
+		if redirect == nil {
+			return compiled.Filter{}, fmt.Errorf("missing requestRedirect")
+		}
+
+		if redirect.Path != nil {
+			// Path rewriting redirects are not supported
+			// (docs/spec/overview.md deferred scope).
+			return compiled.Filter{}, fmt.Errorf("unsupported redirect path rewrite")
+		}
+
+		entry := compiled.Filter{Type: "RequestRedirect", StatusCode: 302}
+
+		if redirect.Scheme != nil {
+			entry.Scheme = *redirect.Scheme
+		}
+
+		if redirect.Hostname != nil {
+			entry.Hostname = string(*redirect.Hostname)
+		}
+
+		if redirect.Port != nil {
+			entry.Port = int32(*redirect.Port)
+		}
+
+		if redirect.StatusCode != nil {
+			entry.StatusCode = *redirect.StatusCode
+		}
+
+		return entry, nil
+
 	default:
 		return compiled.Filter{}, fmt.Errorf("unsupported filter type %q", filter.Type)
 	}

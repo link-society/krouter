@@ -105,6 +105,12 @@ type Filter struct {
 	SetHeaders    map[string]string `json:"setHeaders,omitempty"`
 	AddHeaders    map[string]string `json:"addHeaders,omitempty"`
 	RemoveHeaders []string          `json:"removeHeaders,omitempty"`
+	// RequestRedirect fields (docs/spec/traffic.md): unset values inherit
+	// from the incoming request; StatusCode defaults to 302.
+	Scheme     string `json:"scheme,omitempty"`
+	Hostname   string `json:"hostname,omitempty"`
+	Port       int32  `json:"port,omitempty"`
+	StatusCode int    `json:"statusCode,omitempty"`
 }
 
 type Backend struct {

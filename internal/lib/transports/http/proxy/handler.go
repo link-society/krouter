@@ -93,7 +93,12 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 		return
 	}
 
-	status := h.forward(w, r, rule, withTLS)
+	status := 0
+	if redirect, ok := redirectFilter(rule); ok {
+		status = serveRedirect(w, r, redirect, withTLS)
+	} else {
+		status = h.forward(w, r, rule, withTLS)
+	}
 
 	requestsTotal.WithLabelValues(fmt.Sprintf("%dxx", status/100)).Inc()
 
@@ -117,6 +122,57 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	}
 
 	slog.Info("request", attrs...)
+}
+
+// redirectFilter returns the rule's RequestRedirect filter, if any.
+func redirectFilter(rule *routing.RuleTable) (compiled.Filter, bool) {
+	for _, filter := range rule.Filters() {
+		if filter.Type == "RequestRedirect" {
+			return filter, true
+		}
+	}
+
+	return compiled.Filter{}, false
+}
+
+// serveRedirect answers a RequestRedirect rule (docs/spec/traffic.md):
+// unset filter values inherit from the incoming request, and default
+// scheme ports are omitted from the Location header.
+func serveRedirect(w http.ResponseWriter, r *http.Request, filter compiled.Filter, withTLS bool) int {
+	scheme := "http"
+	if withTLS {
+		scheme = "https"
+	}
+	if filter.Scheme != "" {
+		scheme = filter.Scheme
+	}
+
+	host := hostOnly(r.Host)
+	if filter.Hostname != "" {
+		host = filter.Hostname
+	}
+
+	if filter.Port != 0 &&
+		!(scheme == "http" && filter.Port == 80) &&
+		!(scheme == "https" && filter.Port == 443) {
+		host = fmt.Sprintf("%s:%d", host, filter.Port)
+	}
+
+	location := url.URL{
+		Scheme:   scheme,
+		Host:     host,
+		Path:     r.URL.Path,
+		RawQuery: r.URL.RawQuery,
+	}
+
+	status := filter.StatusCode
+	if status == 0 {
+		status = http.StatusFound
+	}
+
+	http.Redirect(w, r, location.String(), status)
+
+	return status
 }
 
 // forward proxies one request to a selected backend endpoint.
