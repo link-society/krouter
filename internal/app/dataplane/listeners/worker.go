@@ -9,17 +9,20 @@ import (
 
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/portserver"
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/tcpserver"
+	"github.com/link-society/krouter/internal/app/dataplane/listeners/tlsserver"
 	"github.com/link-society/krouter/internal/lib/transports/http/proxy"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
+	"github.com/link-society/krouter/internal/lib/transports/tls"
 )
 
 // worker reconciles the listener children against the published tables.
 // It is the only goroutine touching the children map.
 type worker struct {
-	in        actor.MailboxReceiver[*routing.Tables]
-	handler   *proxy.Handler
-	forwarder *tcp.Forwarder
+	in           actor.MailboxReceiver[*routing.Tables]
+	handler      *proxy.Handler
+	forwarder    *tcp.Forwarder
+	tlsForwarder *tls.Forwarder
 
 	children map[int32]actor.Actor
 	specs    map[int32]routing.PortSpec
@@ -68,9 +71,14 @@ func (w *worker) reconcile(tables *routing.Tables) {
 		var srv actor.Actor
 		var err error
 
-		if spec.TCP {
+		switch {
+		case spec.TCP:
 			srv, err = tcpserver.New(port, w.forwarder)
-		} else {
+
+		case spec.TLSPassthrough:
+			srv, err = tlsserver.New(port, w.tlsForwarder)
+
+		default:
 			srv, err = portserver.New(port, spec.TLS, w.handler)
 		}
 

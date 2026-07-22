@@ -40,6 +40,15 @@ func (r *Engine) validateListeners(
 		switch spec.Protocol {
 		case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
 
+		case gatewayv1.TLSProtocolType:
+			// Passthrough only (docs/spec/overview.md): krouter routes on the
+			// SNI value and never holds the certificate.
+			if spec.TLS == nil || spec.TLS.Mode == nil ||
+				*spec.TLS.Mode != gatewayv1.TLSModePassthrough {
+				state.accepted = false
+				state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedProtocol)
+			}
+
 		case gatewayv1.TCPProtocolType:
 			// TCP listeners carry no hostname, so a Gateway MUST NOT declare
 			// more than one TCP listener per external port (docs/spec/frontend.md).
@@ -358,6 +367,128 @@ func (r *Engine) attachTCPRoute(
 	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
 		rule.Backends = append(rule.Backends,
 			r.compileBackend(w, route.Namespace, "TCPRoute", backendRef, outcome))
+	}
+
+	config.Rules = append(config.Rules, rule)
+	outcome.config = config
+
+	return outcome
+}
+
+// attachTLSRoutes computes every (TLSRoute, gateway) attachment outcome
+// (docs/spec/traffic.md): TLSRoutes attach to TLS passthrough listeners,
+// matched by SNI hostname intersection.
+func (r *Engine) attachTLSRoutes(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+) []*routeParentOutcome {
+	var outcomes []*routeParentOutcome
+
+	for i := range w.tlsRoutes {
+		route := &w.tlsRoutes[i]
+
+		for _, parentRef := range route.Spec.ParentRefs {
+			if !parentRefMatches(parentRef, route.Namespace, gw) {
+				continue
+			}
+
+			outcome := r.attachTLSRoute(w, gw, listeners, route, parentRef)
+			outcomes = append(outcomes, outcome)
+		}
+	}
+
+	return outcomes
+}
+
+func (r *Engine) attachTLSRoute(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+	route *gatewayv1alpha2.TLSRoute,
+	parentRef gatewayv1.ParentReference,
+) *routeParentOutcome {
+	outcome := &routeParentOutcome{
+		tlsRoute:     route,
+		parentRef:    parentRef,
+		refsResolved: true,
+		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
+	}
+
+	var candidates []*listenerState
+	for _, lst := range listeners {
+		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
+			continue
+		}
+
+		if lst.spec.Protocol != gatewayv1.TLSProtocolType {
+			continue
+		}
+
+		candidates = append(candidates, lst)
+	}
+
+	if len(candidates) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingParent)
+		return outcome
+	}
+
+	var namespaceAdmitted []*listenerState
+	for _, lst := range candidates {
+		if namespaceAllowed(lst.spec.AllowedRoutes, route.Namespace, gw.Namespace, w.namespaces) {
+			namespaceAdmitted = append(namespaceAdmitted, lst)
+		}
+	}
+
+	if len(namespaceAdmitted) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+		return outcome
+	}
+
+	var admitted []*listenerState
+	for _, lst := range namespaceAdmitted {
+		if hostnamesIntersect(lst.spec.Hostname, route.Spec.Hostnames) {
+			admitted = append(admitted, lst)
+		}
+	}
+
+	if len(admitted) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingListenerHostname)
+		return outcome
+	}
+
+	if len(route.Spec.Rules) != 1 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
+		return outcome
+	}
+
+	outcome.accepted = true
+	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
+
+	for _, lst := range admitted {
+		lst.attachedRoutes++
+	}
+
+	config := &compiled.RouteConfig{
+		UID:       string(route.UID),
+		Namespace: route.Namespace,
+		Name:      route.Name,
+	}
+
+	for _, lst := range admitted {
+		if lst.valid() {
+			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+		}
+	}
+
+	for _, hostname := range route.Spec.Hostnames {
+		config.Hostnames = append(config.Hostnames, string(hostname))
+	}
+
+	rule := compiled.Rule{}
+	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
+		rule.Backends = append(rule.Backends,
+			r.compileBackend(w, route.Namespace, "TLSRoute", backendRef, outcome))
 	}
 
 	config.Rules = append(config.Rules, rule)

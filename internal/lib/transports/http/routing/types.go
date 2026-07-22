@@ -44,8 +44,9 @@ func (t *Tables) Port(port int32) *PortTable {
 // PortSpec describes one internal listener port for the listener
 // supervisor: which server kind to run and whether it terminates TLS.
 type PortSpec struct {
-	TLS bool
-	TCP bool
+	TLS            bool
+	TCP            bool
+	TLSPassthrough bool
 }
 
 // Ports returns every internal listener port and its spec, for the
@@ -53,7 +54,11 @@ type PortSpec struct {
 func (t *Tables) Ports() map[int32]PortSpec {
 	ports := make(map[int32]PortSpec, len(t.byPort))
 	for port, table := range t.byPort {
-		ports[port] = PortSpec{TLS: table.tls, TCP: table.tcp}
+		ports[port] = PortSpec{
+			TLS:            table.tls,
+			TCP:            table.tcp,
+			TLSPassthrough: table.tlsPassthrough,
+		}
 	}
 
 	return ports
@@ -66,11 +71,12 @@ func (t *Tables) Backends() map[string]bool {
 }
 
 type PortTable struct {
-	gatewayUID  string
-	gatewayName string // namespace/name, for access logs
-	tls         bool
-	tcp         bool
-	listeners   []*ListenerTable
+	gatewayUID     string
+	gatewayName    string // namespace/name, for access logs
+	tls            bool
+	tcp            bool
+	tlsPassthrough bool
+	listeners      []*ListenerTable
 }
 
 type ListenerTable struct {

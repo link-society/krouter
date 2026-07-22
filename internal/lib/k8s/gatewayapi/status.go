@@ -186,8 +186,12 @@ func (r *Engine) writeGatewayStatus(
 			}
 
 			supportedKind := gatewayv1.Kind("HTTPRoute")
-			if lst.spec.Protocol == gatewayv1.TCPProtocolType {
+			switch lst.spec.Protocol {
+			case gatewayv1.TCPProtocolType:
 				supportedKind = "TCPRoute"
+
+			case gatewayv1.TLSProtocolType:
+				supportedKind = "TLSRoute"
 			}
 
 			desired.Listeners = append(desired.Listeners, gatewayv1.ListenerStatus{
@@ -291,6 +295,36 @@ func (r *Engine) writeRouteStatuses(
 		})
 		if err != nil {
 			logSyncError("tcproute status", fmtKey(route.Namespace, route.Name), err)
+		}
+	}
+
+	for i := range w.tlsRoutes {
+		route := &w.tlsRoutes[i]
+		key := outcomeKey("TLSRoute", route.Namespace, route.Name)
+
+		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
+
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			fresh, err := r.gwClient.GatewayV1alpha2().TLSRoutes(route.Namespace).
+				Get(ctx, route.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
+			if !changed {
+				return nil
+			}
+
+			fresh.Status.Parents = desired
+
+			_, err = r.gwClient.GatewayV1alpha2().TLSRoutes(route.Namespace).
+				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
+
+			return err
+		})
+		if err != nil {
+			logSyncError("tlsroute status", fmtKey(route.Namespace, route.Name), err)
 		}
 	}
 }

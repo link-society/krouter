@@ -17,6 +17,7 @@ type world struct {
 	gateways   []gatewayv1.Gateway
 	routes     []gatewayv1.HTTPRoute
 	tcpRoutes  []gatewayv1alpha2.TCPRoute
+	tlsRoutes  []gatewayv1alpha2.TLSRoute
 	grants     []gatewayv1beta1.ReferenceGrant
 	namespaces map[string]map[string]string
 
@@ -51,11 +52,12 @@ func (l *listenerState) valid() bool {
 }
 
 // routeParentOutcome is the computed status of one (route, gateway)
-// attachment, plus its compiled form. Exactly one of route/tcpRoute is
-// set, depending on the attachment kind.
+// attachment, plus its compiled form. Exactly one of route/tcpRoute/
+// tlsRoute is set, depending on the attachment kind.
 type routeParentOutcome struct {
 	route     *gatewayv1.HTTPRoute
 	tcpRoute  *gatewayv1alpha2.TCPRoute
+	tlsRoute  *gatewayv1alpha2.TLSRoute
 	parentRef gatewayv1.ParentReference
 
 	accepted       bool
@@ -69,19 +71,29 @@ type routeParentOutcome struct {
 }
 
 func (o *routeParentOutcome) routeKind() string {
-	if o.tcpRoute != nil {
+	switch {
+	case o.tcpRoute != nil:
 		return "TCPRoute"
-	}
 
-	return "HTTPRoute"
+	case o.tlsRoute != nil:
+		return "TLSRoute"
+
+	default:
+		return "HTTPRoute"
+	}
 }
 
 func (o *routeParentOutcome) routeMeta() metav1.ObjectMeta {
-	if o.tcpRoute != nil {
+	switch {
+	case o.tcpRoute != nil:
 		return o.tcpRoute.ObjectMeta
-	}
 
-	return o.route.ObjectMeta
+	case o.tlsRoute != nil:
+		return o.tlsRoute.ObjectMeta
+
+	default:
+		return o.route.ObjectMeta
+	}
 }
 
 // outcomeKey disambiguates routes of different kinds sharing a name.

@@ -106,7 +106,10 @@ func (f *Forwarder) Serve(downstream net.Conn, port int32) {
 	activeConnections.Inc()
 	defer activeConnections.Dec()
 
-	received, sent := splice(downstream, backend)
+	received, sent := Splice(downstream, backend)
+
+	bytesTotal.WithLabelValues("downstream_to_backend").Add(float64(received))
+	bytesTotal.WithLabelValues("backend_to_downstream").Add(float64(sent))
 
 	connectionsTotal.WithLabelValues("forwarded").Inc()
 
@@ -124,21 +127,20 @@ func (f *Forwarder) Serve(downstream net.Conn, port int32) {
 	)
 }
 
-// splice copies bytes in both directions until each side closes, using
+// Splice copies bytes in both directions until each side closes, using
 // half-closes so a one-way shutdown drains cleanly. It returns the bytes
-// received from the downstream and sent back to it.
-func splice(downstream, backend net.Conn) (received, sent int64) {
+// received from the downstream and sent back to it. It is shared with the
+// TLS passthrough transport.
+func Splice(downstream, backend net.Conn) (received, sent int64) {
 	var wg sync.WaitGroup
 
 	wg.Go(func() {
 		received, _ = io.Copy(backend, downstream)
-		bytesTotal.WithLabelValues("downstream_to_backend").Add(float64(received))
 		closeWrite(backend)
 	})
 
 	wg.Go(func() {
 		sent, _ = io.Copy(downstream, backend)
-		bytesTotal.WithLabelValues("backend_to_downstream").Add(float64(sent))
 		closeWrite(downstream)
 	})
 

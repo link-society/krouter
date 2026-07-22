@@ -12,6 +12,7 @@ import (
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
+	"github.com/link-society/krouter/internal/lib/transports/tls"
 )
 
 // Match resolves the rule serving a request: most specific listener first,
@@ -214,6 +215,58 @@ func (s *State) PickTCP(port int32) (tcp.Selection, bool) {
 }
 
 var _ tcp.Picker = (*State)(nil)
+
+// PickTLS selects the backend endpoint for one new downstream connection
+// on a TLS passthrough port (docs/spec/traffic.md): the SNI value selects
+// the listener (most specific hostname first) and the route, then route
+// weights and endpoint round-robin apply as for every other route type.
+func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Selection, bool) {
+	table := t.byPort[port]
+	if table == nil || !table.tlsPassthrough {
+		return tls.Selection{}, false
+	}
+
+	for _, listener := range table.listeners {
+		if !hostnameMatches(listener.hostname, sni) {
+			continue
+		}
+
+		for _, route := range listener.routes {
+			if !routeHostnameMatches(route.hostnames, sni) {
+				continue
+			}
+
+			for _, rule := range route.rules {
+				backend := rule.PickBackend()
+				if backend == nil || !backend.valid {
+					return tls.Selection{}, false
+				}
+
+				endpoint, ok := backend.Pick(index)
+				if !ok {
+					return tls.Selection{}, false
+				}
+
+				return tls.Selection{
+					Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
+					Gateway:  table.gatewayName,
+					Route:    route.Key(),
+					Backend: fmt.Sprintf("%s/%s:%d",
+						backend.namespace, backend.name, backend.port),
+				}, true
+			}
+		}
+	}
+
+	return tls.Selection{}, false
+}
+
+// PickTLS implements tls.Picker over the live snapshots.
+func (s *State) PickTLS(port int32, sni string) (tls.Selection, bool) {
+	return s.Tables.Load().PickTLS(port, sni, s.Endpoints.Load())
+}
+
+var _ tls.Picker = (*State)(nil)
 
 func pickBucket(counter int64, backends []*BackendTable, total int64) *BackendTable {
 	if total <= 0 {

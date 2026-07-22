@@ -210,11 +210,22 @@ func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routePa
 			UID:       string(meta.UID),
 		}
 
-		if outcome.tcpRoute != nil {
+		switch {
+		case outcome.tcpRoute != nil:
 			clone := outcome.tcpRoute.DeepCopy()
 			info.YAML = objectYAML(clone,
 				gatewayv1alpha2.GroupVersion.String(), "TCPRoute", &clone.ObjectMeta)
-		} else {
+
+		case outcome.tlsRoute != nil:
+			clone := outcome.tlsRoute.DeepCopy()
+			info.YAML = objectYAML(clone,
+				gatewayv1alpha2.GroupVersion.String(), "TLSRoute", &clone.ObjectMeta)
+
+			for _, hostname := range outcome.tlsRoute.Spec.Hostnames {
+				info.Hostnames = append(info.Hostnames, string(hostname))
+			}
+
+		default:
 			clone := outcome.route.DeepCopy()
 			info.YAML = objectYAML(clone,
 				gatewayv1.GroupVersion.String(), "HTTPRoute", &clone.ObjectMeta)
