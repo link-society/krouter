@@ -101,6 +101,7 @@ type RouteTable struct {
 	namespace string
 	name      string
 	hostnames []string
+	created   int64 // creation unix time, precedence tie-break (docs/spec/traffic.md)
 	rules     []*RuleTable
 }
 

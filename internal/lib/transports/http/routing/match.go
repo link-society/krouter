@@ -41,6 +41,17 @@ func (t *Tables) match(
 		return nil, nil, nil
 	}
 
+	// Gateway API matching precedence (docs/spec/traffic.md): most specific
+	// listener hostname, then most specific route hostname, then Exact over
+	// longest-prefix path, then most header matches, then the oldest route
+	// (name as final tie-break), then rule/match order within the route.
+	var (
+		bestRule     *RuleTable
+		bestListener *ListenerTable
+		bestRoute    *RouteTable
+		bestScore    matchScore
+	)
+
 	for _, listener := range table.listeners {
 		if !hostnameMatches(listener.hostname, host) {
 			continue
@@ -56,14 +67,145 @@ func (t *Tables) match(
 					continue
 				}
 
-				if ruleMatches(rule, r) {
-					return rule, listener, route
+				matched, pathScore, headerCount := ruleBestMatch(rule, r)
+				if !matched {
+					continue
+				}
+
+				score := matchScore{
+					listenerHostname: hostnameScore(listener.hostname),
+					routeHostname:    routeHostnameScore(listener, route, host),
+					path:             pathScore,
+					headers:          headerCount,
+					created:          route.created,
+					name:             route.Key(),
+				}
+
+				if bestRule == nil || score.beats(bestScore) {
+					bestRule, bestListener, bestRoute = rule, listener, route
+					bestScore = score
 				}
 			}
 		}
 	}
 
-	return nil, nil, nil
+	return bestRule, bestListener, bestRoute
+}
+
+// matchScore orders candidate rules by the Gateway API matching precedence
+// (docs/spec/traffic.md). Higher hostname/path/header scores win; ties fall
+// to the oldest route, then the lexically smallest namespaced name, then
+// the first candidate in table order.
+type matchScore struct {
+	listenerHostname int
+	routeHostname    int
+	path             int
+	headers          int
+	created          int64
+	name             string
+}
+
+func (s matchScore) beats(other matchScore) bool {
+	if s.listenerHostname != other.listenerHostname {
+		return s.listenerHostname > other.listenerHostname
+	}
+
+	if s.routeHostname != other.routeHostname {
+		return s.routeHostname > other.routeHostname
+	}
+
+	if s.path != other.path {
+		return s.path > other.path
+	}
+
+	if s.headers != other.headers {
+		return s.headers > other.headers
+	}
+
+	if s.created != other.created {
+		return s.created < other.created
+	}
+
+	return s.name < other.name
+}
+
+// hostnameScore ranks a hostname pattern: any exact hostname beats any
+// wildcard, longer patterns beat shorter ones, absent hostnames rank last.
+func hostnameScore(hostname string) int {
+	switch {
+	case hostname == "":
+		return 0
+
+	case strings.HasPrefix(hostname, "*."):
+		return len(hostname)
+
+	default:
+		return 1<<16 + len(hostname)
+	}
+}
+
+// routeHostnameScore ranks the hostname under which a route matched the
+// request: the most specific matching route hostname, or the listener
+// hostname when the route declares none.
+func routeHostnameScore(listener *ListenerTable, route *RouteTable, host string) int {
+	if len(route.hostnames) == 0 {
+		return hostnameScore(listener.hostname)
+	}
+
+	best := 0
+	for _, pattern := range route.hostnames {
+		if !hostnameMatches(pattern, host) {
+			continue
+		}
+
+		if score := hostnameScore(pattern); score > best {
+			best = score
+		}
+	}
+
+	return best
+}
+
+// ruleBestMatch reports whether the rule matches the request and the
+// specificity of its best applying match: the path score (Exact beats any
+// prefix, longer beats shorter) and the number of matched headers.
+func ruleBestMatch(rule *RuleTable, r *http.Request) (bool, int, int) {
+	if len(rule.matches) == 0 {
+		return true, 0, 0
+	}
+
+	matched := false
+	bestPath := 0
+	bestHeaders := 0
+
+	for _, match := range rule.matches {
+		if !matchApplies(match, r) {
+			continue
+		}
+
+		path := pathScore(match)
+		headers := len(match.Headers)
+
+		if !matched || path > bestPath || (path == bestPath && headers > bestHeaders) {
+			bestPath, bestHeaders = path, headers
+		}
+		matched = true
+	}
+
+	return matched, bestPath, bestHeaders
+}
+
+func pathScore(match compiled.Match) int {
+	switch match.PathType {
+	case "Exact":
+		return 1<<16 + len(match.PathValue)
+
+	case "", "PathPrefix":
+		return len(strings.TrimSuffix(match.PathValue, "/"))
+
+	default:
+		return 0
+	}
 }
 
 // CertificateFor selects the certificate for an SNI value on a port, so a
@@ -129,20 +271,6 @@ func routeHostnameMatches(hostnames []string, host string) bool {
 
 	for _, pattern := range hostnames {
 		if hostnameMatches(pattern, host) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func ruleMatches(rule *RuleTable, r *http.Request) bool {
-	if len(rule.matches) == 0 {
-		return true
-	}
-
-	for _, match := range rule.matches {
-		if matchApplies(match, r) {
 			return true
 		}
 	}
@@ -243,13 +371,20 @@ var _ tcp.Picker = (*State)(nil)
 
 // PickTLS selects the backend endpoint for one new downstream connection
 // on a TLS passthrough port (docs/spec/traffic.md): the SNI value selects
-// the listener (most specific hostname first) and the route, then route
-// weights and endpoint round-robin apply as for every other route type.
+// the listener and route by hostname precedence (most specific matching
+// hostname, oldest route on ties), then route weights and endpoint
+// round-robin apply as for every other route type.
 func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Selection, bool) {
 	table := t.byPort[port]
 	if table == nil || !table.tlsPassthrough {
 		return tls.Selection{}, false
 	}
+
+	var (
+		bestRule  *RuleTable
+		bestRoute *RouteTable
+		bestScore matchScore
+	)
 
 	for _, listener := range table.listeners {
 		if !hostnameMatches(listener.hostname, sni) {
@@ -262,28 +397,42 @@ func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Sel
 			}
 
 			for _, rule := range route.rules {
-				backend := rule.PickBackend()
-				if backend == nil || !backend.valid {
-					return tls.Selection{}, false
+				score := matchScore{
+					listenerHostname: hostnameScore(listener.hostname),
+					routeHostname:    routeHostnameScore(listener, route, sni),
+					created:          route.created,
+					name:             route.Key(),
 				}
 
-				endpoint, ok := backend.Pick(index)
-				if !ok {
-					return tls.Selection{}, false
+				if bestRule == nil || score.beats(bestScore) {
+					bestRule, bestRoute = rule, route
+					bestScore = score
 				}
-
-				return tls.Selection{
-					Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
-					Gateway:  table.gatewayName,
-					Route:    route.Key(),
-					Backend: fmt.Sprintf("%s/%s:%d",
-						backend.namespace, backend.name, backend.port),
-				}, true
 			}
 		}
 	}
 
-	return tls.Selection{}, false
+	if bestRule == nil {
+		return tls.Selection{}, false
+	}
+
+	backend := bestRule.PickBackend()
+	if backend == nil || !backend.valid {
+		return tls.Selection{}, false
+	}
+
+	endpoint, ok := backend.Pick(index)
+	if !ok {
+		return tls.Selection{}, false
+	}
+
+	return tls.Selection{
+		Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
+		Gateway:  table.gatewayName,
+		Route:    bestRoute.Key(),
+		Backend: fmt.Sprintf("%s/%s:%d",
+			backend.namespace, backend.name, backend.port),
+	}, true
 }
 
 // PickTLS implements tls.Picker over the live snapshots.

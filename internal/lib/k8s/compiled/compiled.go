@@ -72,6 +72,10 @@ type RouteConfig struct {
 	Name      string   `json:"name"`
 	Listeners []string `json:"listeners"`
 	Hostnames []string `json:"hostnames,omitempty"`
+	// Created is the source route's creation time (unix seconds), used to
+	// break matching-precedence ties: the oldest route wins
+	// (docs/spec/traffic.md).
+	Created int64 `json:"created,omitempty"`
 	// GRPC marks a GRPCRoute attachment: its rules only match gRPC
 	// requests and its backends speak cleartext HTTP/2
 	// (docs/spec/traffic.md gRPC routing).

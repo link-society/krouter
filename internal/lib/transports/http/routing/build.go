@@ -67,6 +67,7 @@ func BuildGatewayTable(
 			namespace: route.Namespace,
 			name:      route.Name,
 			hostnames: route.Hostnames,
+			created:   route.Created,
 		}
 
 		for _, rule := range route.Rules {

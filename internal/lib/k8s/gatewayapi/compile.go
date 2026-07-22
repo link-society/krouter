@@ -355,6 +355,7 @@ func (r *Engine) attachTCPRoute(
 		UID:       string(route.UID),
 		Namespace: route.Namespace,
 		Name:      route.Name,
+		Created:   route.CreationTimestamp.Unix(),
 	}
 
 	for _, lst := range admitted {
@@ -473,6 +474,7 @@ func (r *Engine) attachTLSRoute(
 		UID:       string(route.UID),
 		Namespace: route.Namespace,
 		Name:      route.Name,
+		Created:   route.CreationTimestamp.Unix(),
 	}
 
 	for _, lst := range admitted {
@@ -584,6 +586,7 @@ func (r *Engine) attachGRPCRoute(
 		UID:       string(route.UID),
 		Namespace: route.Namespace,
 		Name:      route.Name,
+		Created:   route.CreationTimestamp.Unix(),
 		GRPC:      true,
 	}
 
@@ -723,6 +726,7 @@ func (r *Engine) compileRoute(
 		UID:       string(route.UID),
 		Namespace: route.Namespace,
 		Name:      route.Name,
+		Created:   route.CreationTimestamp.Unix(),
 	}
 
 	for _, lst := range admitted {
