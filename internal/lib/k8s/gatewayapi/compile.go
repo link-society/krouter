@@ -379,14 +379,18 @@ func (r *Engine) attachRoute(
 		return outcome
 	}
 
+	outcome.config = r.compileRoute(w, gw, route, admitted, outcome)
+	if outcome.config == nil {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
+		return outcome
+	}
+
 	outcome.accepted = true
 	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
 
 	for _, lst := range admitted {
 		lst.attachedRoutes++
 	}
-
-	outcome.config = r.compileRoute(w, gw, route, admitted, outcome)
 
 	return outcome
 }
@@ -735,26 +739,13 @@ func (r *Engine) compileGRPCRule(
 	for _, filter := range rule.Filters {
 		if filter.Type != gatewayv1.GRPCRouteFilterRequestHeaderModifier ||
 			filter.RequestHeaderModifier == nil {
-			continue
+			// Unsupported filters MUST reject the route, never be silently
+			// dropped (docs/spec/traffic.md).
+			return compiled.Rule{}, fmt.Errorf("unsupported filter type %q", filter.Type)
 		}
 
-		entry := compiled.Filter{
-			Type:       "RequestHeaderModifier",
-			SetHeaders: map[string]string{},
-			AddHeaders: map[string]string{},
-		}
-
-		for _, header := range filter.RequestHeaderModifier.Set {
-			entry.SetHeaders[string(header.Name)] = header.Value
-		}
-
-		for _, header := range filter.RequestHeaderModifier.Add {
-			entry.AddHeaders[string(header.Name)] = header.Value
-		}
-
-		entry.RemoveHeaders = filter.RequestHeaderModifier.Remove
-
-		compiledRule.Filters = append(compiledRule.Filters, entry)
+		compiledRule.Filters = append(compiledRule.Filters,
+			compileHeaderModifier(filter.RequestHeaderModifier))
 	}
 
 	for _, backendRef := range rule.BackendRefs {
@@ -766,7 +757,9 @@ func (r *Engine) compileGRPCRule(
 }
 
 // compileRoute builds the (Gateway, Route) attachment payload, validating
-// backend references and ReferenceGrants (docs/spec/traffic.md).
+// backend references and ReferenceGrants (docs/spec/traffic.md). It returns
+// nil when the route uses filters this implementation does not support:
+// such routes MUST be rejected, never partially applied (docs/spec/traffic.md).
 func (r *Engine) compileRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
@@ -818,26 +811,10 @@ func (r *Engine) compileRoute(
 		}
 
 		for _, filter := range rule.Filters {
-			if filter.Type != gatewayv1.HTTPRouteFilterRequestHeaderModifier ||
-				filter.RequestHeaderModifier == nil {
-				continue
+			entry, err := compileHTTPFilter(filter)
+			if err != nil {
+				return nil
 			}
-
-			entry := compiled.Filter{
-				Type:       "RequestHeaderModifier",
-				SetHeaders: map[string]string{},
-				AddHeaders: map[string]string{},
-			}
-
-			for _, header := range filter.RequestHeaderModifier.Set {
-				entry.SetHeaders[string(header.Name)] = header.Value
-			}
-
-			for _, header := range filter.RequestHeaderModifier.Add {
-				entry.AddHeaders[string(header.Name)] = header.Value
-			}
-
-			entry.RemoveHeaders = filter.RequestHeaderModifier.Remove
 
 			compiledRule.Filters = append(compiledRule.Filters, entry)
 		}
@@ -851,6 +828,44 @@ func (r *Engine) compileRoute(
 	}
 
 	return config
+}
+
+// compileHTTPFilter translates one HTTPRoute filter. Unsupported filter
+// types or values yield an error so the whole route is rejected with
+// UnsupportedValue instead of silently dropping the filter
+// (docs/spec/traffic.md).
+func compileHTTPFilter(filter gatewayv1.HTTPRouteFilter) (compiled.Filter, error) {
+	switch filter.Type {
+	case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
+		if filter.RequestHeaderModifier == nil {
+			return compiled.Filter{}, fmt.Errorf("missing requestHeaderModifier")
+		}
+
+		return compileHeaderModifier(filter.RequestHeaderModifier), nil
+
+	default:
+		return compiled.Filter{}, fmt.Errorf("unsupported filter type %q", filter.Type)
+	}
+}
+
+func compileHeaderModifier(modifier *gatewayv1.HTTPHeaderFilter) compiled.Filter {
+	entry := compiled.Filter{
+		Type:       "RequestHeaderModifier",
+		SetHeaders: map[string]string{},
+		AddHeaders: map[string]string{},
+	}
+
+	for _, header := range modifier.Set {
+		entry.SetHeaders[string(header.Name)] = header.Value
+	}
+
+	for _, header := range modifier.Add {
+		entry.AddHeaders[string(header.Name)] = header.Value
+	}
+
+	entry.RemoveHeaders = modifier.Remove
+
+	return entry
 }
 
 func (r *Engine) compileBackend(
