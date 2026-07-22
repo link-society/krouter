@@ -86,6 +86,7 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		features.SupportHTTPRoute,
 		features.SupportGRPCRoute,
 		features.SupportTLSRoute,
+		features.SupportUDPRoute,
 		features.SupportReferenceGrant,
 
 		// Extended HTTPRoute filters (docs/spec/acceptance.md criterion 16).
@@ -390,6 +391,36 @@ func (r *Engine) writeRouteStatuses(
 		})
 		if err != nil {
 			logSyncError("tlsroute status", fmtKey(route.Namespace, route.Name), err)
+		}
+	}
+
+	for i := range w.udpRoutes {
+		route := &w.udpRoutes[i]
+		key := outcomeKey("UDPRoute", route.Namespace, route.Name)
+
+		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
+
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			fresh, err := r.gwClient.GatewayV1alpha2().UDPRoutes(route.Namespace).
+				Get(ctx, route.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
+			if !changed {
+				return nil
+			}
+
+			fresh.Status.Parents = desired
+
+			_, err = r.gwClient.GatewayV1alpha2().UDPRoutes(route.Namespace).
+				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
+
+			return err
+		})
+		if err != nil {
+			logSyncError("udproute status", fmtKey(route.Namespace, route.Name), err)
 		}
 	}
 }

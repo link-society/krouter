@@ -14,6 +14,7 @@ import (
 	"github.com/link-society/krouter/internal/lib/transports/grpc"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
 	"github.com/link-society/krouter/internal/lib/transports/tls"
+	"github.com/link-society/krouter/internal/lib/transports/udp"
 )
 
 // Match resolves the rule serving a request: most specific listener first,
@@ -368,6 +369,49 @@ func (s *State) PickTCP(port int32) (tcp.Selection, bool) {
 }
 
 var _ tcp.Picker = (*State)(nil)
+
+// PickUDP selects the backend endpoint for one new flow on a UDP internal
+// listener port (docs/spec/traffic.md): route weights, then round-robin
+// over eligible endpoints, exactly as for TCP connections.
+func (t *Tables) PickUDP(port int32, index *EndpointsIndex) (udp.Selection, bool) {
+	table := t.byPort[port]
+	if table == nil || !table.udp {
+		return udp.Selection{}, false
+	}
+
+	for _, listener := range table.listeners {
+		for _, route := range listener.routes {
+			for _, rule := range route.rules {
+				backend := rule.PickBackend()
+				if backend == nil || !backend.valid {
+					return udp.Selection{}, false
+				}
+
+				endpoint, ok := backend.Pick(index)
+				if !ok {
+					return udp.Selection{}, false
+				}
+
+				return udp.Selection{
+					Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
+					Gateway:  table.gatewayName,
+					Route:    route.Key(),
+					Backend: fmt.Sprintf("%s/%s:%d",
+						backend.namespace, backend.name, backend.port),
+				}, true
+			}
+		}
+	}
+
+	return udp.Selection{}, false
+}
+
+// PickUDP implements udp.Picker over the live snapshots.
+func (s *State) PickUDP(port int32) (udp.Selection, bool) {
+	return s.Tables.Load().PickUDP(port, s.Endpoints.Load())
+}
+
+var _ udp.Picker = (*State)(nil)
 
 // PickTLS selects the backend endpoint for one new downstream connection
 // on a TLS passthrough port (docs/spec/traffic.md): the SNI value selects

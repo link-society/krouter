@@ -55,6 +55,7 @@ func BuildGatewayTable(
 				gatewayName:    gateway.Namespace + "/" + gateway.Name,
 				tls:            lst.HasTLS,
 				tcp:            lst.Protocol == "TCP",
+				udp:            lst.Protocol == "UDP",
 				tlsPassthrough: lst.Protocol == "TLS",
 			}
 			table.byPort[lst.InternalPort] = port

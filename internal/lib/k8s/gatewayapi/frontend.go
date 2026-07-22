@@ -52,7 +52,14 @@ func desiredServicePorts(
 				name:         key,
 				externalPort: int32(lst.spec.Port),
 				internalPort: lst.internalPort,
+				protocol:     corev1.ProtocolTCP,
 			}
+
+			if lst.spec.Protocol == gatewayv1.UDPProtocolType {
+				// UDP listeners expose UDP Service ports (docs/spec/frontend.md).
+				port.protocol = corev1.ProtocolUDP
+			}
+
 			seen[key] = port
 			order = append(order, key)
 		}
@@ -79,6 +86,9 @@ func protoSuffix(protocol string) string {
 
 	case string(gatewayv1.TCPProtocolType):
 		return "tcp"
+
+	case string(gatewayv1.UDPProtocolType):
+		return "udp"
 
 	default:
 		return "http"
@@ -141,7 +151,7 @@ func (r *Engine) ensureFrontend(
 	for _, port := range ports {
 		entry := corev1.ServicePort{
 			Name:       port.name,
-			Protocol:   corev1.ProtocolTCP,
+			Protocol:   port.protocol,
 			Port:       port.externalPort,
 			TargetPort: intstr.FromInt32(port.internalPort),
 		}
@@ -257,7 +267,7 @@ func (r *Engine) ensureEndpointSlice(
 	for _, port := range ports {
 		desired.Ports = append(desired.Ports, discoveryv1.EndpointPort{
 			Name:     ptr.To(port.name),
-			Protocol: ptr.To(corev1.ProtocolTCP),
+			Protocol: ptr.To(port.protocol),
 			Port:     ptr.To(port.internalPort),
 		})
 	}

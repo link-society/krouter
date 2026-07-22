@@ -122,6 +122,14 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		return nil, err
 	}
 
+	udpRouteList, err := r.gwClient.GatewayV1alpha2().UDPRoutes(metav1.NamespaceAll).
+		List(ctx, metav1.ListOptions{})
+	if err == nil {
+		w.udpRoutes = udpRouteList.Items
+	} else if !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+
 	grantList, err := r.gwClient.GatewayV1beta1().ReferenceGrants(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -265,6 +273,7 @@ func (r *Engine) reconcileGateway(
 	outcomes = append(outcomes, r.attachGRPCRoutes(w, gw, listeners)...)
 	outcomes = append(outcomes, r.attachTCPRoutes(w, gw, listeners)...)
 	outcomes = append(outcomes, r.attachTLSRoutes(w, gw, listeners)...)
+	outcomes = append(outcomes, r.attachUDPRoutes(w, gw, listeners)...)
 
 	for _, outcome := range outcomes {
 		meta := outcome.routeMeta()

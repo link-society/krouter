@@ -19,6 +19,7 @@ type world struct {
 	grpcRoutes []gatewayv1.GRPCRoute
 	tcpRoutes  []gatewayv1alpha2.TCPRoute
 	tlsRoutes  []gatewayv1alpha2.TLSRoute
+	udpRoutes  []gatewayv1alpha2.UDPRoute
 	grants     []gatewayv1beta1.ReferenceGrant
 	namespaces map[string]map[string]string
 
@@ -64,12 +65,13 @@ func (l *listenerState) valid() bool {
 
 // routeParentOutcome is the computed status of one (route, gateway)
 // attachment, plus its compiled form. Exactly one of route/grpcRoute/
-// tcpRoute/tlsRoute is set, depending on the attachment kind.
+// tcpRoute/tlsRoute/udpRoute is set, depending on the attachment kind.
 type routeParentOutcome struct {
 	route     *gatewayv1.HTTPRoute
 	grpcRoute *gatewayv1.GRPCRoute
 	tcpRoute  *gatewayv1alpha2.TCPRoute
 	tlsRoute  *gatewayv1alpha2.TLSRoute
+	udpRoute  *gatewayv1alpha2.UDPRoute
 	parentRef gatewayv1.ParentReference
 
 	accepted       bool
@@ -93,6 +95,9 @@ func (o *routeParentOutcome) routeKind() string {
 	case o.tlsRoute != nil:
 		return "TLSRoute"
 
+	case o.udpRoute != nil:
+		return "UDPRoute"
+
 	default:
 		return "HTTPRoute"
 	}
@@ -108,6 +113,9 @@ func (o *routeParentOutcome) routeMeta() metav1.ObjectMeta {
 
 	case o.tlsRoute != nil:
 		return o.tlsRoute.ObjectMeta
+
+	case o.udpRoute != nil:
+		return o.udpRoute.ObjectMeta
 
 	default:
 		return o.route.ObjectMeta
@@ -134,6 +142,7 @@ type servicePort struct {
 	externalPort int32
 	internalPort int32
 	nodePort     int32
+	protocol     corev1.Protocol
 }
 
 // paramsError marks invalid Gateway parameters (docs/spec/parameters.md).

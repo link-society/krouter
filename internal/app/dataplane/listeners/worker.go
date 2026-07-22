@@ -10,10 +10,12 @@ import (
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/portserver"
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/tcpserver"
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/tlsserver"
+	"github.com/link-society/krouter/internal/app/dataplane/listeners/udpserver"
 	"github.com/link-society/krouter/internal/lib/transports/http/proxy"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
 	"github.com/link-society/krouter/internal/lib/transports/tls"
+	"github.com/link-society/krouter/internal/lib/transports/udp"
 )
 
 // worker reconciles the listener children against the published tables.
@@ -23,6 +25,7 @@ type worker struct {
 	handler      *proxy.Handler
 	forwarder    *tcp.Forwarder
 	tlsForwarder *tls.Forwarder
+	udpForwarder *udp.Forwarder
 
 	children map[int32]actor.Actor
 	specs    map[int32]routing.PortSpec
@@ -74,6 +77,9 @@ func (w *worker) reconcile(tables *routing.Tables) {
 		switch {
 		case spec.TCP:
 			srv, err = tcpserver.New(port, w.forwarder)
+
+		case spec.UDP:
+			srv, err = udpserver.New(port, w.udpForwarder)
 
 		case spec.TLSPassthrough:
 			srv, err = tlsserver.New(port, w.tlsForwarder)

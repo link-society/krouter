@@ -31,6 +31,7 @@ func (r *Engine) validateListeners(
 ) []*listenerState {
 	listeners := make([]*listenerState, 0, len(gw.Spec.Listeners))
 	tcpPorts := map[gatewayv1.PortNumber]bool{}
+	udpPorts := map[gatewayv1.PortNumber]bool{}
 
 	for _, spec := range gw.Spec.Listeners {
 		state := &listenerState{
@@ -63,6 +64,14 @@ func (r *Engine) validateListeners(
 				state.acceptedReason = string(gatewayv1.ListenerReasonProtocolConflict)
 			}
 			tcpPorts[spec.Port] = true
+
+		case gatewayv1.UDPProtocolType:
+			// Same rule for UDP listeners (docs/spec/frontend.md).
+			if udpPorts[spec.Port] {
+				state.accepted = false
+				state.acceptedReason = string(gatewayv1.ListenerReasonProtocolConflict)
+			}
+			udpPorts[spec.Port] = true
 
 		default:
 			state.accepted = false
@@ -99,6 +108,9 @@ func protocolRouteKinds(protocol gatewayv1.ProtocolType) []string {
 
 	case gatewayv1.TCPProtocolType:
 		return []string{"TCPRoute"}
+
+	case gatewayv1.UDPProtocolType:
+		return []string{"UDPRoute"}
 
 	case gatewayv1.TLSProtocolType:
 		return []string{"TLSRoute"}
@@ -473,6 +485,90 @@ func (r *Engine) attachTCPRoute(
 	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
 		rule.Backends = append(rule.Backends,
 			r.compileBackend(w, route.Namespace, "TCPRoute", backendRef, outcome))
+	}
+
+	config.Rules = append(config.Rules, rule)
+	outcome.config = config
+
+	return outcome
+}
+
+// attachUDPRoutes computes every (UDPRoute, gateway) attachment outcome
+// (docs/spec/traffic.md): UDPRoutes attach to UDP listeners only and carry
+// no hostname, path or filter semantics.
+func (r *Engine) attachUDPRoutes(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+) []*routeParentOutcome {
+	var outcomes []*routeParentOutcome
+
+	for i := range w.udpRoutes {
+		route := &w.udpRoutes[i]
+
+		for _, parentRef := range route.Spec.ParentRefs {
+			if !parentRefMatches(parentRef, route.Namespace, gw) {
+				continue
+			}
+
+			outcome := r.attachUDPRoute(w, gw, listeners, route, parentRef)
+			outcomes = append(outcomes, outcome)
+		}
+	}
+
+	return outcomes
+}
+
+func (r *Engine) attachUDPRoute(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+	route *gatewayv1alpha2.UDPRoute,
+	parentRef gatewayv1.ParentReference,
+) *routeParentOutcome {
+	outcome := &routeParentOutcome{
+		udpRoute:     route,
+		parentRef:    parentRef,
+		refsResolved: true,
+		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
+	}
+
+	admitted, reason := admitListeners(
+		listeners, parentRef, "UDPRoute", route.Namespace, gw.Namespace, w.namespaces)
+	if reason != "" {
+		outcome.acceptedReason = reason
+		return outcome
+	}
+
+	if len(route.Spec.Rules) != 1 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
+		return outcome
+	}
+
+	outcome.accepted = true
+	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
+
+	for _, lst := range admitted {
+		lst.attachedRoutes++
+	}
+
+	config := &compiled.RouteConfig{
+		UID:       string(route.UID),
+		Namespace: route.Namespace,
+		Name:      route.Name,
+		Created:   route.CreationTimestamp.Unix(),
+	}
+
+	for _, lst := range admitted {
+		if lst.valid() {
+			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+		}
+	}
+
+	rule := compiled.Rule{}
+	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
+		rule.Backends = append(rule.Backends,
+			r.compileBackend(w, route.Namespace, "UDPRoute", backendRef, outcome))
 	}
 
 	config.Rules = append(config.Rules, rule)

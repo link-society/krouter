@@ -84,6 +84,7 @@
 .graph-node.kind-HTTPRoute .graph-accent,
 .graph-node.kind-TCPRoute .graph-accent,
 .graph-node.kind-TLSRoute .graph-accent,
+.graph-node.kind-UDPRoute .graph-accent,
 .graph-node.kind-GRPCRoute .graph-accent { fill: #00947e; }
 .graph-node.kind-Service .graph-accent { fill: #b86bff; }
 
@@ -194,3 +195,4 @@ code.generation {
 .tag.kind-TCPRoute { border-left: 3px solid #3273dc; }
 .tag.kind-TLSRoute { border-left: 3px solid #b86bff; }
 .tag.kind-GRPCRoute { border-left: 3px solid #ff3860; }
+.tag.kind-UDPRoute { border-left: 3px solid #ff9f1a; }

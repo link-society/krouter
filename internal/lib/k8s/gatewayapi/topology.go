@@ -234,6 +234,11 @@ func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routePa
 				info.Hostnames = append(info.Hostnames, string(hostname))
 			}
 
+		case outcome.udpRoute != nil:
+			clone := outcome.udpRoute.DeepCopy()
+			info.YAML = objectYAML(clone,
+				gatewayv1alpha2.GroupVersion.String(), "UDPRoute", &clone.ObjectMeta)
+
 		default:
 			clone := outcome.route.DeepCopy()
 			info.YAML = objectYAML(clone,

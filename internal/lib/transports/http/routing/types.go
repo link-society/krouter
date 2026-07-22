@@ -47,6 +47,7 @@ func (t *Tables) Port(port int32) *PortTable {
 type PortSpec struct {
 	TLS            bool
 	TCP            bool
+	UDP            bool
 	TLSPassthrough bool
 }
 
@@ -58,6 +59,7 @@ func (t *Tables) Ports() map[int32]PortSpec {
 		ports[port] = PortSpec{
 			TLS:            table.tls,
 			TCP:            table.tcp,
+			UDP:            table.udp,
 			TLSPassthrough: table.tlsPassthrough,
 		}
 	}
@@ -76,6 +78,7 @@ type PortTable struct {
 	gatewayName    string // namespace/name, for access logs
 	tls            bool
 	tcp            bool
+	udp            bool
 	tlsPassthrough bool
 	listeners      []*ListenerTable
 }
