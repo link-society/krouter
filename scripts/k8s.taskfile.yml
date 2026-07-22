@@ -37,7 +37,7 @@ tasks:
     desc: Deploy krouter (static manifest, docs/spec/deployment.md) into the kind cluster
     deps: [load-image]
     cmds:
-      - kubectl --context {{.KIND_CONTEXT}} apply -f k8s/
+      - kubectl --context {{.KIND_CONTEXT}} apply -f k8s/krouter.yaml
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-system rollout status deployment/krouter-controlplane --timeout=180s
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-system rollout status daemonset/krouter-dataplane --timeout=180s
 
@@ -49,7 +49,10 @@ tasks:
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-system rollout status daemonset/krouter-dataplane --timeout=180s
 
   serve:
-    desc: Deploy the demo topology and port-forward the dashboard to http://localhost:8080
+    desc: Deploy the demo topology (tests/config/mocks/manifest.yml) and port-forward the dashboard to http://localhost:8080
+    deps: [':mocks:load']
     cmds:
-      - kubectl --context {{.KIND_CONTEXT}} apply -f k8s/demo.yaml
+      - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/mocks/manifest.yml
+      - kubectl --context {{.KIND_CONTEXT}} -n demo rollout status deployment --timeout=180s
+      - kubectl --context {{.KIND_CONTEXT}} -n demo-backends rollout status deployment --timeout=180s
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-system port-forward svc/krouter-dashboard 8080:8080

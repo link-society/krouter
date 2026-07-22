@@ -1,0 +1,699 @@
+---
+# Demo topology: one Gateway serving every route kind implemented by
+# krouter — HTTP, gRPC, TCP, UDP and TLS passthrough — backed by the mock
+# backends from tests/mocks (httpbin, tcpbin, udpbin, grpcbin; images built
+# by `task mocks:build`). `task k8s:serve` builds and loads the
+# images, applies this manifest and port-forwards the dashboard.
+#
+# It also keeps the dashboard-degradation examples: a cross-namespace
+# backend authorized by a ReferenceGrant, and one intentionally missing
+# backend.
+#
+# The Gateway requests deterministic NodePorts through infrastructure
+# parameters (docs/spec/parameters.md); the kind cluster publishes them on
+# 127.0.0.1 (tests/config/kind/cluster.yaml, worker2 = port + 1000):
+#
+#   http 30098 — tcp 30099 — tls 30100
+#
+# Try it from the host:
+#
+#   # HTTP — httpbin: echo + round robin, rewrite + header filters,
+#   # redirect, request timeout, 90/10 canary, cross-namespace, mirror
+#   curl -s -H 'Host: httpbin.demo.example.com' http://127.0.0.1:30098/hostname
+#   curl -s -H 'Host: httpbin.demo.example.com' http://127.0.0.1:30098/api/echo
+#   curl -sI -H 'Host: httpbin.demo.example.com' http://127.0.0.1:30098/old
+#   curl -s -H 'Host: httpbin.demo.example.com' http://127.0.0.1:30098/delay/5   # 504 after 2s
+#   curl -s -H 'Host: httpbin.demo.example.com' http://127.0.0.1:30098/audit/headers
+#   curl -s -H 'Host: httpbin.demo.example.com' http://127.0.0.1:30098/missing   # intentionally degraded
+#
+#   # gRPC — grpcbin (server reflection enabled):
+#   grpcurl -plaintext -authority grpcbin.demo.example.com 127.0.0.1:30098 list
+#   grpcurl -plaintext -authority grpcbin.demo.example.com \
+#     -d '{"name": "krouter"}' 127.0.0.1:30098 helloworld.Greeter/SayHello
+#
+#   # TCP — tcpbin (hostname greeting, then echo):
+#   nc 127.0.0.1 30099
+#
+#   # TLS passthrough — grpcbin's TLS listener, routed by SNI:
+#   grpcurl -insecure -servername grpcbin.demo.example.com 127.0.0.1:30100 list
+#
+#   # UDP — udpbin (NodePort left dynamic: the kind cluster publishes no
+#   # spare UDP host port, so probe from inside the cluster):
+#   GW_SVC=$(kubectl -n demo get svc -l app.kubernetes.io/managed-by=krouter \
+#     -o jsonpath='{.items[0].metadata.name}')
+#   kubectl -n demo run udp-probe --rm -i --restart=Never --image=busybox:1.36 \
+#     -- sh -c "echo ping | nc -u -w2 $GW_SVC 5354"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-backends
+---
+# Same object as tests/config/conformance/gatewayclass.yaml — applying both
+# is idempotent.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: krouter
+spec:
+  controllerName: link-society.com/krouter
+---
+# Deterministic NodePorts for the host-published window (the udp listener
+# is deliberately absent: its NodePort stays dynamic).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-gateway-params
+  namespace: demo
+data:
+  krouter.hcl: |
+    version = 1
+
+    service {
+      type                    = "NodePort"
+      external_traffic_policy = "Local"
+
+      node_ports = {
+        "http" = 30098
+        "tcp"  = 30099
+        "tls"  = 30100
+      }
+    }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: demo
+  namespace: demo
+spec:
+  gatewayClassName: krouter
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: demo-gateway-params
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: tcp
+      protocol: TCP
+      port: 4242
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: udp
+      protocol: UDP
+      port: 5354
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: tls
+      protocol: TLS
+      port: 443
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+##############################
+## HTTPBIN (HTTP echo)
+##############################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: httpbin
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: httpbin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: httpbin
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: httpbin
+          image: ghcr.io/link-society/krouter-mock-httpbin:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /hostname
+              port: http
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin
+  namespace: demo
+spec:
+  selector:
+    app.kubernetes.io/name: httpbin
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+# Canary target for the 90/10 weighted split on the catch-all rule.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin-canary
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: httpbin-canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: httpbin-canary
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: httpbin-canary
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: httpbin
+          image: ghcr.io/link-society/krouter-mock-httpbin:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /hostname
+              port: http
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin-canary
+  namespace: demo
+spec:
+  selector:
+    app.kubernetes.io/name: httpbin-canary
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+##############################
+## TCPBIN (TCP echo)
+##############################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tcpbin
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: tcpbin
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tcpbin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tcpbin
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tcpbin
+          image: ghcr.io/link-society/krouter-mock-tcpbin:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "4242"
+          ports:
+            - name: tcp
+              containerPort: 4242
+          readinessProbe:
+            tcpSocket:
+              port: tcp
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tcpbin
+  namespace: demo
+spec:
+  selector:
+    app.kubernetes.io/name: tcpbin
+  ports:
+    - name: tcp
+      port: 4242
+      targetPort: tcp
+---
+##############################
+## UDPBIN (UDP echo)
+##############################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: udpbin
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: udpbin
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: udpbin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: udpbin
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: udpbin
+          image: ghcr.io/link-society/krouter-mock-udpbin:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "5354"
+          ports:
+            - name: udp
+              containerPort: 5354
+              protocol: UDP
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: udpbin
+  namespace: demo
+spec:
+  selector:
+    app.kubernetes.io/name: udpbin
+  ports:
+    - name: udp
+      port: 5354
+      targetPort: udp
+      protocol: UDP
+---
+##############################
+## GRPCBIN (gRPC + TLS)
+##############################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpcbin
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: grpcbin
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grpcbin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grpcbin
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: grpcbin
+          image: ghcr.io/link-society/krouter-mock-grpcbin:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "9000"
+            - name: TLS_PORT
+              value: "9001"
+            - name: TLS_SERVER_NAMES
+              value: grpcbin.demo.example.com
+          ports:
+            - name: grpc
+              containerPort: 9000
+            - name: grpc-tls
+              containerPort: 9001
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpcbin
+  namespace: demo
+spec:
+  selector:
+    app.kubernetes.io/name: grpcbin
+  ports:
+    - name: grpc
+      port: 9000
+      targetPort: grpc
+    - name: grpc-tls
+      port: 9001
+      targetPort: grpc-tls
+---
+##############################
+## CROSS-NAMESPACE BACKEND
+##############################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit
+  namespace: demo-backends
+  labels:
+    app.kubernetes.io/name: audit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: audit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: audit
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: audit
+          image: ghcr.io/link-society/krouter-mock-httpbin:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /hostname
+              port: http
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit
+  namespace: demo-backends
+spec:
+  selector:
+    app.kubernetes.io/name: audit
+  ports:
+    - name: http
+      port: 9100
+      targetPort: http
+---
+# Authorizes the audit backendRef and the RequestMirror target below
+# (docs/spec/security.md).
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-demo-routes
+  namespace: demo-backends
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: demo
+  to:
+    - group: ""
+      kind: Service
+---
+##############################
+## ROUTES
+##############################
+# Extended-feature showcase: request timeout, URL rewrite, header
+# modifiers, redirect, weighted canary and request mirroring
+# (docs/spec/traffic.md).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: httpbin
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: http
+  hostnames:
+    - httpbin.demo.example.com
+  rules:
+    # /delay/5 sleeps longer than the request timeout -> 504.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /delay
+      timeouts:
+        request: 2s
+      backendRefs:
+        - name: httpbin
+          port: 80
+    # /api/* is rewritten to /anything/* and tagged on both directions.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /anything
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Demo-Gateway
+                value: krouter
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            add:
+              - name: X-Demo-Route
+                value: httpbin
+      backendRefs:
+        - name: httpbin
+          port: 80
+    # /old/* answers with a 302 towards /anything/*.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /old
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /anything
+            statusCode: 302
+    # Catch-all: 90/10 canary split, mirrored to the audit backend.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestMirror
+          requestMirror:
+            backendRef:
+              name: audit
+              namespace: demo-backends
+              port: 9100
+      backendRefs:
+        - name: httpbin
+          port: 80
+          weight: 90
+        - name: httpbin-canary
+          port: 80
+          weight: 10
+---
+# Cross-namespace backend authorized by the ReferenceGrant above.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: audit
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: http
+  hostnames:
+    - httpbin.demo.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /audit
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: audit
+          namespace: demo-backends
+          port: 9100
+---
+# Intentionally missing backend: shows degraded rendering in the dashboard
+# and 500s at runtime (docs/spec/failure-modes.md).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: missing
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: http
+  hostnames:
+    - httpbin.demo.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /missing
+      backendRefs:
+        - name: missing
+          port: 9000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: grpcbin
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: http
+  hostnames:
+    - grpcbin.demo.example.com
+  rules:
+    - backendRefs:
+        - name: grpcbin
+          port: 9000
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: tcpbin
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: tcp
+  rules:
+    - backendRefs:
+        - name: tcpbin
+          port: 4242
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: UDPRoute
+metadata:
+  name: udpbin
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: udp
+  rules:
+    - backendRefs:
+        - name: udpbin
+          port: 5354
+---
+# TLS passthrough: the SNI is matched by the gateway, the TLS stream is
+# forwarded untouched to grpcbin's TLS listener.
+apiVersion: gateway.networking.k8s.io/v1
+kind: TLSRoute
+metadata:
+  name: grpcbin-tls
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: tls
+  hostnames:
+    - grpcbin.demo.example.com
+  rules:
+    - backendRefs:
+        - name: grpcbin
+          port: 9001

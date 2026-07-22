@@ -34,7 +34,8 @@ TLS_ROUTES = 30095
 GRPC_ROUTES = 30096
 UDP_ROUTES = 30097  # published as UDP by the kind cluster config
 
-# spares: 30098-30100
+# demo topology (tests/config/mocks/manifest.yml): 30098 (http), 30099 (tcp),
+# 30100 (tls) — held while the demo is deployed, do not reuse in tests
 
 # TLS listeners
 PROTOCOLS_HTTPS = 30443
