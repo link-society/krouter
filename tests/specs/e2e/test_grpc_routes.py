@@ -95,6 +95,8 @@ def stack(gateway_class, module_namespace):
     kubectl.wait_deployment_ready("greeter-a", ns)
     kubectl.wait_deployment_ready("greeter-b", ns)
     net.wait_grpc_ready(ports.GRPC_ROUTES, HOST_A)
+    # Both backends must be discoverable before the routing assertions.
+    net.wait_grpc_ready(ports.GRPC_ROUTES, HOST_B)
 
     return ns
 
