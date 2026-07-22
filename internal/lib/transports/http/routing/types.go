@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 
 	"sync/atomic"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -108,17 +109,35 @@ type RouteTable struct {
 func (r *RouteTable) Key() string { return r.namespace + "/" + r.name }
 
 type RuleTable struct {
-	matches  []compiled.Match
-	filters  []compiled.Filter
-	backends []*BackendTable
-	mirrors  []*MirrorTable
-	grpc     bool
-	total    int64
-	counter  atomic.Int64
+	matches        []compiled.Match
+	filters        []compiled.Filter
+	backends       []*BackendTable
+	mirrors        []*MirrorTable
+	grpc           bool
+	requestTimeout time.Duration // zero means no timeout (docs/spec/traffic.md)
+	backendTimeout time.Duration
+	total          int64
+	counter        atomic.Int64
 }
 
 // Filters returns the compiled filters of the rule.
 func (r *RuleTable) Filters() []compiled.Filter { return r.filters }
+
+// Timeout returns the effective per-request deadline of the rule: the
+// smallest non-zero of the request and backendRequest timeouts
+// (docs/spec/traffic.md).
+func (r *RuleTable) Timeout() time.Duration {
+	switch {
+	case r.requestTimeout == 0:
+		return r.backendTimeout
+
+	case r.backendTimeout == 0 || r.requestTimeout < r.backendTimeout:
+		return r.requestTimeout
+
+	default:
+		return r.backendTimeout
+	}
+}
 
 // Mirrors returns the rule's request mirror targets (docs/spec/traffic.md).
 func (r *RuleTable) Mirrors() []*MirrorTable { return r.mirrors }

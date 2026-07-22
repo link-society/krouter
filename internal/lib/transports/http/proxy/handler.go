@@ -5,6 +5,7 @@
 package proxy
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -268,6 +269,15 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 		}
 	}
 
+	// Rule timeouts (docs/spec/traffic.md): the deadline covers the
+	// backend request; exceeding it answers 504 Gateway Timeout.
+	if timeout := rule.Timeout(); timeout > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+
+		r = r.WithContext(ctx)
+	}
+
 	status := http.StatusOK
 	reverseProxy := &httputil.ReverseProxy{
 		Transport:     transport,
@@ -290,6 +300,13 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			if errors.Is(err, context.DeadlineExceeded) {
+				// Rule timeout exceeded (docs/spec/traffic.md).
+				status = http.StatusGatewayTimeout
+				http.Error(w, "gateway timeout", http.StatusGatewayTimeout)
+				return
+			}
+
 			slog.Warn("backend request failed", "error", err)
 			status = http.StatusBadGateway
 			http.Error(w, "bad gateway", http.StatusBadGateway)

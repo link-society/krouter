@@ -7,6 +7,8 @@ import (
 
 	"crypto/tls"
 
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
@@ -72,9 +74,11 @@ func BuildGatewayTable(
 
 		for _, rule := range route.Rules {
 			entry := &RuleTable{
-				matches: rule.Matches,
-				filters: rule.Filters,
-				grpc:    route.GRPC,
+				matches:        rule.Matches,
+				filters:        rule.Filters,
+				grpc:           route.GRPC,
+				requestTimeout: time.Duration(rule.RequestTimeoutMillis) * time.Millisecond,
+				backendTimeout: time.Duration(rule.BackendTimeoutMillis) * time.Millisecond,
 			}
 
 			for _, filter := range rule.Filters {

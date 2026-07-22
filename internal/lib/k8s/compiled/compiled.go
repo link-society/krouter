@@ -87,6 +87,10 @@ type Rule struct {
 	Matches  []Match   `json:"matches,omitempty"`
 	Filters  []Filter  `json:"filters,omitempty"`
 	Backends []Backend `json:"backends"`
+	// Rule timeouts in milliseconds; zero means no timeout
+	// (docs/spec/traffic.md).
+	RequestTimeoutMillis int64 `json:"requestTimeoutMillis,omitempty"`
+	BackendTimeoutMillis int64 `json:"backendTimeoutMillis,omitempty"`
 }
 
 type Match struct {

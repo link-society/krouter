@@ -6,6 +6,8 @@ import (
 
 	"strings"
 
+	"time"
+
 	stdtls "crypto/tls"
 
 	corev1 "k8s.io/api/core/v1"
@@ -857,6 +859,10 @@ func (r *Engine) compileRoute(
 			}
 		}
 
+		if err := compileTimeouts(&compiledRule, rule.Timeouts); err != nil {
+			return nil
+		}
+
 		for _, backendRef := range rule.BackendRefs {
 			compiledRule.Backends = append(compiledRule.Backends,
 				r.compileBackend(w, route.Namespace, "HTTPRoute", backendRef.BackendRef, outcome))
@@ -1007,6 +1013,40 @@ func rulePathPrefix(matches []gatewayv1.HTTPRouteMatch) string {
 	}
 
 	return "/"
+}
+
+// compileTimeouts parses rules[].timeouts (docs/spec/traffic.md): a zero
+// duration disables the timeout, and backendRequest may not exceed the
+// effective request timeout.
+func compileTimeouts(rule *compiled.Rule, timeouts *gatewayv1.HTTPRouteTimeouts) error {
+	if timeouts == nil {
+		return nil
+	}
+
+	if timeouts.Request != nil {
+		request, err := time.ParseDuration(string(*timeouts.Request))
+		if err != nil || request < 0 {
+			return fmt.Errorf("invalid request timeout")
+		}
+
+		rule.RequestTimeoutMillis = request.Milliseconds()
+	}
+
+	if timeouts.BackendRequest != nil {
+		backend, err := time.ParseDuration(string(*timeouts.BackendRequest))
+		if err != nil || backend < 0 {
+			return fmt.Errorf("invalid backendRequest timeout")
+		}
+
+		if rule.RequestTimeoutMillis > 0 &&
+			backend.Milliseconds() > rule.RequestTimeoutMillis {
+			return fmt.Errorf("backendRequest timeout exceeds request timeout")
+		}
+
+		rule.BackendTimeoutMillis = backend.Milliseconds()
+	}
+
+	return nil
 }
 
 // compileMirror resolves a RequestMirror target (docs/spec/traffic.md).
