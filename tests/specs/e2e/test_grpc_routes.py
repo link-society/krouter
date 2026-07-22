@@ -45,7 +45,8 @@ def stack(gateway_class, module_namespace):
             [gw.listener("http", 80, "HTTP")],
             infra_params="gw-params",
         ),
-        # Method match to A; header match overrides to B.
+        # Method match to A; the more specific method+header match
+        # overrides to B (Gateway API matching precedence).
         gw.grpc_route(
             "greeter",
             ns,
@@ -54,7 +55,13 @@ def stack(gateway_class, module_namespace):
             rules=[
                 {
                     "matches": [
-                        {"headers": [{"name": "x-echo-target", "value": "b"}]},
+                        {
+                            "method": {
+                                "service": "helloworld.Greeter",
+                                "method": "SayHello",
+                            },
+                            "headers": [{"name": "x-echo-target", "value": "b"}],
+                        },
                     ],
                     "backendRefs": [
                         gw.backend_ref("greeter-b", backends.GRPC_BACKEND_PORT),
@@ -136,7 +143,7 @@ def test_method_match_forwards_over_h2c(stack):
 
 def test_header_match_selects_backend(stack):
     """
-    Header matches take precedence per rule order (docs/spec/traffic.md).
+    A method+header match outranks the method-only match (docs/spec/traffic.md).
     """
 
     status, reply = net.grpc_hello(
