@@ -13,8 +13,8 @@
   </thead>
   <tbody>
     {{range .Routes}}
-    <tr class="is-clickable" data-yaml-url="/api/yaml/route/{{.UID}}" data-yaml-title="HTTPRoute {{.Namespace}}/{{.Name}}">
-      <td>{{.Namespace}}/{{.Name}}</td>
+    <tr class="is-clickable" data-yaml-url="/api/yaml/route/{{.UID}}" data-yaml-title="{{.Kind}} {{.Namespace}}/{{.Name}}">
+      <td>{{.Namespace}}/{{.Name}} <span class="tag is-light">{{.Kind}}</span></td>
       <td>{{if .Hostnames}}{{.Hostnames}}{{else}}*{{end}}</td>
       <td>{{.Gateway}}</td>
       <td>

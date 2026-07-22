@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
@@ -24,6 +25,7 @@ func (r *Engine) validateListeners(
 	allocator *portAllocator,
 ) []*listenerState {
 	listeners := make([]*listenerState, 0, len(gw.Spec.Listeners))
+	tcpPorts := map[gatewayv1.PortNumber]bool{}
 
 	for _, spec := range gw.Spec.Listeners {
 		state := &listenerState{
@@ -37,6 +39,15 @@ func (r *Engine) validateListeners(
 
 		switch spec.Protocol {
 		case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
+
+		case gatewayv1.TCPProtocolType:
+			// TCP listeners carry no hostname, so a Gateway MUST NOT declare
+			// more than one TCP listener per external port (docs/spec/frontend.md).
+			if tcpPorts[spec.Port] {
+				state.accepted = false
+				state.acceptedReason = string(gatewayv1.ListenerReasonProtocolConflict)
+			}
+			tcpPorts[spec.Port] = true
 
 		default:
 			state.accepted = false
@@ -191,10 +202,16 @@ func (r *Engine) attachRoute(
 		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
 	}
 
-	// Select candidate listeners (sectionName narrows them).
+	// Select candidate listeners (sectionName narrows them, the route kind
+	// must be compatible with the listener protocol).
 	var candidates []*listenerState
 	for _, lst := range listeners {
 		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
+			continue
+		}
+
+		if lst.spec.Protocol != gatewayv1.HTTPProtocolType &&
+			lst.spec.Protocol != gatewayv1.HTTPSProtocolType {
 			continue
 		}
 
@@ -239,6 +256,112 @@ func (r *Engine) attachRoute(
 	}
 
 	outcome.config = r.compileRoute(w, gw, route, admitted, outcome)
+
+	return outcome
+}
+
+// attachTCPRoutes computes every (TCPRoute, gateway) attachment outcome
+// (docs/spec/traffic.md): TCPRoutes attach to TCP listeners only and carry
+// no hostname, path or filter semantics.
+func (r *Engine) attachTCPRoutes(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+) []*routeParentOutcome {
+	var outcomes []*routeParentOutcome
+
+	for i := range w.tcpRoutes {
+		route := &w.tcpRoutes[i]
+
+		for _, parentRef := range route.Spec.ParentRefs {
+			if !parentRefMatches(parentRef, route.Namespace, gw) {
+				continue
+			}
+
+			outcome := r.attachTCPRoute(w, gw, listeners, route, parentRef)
+			outcomes = append(outcomes, outcome)
+		}
+	}
+
+	return outcomes
+}
+
+func (r *Engine) attachTCPRoute(
+	w *world,
+	gw *gatewayv1.Gateway,
+	listeners []*listenerState,
+	route *gatewayv1alpha2.TCPRoute,
+	parentRef gatewayv1.ParentReference,
+) *routeParentOutcome {
+	outcome := &routeParentOutcome{
+		tcpRoute:     route,
+		parentRef:    parentRef,
+		refsResolved: true,
+		refsReason:   string(gatewayv1.RouteReasonResolvedRefs),
+	}
+
+	var candidates []*listenerState
+	for _, lst := range listeners {
+		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
+			continue
+		}
+
+		if lst.spec.Protocol != gatewayv1.TCPProtocolType {
+			continue
+		}
+
+		candidates = append(candidates, lst)
+	}
+
+	if len(candidates) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingParent)
+		return outcome
+	}
+
+	var admitted []*listenerState
+	for _, lst := range candidates {
+		if namespaceAllowed(lst.spec.AllowedRoutes, route.Namespace, gw.Namespace, w.namespaces) {
+			admitted = append(admitted, lst)
+		}
+	}
+
+	if len(admitted) == 0 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonNotAllowedByListeners)
+		return outcome
+	}
+
+	if len(route.Spec.Rules) != 1 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
+		return outcome
+	}
+
+	outcome.accepted = true
+	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
+
+	for _, lst := range admitted {
+		lst.attachedRoutes++
+	}
+
+	config := &compiled.RouteConfig{
+		UID:       string(route.UID),
+		Namespace: route.Namespace,
+		Name:      route.Name,
+	}
+
+	for _, lst := range admitted {
+		if lst.valid() {
+			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+		}
+	}
+
+	rule := compiled.Rule{}
+	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
+		rule.Backends = append(rule.Backends,
+			r.compileBackend(w, route.Namespace, "TCPRoute", backendRef, outcome))
+	}
+
+	config.Rules = append(config.Rules, rule)
+	outcome.config = config
 
 	return outcome
 }
@@ -321,7 +444,7 @@ func (r *Engine) compileRoute(
 
 		for _, backendRef := range rule.BackendRefs {
 			compiledRule.Backends = append(compiledRule.Backends,
-				r.compileBackend(w, route, backendRef, outcome))
+				r.compileBackend(w, route.Namespace, "HTTPRoute", backendRef.BackendRef, outcome))
 		}
 
 		config.Rules = append(config.Rules, compiledRule)
@@ -332,12 +455,11 @@ func (r *Engine) compileRoute(
 
 func (r *Engine) compileBackend(
 	w *world,
-	route *gatewayv1.HTTPRoute,
-	backendRef gatewayv1.HTTPBackendRef,
+	routeNamespace string,
+	routeKind string,
+	ref gatewayv1.BackendRef,
 	outcome *routeParentOutcome,
 ) compiled.Backend {
-	ref := backendRef.BackendRef
-
 	backend := compiled.Backend{
 		Name:   string(ref.Name),
 		Weight: 1,
@@ -348,7 +470,7 @@ func (r *Engine) compileBackend(
 		backend.Weight = *ref.Weight
 	}
 
-	backend.Namespace = route.Namespace
+	backend.Namespace = routeNamespace
 	if ref.Namespace != nil {
 		backend.Namespace = string(*ref.Namespace)
 	}
@@ -385,10 +507,10 @@ func (r *Engine) compileBackend(
 	}
 
 	// Cross-namespace backends require a ReferenceGrant (docs/spec/traffic.md).
-	if backend.Namespace != route.Namespace {
+	if backend.Namespace != routeNamespace {
 		allowed := referenceGrantAllows(
 			w.grants,
-			gatewayv1.GroupName, "HTTPRoute", route.Namespace,
+			gatewayv1.GroupName, routeKind, routeNamespace,
 			"Service", backend.Namespace, backend.Name,
 		)
 		if !allowed {

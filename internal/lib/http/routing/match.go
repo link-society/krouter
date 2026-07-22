@@ -1,6 +1,8 @@
 package routing
 
 import (
+	"fmt"
+
 	"sort"
 	"strings"
 
@@ -9,6 +11,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
+	"github.com/link-society/krouter/internal/lib/tcp"
 )
 
 // Match resolves the rule serving a request: most specific listener first,
@@ -167,6 +170,50 @@ func pathPrefixMatches(prefix, path string) bool {
 func (r *RuleTable) PickBackend() *BackendTable {
 	return pickBucket(r.counter.Add(1)-1, r.backends, r.total)
 }
+
+// PickTCP selects the backend endpoint for one new downstream connection
+// on a TCP internal listener port (docs/spec/traffic.md): route weights,
+// then round-robin over eligible endpoints. Invalid backends keep their
+// weight share and refuse their connections, per the Gateway API.
+func (t *Tables) PickTCP(port int32, index *EndpointsIndex) (tcp.Selection, bool) {
+	table := t.byPort[port]
+	if table == nil || !table.tcp {
+		return tcp.Selection{}, false
+	}
+
+	for _, listener := range table.listeners {
+		for _, route := range listener.routes {
+			for _, rule := range route.rules {
+				backend := rule.PickBackend()
+				if backend == nil || !backend.valid {
+					return tcp.Selection{}, false
+				}
+
+				endpoint, ok := backend.Pick(index)
+				if !ok {
+					return tcp.Selection{}, false
+				}
+
+				return tcp.Selection{
+					Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
+					Gateway:  table.gatewayName,
+					Route:    route.Key(),
+					Backend: fmt.Sprintf("%s/%s:%d",
+						backend.namespace, backend.name, backend.port),
+				}, true
+			}
+		}
+	}
+
+	return tcp.Selection{}, false
+}
+
+// PickTCP implements tcp.Picker over the live snapshots.
+func (s *State) PickTCP(port int32) (tcp.Selection, bool) {
+	return s.Tables.Load().PickTCP(port, s.Endpoints.Load())
+}
+
+var _ tcp.Picker = (*State)(nil)
 
 func pickBucket(counter int64, backends []*BackendTable, total int64) *BackendTable {
 	if total <= 0 {

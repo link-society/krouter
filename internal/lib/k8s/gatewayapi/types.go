@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
@@ -15,6 +16,7 @@ type world struct {
 	classes    []gatewayv1.GatewayClass
 	gateways   []gatewayv1.Gateway
 	routes     []gatewayv1.HTTPRoute
+	tcpRoutes  []gatewayv1alpha2.TCPRoute
 	grants     []gatewayv1beta1.ReferenceGrant
 	namespaces map[string]map[string]string
 
@@ -49,9 +51,11 @@ func (l *listenerState) valid() bool {
 }
 
 // routeParentOutcome is the computed status of one (route, gateway)
-// attachment, plus its compiled form.
+// attachment, plus its compiled form. Exactly one of route/tcpRoute is
+// set, depending on the attachment kind.
 type routeParentOutcome struct {
 	route     *gatewayv1.HTTPRoute
+	tcpRoute  *gatewayv1alpha2.TCPRoute
 	parentRef gatewayv1.ParentReference
 
 	accepted       bool
@@ -62,6 +66,27 @@ type routeParentOutcome struct {
 	refsMessage  string
 
 	config *compiled.RouteConfig // nil when not accepted
+}
+
+func (o *routeParentOutcome) routeKind() string {
+	if o.tcpRoute != nil {
+		return "TCPRoute"
+	}
+
+	return "HTTPRoute"
+}
+
+func (o *routeParentOutcome) routeMeta() metav1.ObjectMeta {
+	if o.tcpRoute != nil {
+		return o.tcpRoute.ObjectMeta
+	}
+
+	return o.route.ObjectMeta
+}
+
+// outcomeKey disambiguates routes of different kinds sharing a name.
+func outcomeKey(kind, namespace, name string) string {
+	return kind + ":" + namespace + "/" + name
 }
 
 // gatewayStatusInput carries the computed conditions for one status write.

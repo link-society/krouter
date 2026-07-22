@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -95,6 +96,16 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		return nil, err
 	}
 	w.routes = routeList.Items
+
+	// TCPRoute requires the Experimental-channel CRD; its absence MUST NOT
+	// crash or degrade HTTP behavior (docs/spec/overview.md).
+	tcpRouteList, err := r.gwClient.GatewayV1alpha2().TCPRoutes(metav1.NamespaceAll).
+		List(ctx, metav1.ListOptions{})
+	if err == nil {
+		w.tcpRoutes = tcpRouteList.Items
+	} else if !apierrors.IsNotFound(err) {
+		return nil, err
+	}
 
 	grantList, err := r.gwClient.GatewayV1beta1().ReferenceGrants(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{})
@@ -236,8 +247,11 @@ func (r *Engine) reconcileGateway(
 	listeners := r.validateListeners(ctx, w, gw, allocator)
 
 	outcomes := r.attachRoutes(w, gw, listeners)
+	outcomes = append(outcomes, r.attachTCPRoutes(w, gw, listeners)...)
+
 	for _, outcome := range outcomes {
-		key := fmtKey(outcome.route.Namespace, outcome.route.Name)
+		meta := outcome.routeMeta()
+		key := outcomeKey(outcome.routeKind(), meta.Namespace, meta.Name)
 		routeOutcomes[key] = append(routeOutcomes[key], outcome)
 
 		topo.addRouteParent(gw, outcome)

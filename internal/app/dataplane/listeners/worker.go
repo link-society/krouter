@@ -8,17 +8,21 @@ import (
 	"github.com/vladopajic/go-actor/actor"
 
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/portserver"
+	"github.com/link-society/krouter/internal/app/dataplane/listeners/tcpserver"
 	"github.com/link-society/krouter/internal/lib/http/proxy"
 	"github.com/link-society/krouter/internal/lib/http/routing"
+	"github.com/link-society/krouter/internal/lib/tcp"
 )
 
-// worker reconciles the portserver children against the published tables.
+// worker reconciles the listener children against the published tables.
 // It is the only goroutine touching the children map.
 type worker struct {
-	in      actor.MailboxReceiver[*routing.Tables]
-	handler *proxy.Handler
+	in        actor.MailboxReceiver[*routing.Tables]
+	handler   *proxy.Handler
+	forwarder *tcp.Forwarder
 
-	children map[int32]*portserver.Server
+	children map[int32]actor.Actor
+	specs    map[int32]routing.PortSpec
 }
 
 var _ actor.Worker = (*worker)(nil)
@@ -40,25 +44,36 @@ func (w *worker) DoWork(ctx actor.Context) actor.WorkerStatus {
 func (w *worker) reconcile(tables *routing.Tables) {
 	ports := tables.Ports()
 
-	// Stop children whose port disappeared: new accepts stop while existing
-	// connections finish within normal server limits (docs/spec/traffic.md).
+	// Stop children whose port disappeared or changed kind: new accepts
+	// stop while existing connections finish within normal server limits
+	// (docs/spec/traffic.md).
 	for port, srv := range w.children {
-		if _, ok := ports[port]; ok {
+		spec, ok := ports[port]
+		if ok && spec == w.specs[port] {
 			continue
 		}
 
 		slog.Info("stopping listener", "port", port)
 		delete(w.children, port)
+		delete(w.specs, port)
 		srv.Stop()
 	}
 
 	// Start a child actor for every new port.
-	for port, withTLS := range ports {
+	for port, spec := range ports {
 		if _, ok := w.children[port]; ok {
 			continue
 		}
 
-		srv, err := portserver.New(port, withTLS, w.handler)
+		var srv actor.Actor
+		var err error
+
+		if spec.TCP {
+			srv, err = tcpserver.New(port, w.forwarder)
+		} else {
+			srv, err = portserver.New(port, spec.TLS, w.handler)
+		}
+
 		if err != nil {
 			slog.Error("failed to start listener", "port", port, "error", err)
 			continue
@@ -66,6 +81,7 @@ func (w *worker) reconcile(tables *routing.Tables) {
 
 		srv.Start()
 		w.children[port] = srv
+		w.specs[port] = spec
 	}
 }
 
@@ -77,6 +93,7 @@ func (w *worker) stopAll() {
 
 	for port, srv := range w.children {
 		delete(w.children, port)
+		delete(w.specs, port)
 		wg.Go(srv.Stop)
 	}
 

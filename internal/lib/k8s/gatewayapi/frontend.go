@@ -77,6 +77,9 @@ func protoSuffix(protocol string) string {
 	case string(gatewayv1.HTTPSProtocolType):
 		return "https"
 
+	case string(gatewayv1.TCPProtocolType):
+		return "tcp"
+
 	default:
 		return "http"
 	}

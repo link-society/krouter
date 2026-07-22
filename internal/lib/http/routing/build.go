@@ -48,7 +48,12 @@ func BuildGatewayTable(
 
 		port, ok := table.byPort[lst.InternalPort]
 		if !ok {
-			port = &PortTable{gatewayUID: gateway.UID, tls: lst.HasTLS}
+			port = &PortTable{
+				gatewayUID:  gateway.UID,
+				gatewayName: gateway.Namespace + "/" + gateway.Name,
+				tls:         lst.HasTLS,
+				tcp:         lst.Protocol == "TCP",
+			}
 			table.byPort[lst.InternalPort] = port
 		}
 

@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"sigs.k8s.io/yaml"
 
@@ -73,8 +74,9 @@ type ListenerInfo struct {
 	AttachedRoutes int32  `json:"attachedRoutes"`
 }
 
-// RouteInfo is one HTTPRoute referencing at least one owned Gateway.
+// RouteInfo is one route referencing at least one owned Gateway.
 type RouteInfo struct {
+	Kind      string   `json:"kind"` // HTTPRoute | TCPRoute
 	Namespace string   `json:"namespace"`
 	Name      string   `json:"name"`
 	UID       string   `json:"uid"`
@@ -194,25 +196,32 @@ func (b *topologyBuilder) addGateway(
 }
 
 func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routeParentOutcome) {
-	route := outcome.route
+	kind := outcome.routeKind()
+	meta := outcome.routeMeta()
 
-	key := fmtKey(route.Namespace, route.Name)
+	key := outcomeKey(kind, meta.Namespace, meta.Name)
 
 	info, ok := b.routes[key]
 	if !ok {
-		clone := route.DeepCopy()
-
 		info = &RouteInfo{
-			Namespace: route.Namespace,
-			Name:      route.Name,
-			UID:       string(route.UID),
-
-			YAML: objectYAML(clone,
-				gatewayv1.GroupVersion.String(), "HTTPRoute", &clone.ObjectMeta),
+			Kind:      kind,
+			Namespace: meta.Namespace,
+			Name:      meta.Name,
+			UID:       string(meta.UID),
 		}
 
-		for _, hostname := range route.Spec.Hostnames {
-			info.Hostnames = append(info.Hostnames, string(hostname))
+		if outcome.tcpRoute != nil {
+			clone := outcome.tcpRoute.DeepCopy()
+			info.YAML = objectYAML(clone,
+				gatewayv1alpha2.GroupVersion.String(), "TCPRoute", &clone.ObjectMeta)
+		} else {
+			clone := outcome.route.DeepCopy()
+			info.YAML = objectYAML(clone,
+				gatewayv1.GroupVersion.String(), "HTTPRoute", &clone.ObjectMeta)
+
+			for _, hostname := range outcome.route.Spec.Hostnames {
+				info.Hostnames = append(info.Hostnames, string(hostname))
+			}
 		}
 
 		b.routes[key] = info

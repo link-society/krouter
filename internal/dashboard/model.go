@@ -102,6 +102,7 @@ type routesData struct {
 
 // routeRow is one (route, gateway) attachment.
 type routeRow struct {
+	Kind         string
 	Namespace    string
 	Name         string
 	UID          string
@@ -172,6 +173,7 @@ func buildRouteRows(topo *gatewayapi.Topology) []routeRow {
 	for _, route := range topo.Routes {
 		for _, parent := range route.Parents {
 			row := routeRow{
+				Kind:         route.Kind,
 				Namespace:    route.Namespace,
 				Name:         route.Name,
 				UID:          route.UID,

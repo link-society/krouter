@@ -33,10 +33,10 @@ metadata:
     app.kubernetes.io/name: krouter
 rules:
   - apiGroups: ["gateway.networking.k8s.io"]
-    resources: ["gatewayclasses", "gateways", "httproutes", "referencegrants"]
+    resources: ["gatewayclasses", "gateways", "httproutes", "tcproutes", "referencegrants"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["gateway.networking.k8s.io"]
-    resources: ["gatewayclasses/status", "gateways/status", "httproutes/status"]
+    resources: ["gatewayclasses/status", "gateways/status", "httproutes/status", "tcproutes/status"]
     verbs: ["update", "patch"]
   - apiGroups: [""]
     resources: ["namespaces", "pods"]

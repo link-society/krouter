@@ -185,11 +185,16 @@ func (r *Engine) writeGatewayStatus(
 				}
 			}
 
+			supportedKind := gatewayv1.Kind("HTTPRoute")
+			if lst.spec.Protocol == gatewayv1.TCPProtocolType {
+				supportedKind = "TCPRoute"
+			}
+
 			desired.Listeners = append(desired.Listeners, gatewayv1.ListenerStatus{
 				Name: lst.spec.Name,
 				SupportedKinds: []gatewayv1.RouteGroupKind{{
 					Group: ptr.To(gatewayv1.Group(gatewayv1.GroupName)),
-					Kind:  "HTTPRoute",
+					Kind:  supportedKind,
 				}},
 				AttachedRoutes: lst.attachedRoutes,
 				Conditions:     mergeConditions(existingConditions, listenerConditions),
@@ -231,31 +236,9 @@ func (r *Engine) writeRouteStatuses(
 
 	for i := range w.routes {
 		route := &w.routes[i]
-		key := fmtKey(route.Namespace, route.Name)
+		key := outcomeKey("HTTPRoute", route.Namespace, route.Name)
 
-		var ours []gatewayv1.RouteParentStatus
-		for _, outcome := range outcomes[key] {
-			conditions := []metav1.Condition{
-				condition(
-					string(gatewayv1.RouteConditionAccepted),
-					boolStatus(outcome.accepted),
-					outcome.acceptedReason, "",
-					route.Generation,
-				),
-				condition(
-					string(gatewayv1.RouteConditionResolvedRefs),
-					boolStatus(outcome.refsResolved),
-					outcome.refsReason, outcome.refsMessage,
-					route.Generation,
-				),
-			}
-
-			ours = append(ours, gatewayv1.RouteParentStatus{
-				ParentRef:      outcome.parentRef,
-				ControllerName: controllerName,
-				Conditions:     conditions,
-			})
-		}
+		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
 
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 			fresh, err := r.gwClient.GatewayV1().HTTPRoutes(route.Namespace).
@@ -264,29 +247,8 @@ func (r *Engine) writeRouteStatuses(
 				return err
 			}
 
-			var desired []gatewayv1.RouteParentStatus
-			for _, parent := range fresh.Status.Parents {
-				if parent.ControllerName != controllerName {
-					desired = append(desired, parent)
-				}
-			}
-
-			for _, parent := range ours {
-				var existingConditions []metav1.Condition
-				for _, existing := range fresh.Status.Parents {
-					if existing.ControllerName == controllerName &&
-						reflect.DeepEqual(existing.ParentRef, parent.ParentRef) {
-						existingConditions = existing.Conditions
-						break
-					}
-				}
-
-				parent.Conditions = mergeConditions(existingConditions, parent.Conditions)
-
-				desired = append(desired, parent)
-			}
-
-			if reflect.DeepEqual(fresh.Status.Parents, desired) {
+			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
+			if !changed {
 				return nil
 			}
 
@@ -298,9 +260,106 @@ func (r *Engine) writeRouteStatuses(
 			return err
 		})
 		if err != nil {
-			logSyncError("route status", key, err)
+			logSyncError("route status", fmtKey(route.Namespace, route.Name), err)
 		}
 	}
+
+	for i := range w.tcpRoutes {
+		route := &w.tcpRoutes[i]
+		key := outcomeKey("TCPRoute", route.Namespace, route.Name)
+
+		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
+
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			fresh, err := r.gwClient.GatewayV1alpha2().TCPRoutes(route.Namespace).
+				Get(ctx, route.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
+			if !changed {
+				return nil
+			}
+
+			fresh.Status.Parents = desired
+
+			_, err = r.gwClient.GatewayV1alpha2().TCPRoutes(route.Namespace).
+				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
+
+			return err
+		})
+		if err != nil {
+			logSyncError("tcproute status", fmtKey(route.Namespace, route.Name), err)
+		}
+	}
+}
+
+// parentStatuses renders this controller's status.parents[] entries for
+// one route from its attachment outcomes.
+func parentStatuses(
+	outcomes []*routeParentOutcome,
+	controllerName gatewayv1.GatewayController,
+	generation int64,
+) []gatewayv1.RouteParentStatus {
+	var ours []gatewayv1.RouteParentStatus
+
+	for _, outcome := range outcomes {
+		conditions := []metav1.Condition{
+			condition(
+				string(gatewayv1.RouteConditionAccepted),
+				boolStatus(outcome.accepted),
+				outcome.acceptedReason, "",
+				generation,
+			),
+			condition(
+				string(gatewayv1.RouteConditionResolvedRefs),
+				boolStatus(outcome.refsResolved),
+				outcome.refsReason, outcome.refsMessage,
+				generation,
+			),
+		}
+
+		ours = append(ours, gatewayv1.RouteParentStatus{
+			ParentRef:      outcome.parentRef,
+			ControllerName: controllerName,
+			Conditions:     conditions,
+		})
+	}
+
+	return ours
+}
+
+// mergeParentStatuses replaces this controller's parent entries while
+// preserving foreign controllers and unchanged transition times.
+func mergeParentStatuses(
+	existing []gatewayv1.RouteParentStatus,
+	ours []gatewayv1.RouteParentStatus,
+	controllerName gatewayv1.GatewayController,
+) ([]gatewayv1.RouteParentStatus, bool) {
+	var desired []gatewayv1.RouteParentStatus
+	for _, parent := range existing {
+		if parent.ControllerName != controllerName {
+			desired = append(desired, parent)
+		}
+	}
+
+	for _, parent := range ours {
+		var existingConditions []metav1.Condition
+		for _, current := range existing {
+			if current.ControllerName == controllerName &&
+				reflect.DeepEqual(current.ParentRef, parent.ParentRef) {
+				existingConditions = current.Conditions
+				break
+			}
+		}
+
+		parent.Conditions = mergeConditions(existingConditions, parent.Conditions)
+
+		desired = append(desired, parent)
+	}
+
+	return desired, !reflect.DeepEqual(existing, desired)
 }
 
 // gatewayConditions builds the top-level Gateway conditions.
