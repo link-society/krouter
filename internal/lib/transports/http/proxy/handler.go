@@ -8,6 +8,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"strings"
+
+	"bytes"
+	"io"
+
+	"context"
+	"math/rand/v2"
+
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -161,7 +169,7 @@ func serveRedirect(w http.ResponseWriter, r *http.Request, filter compiled.Filte
 	location := url.URL{
 		Scheme:   scheme,
 		Host:     host,
-		Path:     r.URL.Path,
+		Path:     rewrittenPath(r.URL.Path, filter),
 		RawQuery: r.URL.RawQuery,
 	}
 
@@ -173,6 +181,34 @@ func serveRedirect(w http.ResponseWriter, r *http.Request, filter compiled.Filte
 	http.Redirect(w, r, location.String(), status)
 
 	return status
+}
+
+// rewrittenPath applies the path replacement shared by RequestRedirect and
+// URLRewrite (docs/spec/traffic.md): the whole path, or the rule's matched
+// PathPrefix segment-wise.
+func rewrittenPath(path string, filter compiled.Filter) string {
+	switch filter.PathRewriteType {
+	case "ReplaceFullPath":
+		return filter.PathRewriteValue
+
+	case "ReplacePrefixMatch":
+		prefix := strings.TrimSuffix(filter.PathPrefix, "/")
+		rest := strings.TrimPrefix(path, prefix)
+
+		replacement := filter.PathRewriteValue
+		if replacement == "" {
+			replacement = "/"
+		}
+
+		if rest == "" || rest == "/" {
+			return replacement
+		}
+
+		return strings.TrimSuffix(replacement, "/") + rest
+
+	default:
+		return path
+	}
 }
 
 // forward proxies one request to a selected backend endpoint.
@@ -216,6 +252,22 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 		transport = h.grpcTransport
 	}
 
+	// Request mirroring (docs/spec/traffic.md): sample the targets now,
+	// capture the request body while the primary request streams it, and
+	// snapshot the filtered outbound request for the mirror copies.
+	mirrors := sampleMirrors(rule.Mirrors())
+
+	var mirrorBody *cappedBuffer
+	var mirrorReq *http.Request
+
+	if len(mirrors) > 0 && r.Body != nil && r.ContentLength != 0 {
+		mirrorBody = &cappedBuffer{limit: mirrorBodyLimit}
+		r.Body = readCloser{
+			Reader: io.TeeReader(r.Body, mirrorBody),
+			Closer: r.Body,
+		}
+	}
+
 	status := http.StatusOK
 	reverseProxy := &httputil.ReverseProxy{
 		Transport:     transport,
@@ -232,6 +284,10 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 			for _, filter := range rule.Filters() {
 				applyFilter(pr, filter)
 			}
+
+			if len(mirrors) > 0 {
+				mirrorReq = pr.Out.Clone(context.WithoutCancel(pr.In.Context()))
+			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			slog.Warn("backend request failed", "error", err)
@@ -239,6 +295,10 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 			http.Error(w, "bad gateway", http.StatusBadGateway)
 		},
 		ModifyResponse: func(resp *http.Response) error {
+			for _, filter := range rule.Filters() {
+				applyResponseFilter(resp, filter)
+			}
+
 			status = resp.StatusCode
 			return nil
 		},
@@ -246,7 +306,105 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 
 	reverseProxy.ServeHTTP(w, r)
 
+	h.fireMirrors(mirrors, mirrorReq, mirrorBody, transport)
+
 	return status
+}
+
+const mirrorBodyLimit = 1 << 20
+
+// sampleMirrors applies percentage sampling to the rule's mirror targets
+// (docs/spec/traffic.md).
+func sampleMirrors(mirrors []*routing.MirrorTable) []*routing.MirrorTable {
+	var sampled []*routing.MirrorTable
+	for _, mirror := range mirrors {
+		if mirror.Percent() >= 100 || rand.Float64()*100 < mirror.Percent() {
+			sampled = append(sampled, mirror)
+		}
+	}
+
+	return sampled
+}
+
+// fireMirrors delivers a copy of the request to a single endpoint of each
+// sampled mirror backend, after the primary request completed. Responses
+// and failures are ignored and MUST NOT affect the client response
+// (docs/spec/traffic.md).
+func (h *Handler) fireMirrors(
+	mirrors []*routing.MirrorTable,
+	req *http.Request,
+	body *cappedBuffer,
+	transport *http.Transport,
+) {
+	if len(mirrors) == 0 || req == nil {
+		return
+	}
+
+	// A body larger than the capture limit cannot be mirrored faithfully;
+	// the mirrors are skipped rather than sending a truncated request.
+	if body != nil && body.overflowed {
+		return
+	}
+
+	index := h.state.Endpoints.Load()
+
+	for _, mirror := range mirrors {
+		endpoint, ok := mirror.Backend().Pick(index)
+		if !ok {
+			continue
+		}
+
+		mirrored := req.Clone(req.Context())
+		mirrored.URL.Scheme = "http"
+		mirrored.URL.Host = fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port)
+		mirrored.Body = nil
+		mirrored.ContentLength = 0
+
+		if body != nil {
+			mirrored.Body = io.NopCloser(bytes.NewReader(body.buf.Bytes()))
+			mirrored.ContentLength = int64(body.buf.Len())
+		}
+
+		go func() {
+			ctx, cancel := context.WithTimeout(mirrored.Context(), 10*time.Second)
+			defer cancel()
+
+			resp, err := transport.RoundTrip(mirrored.WithContext(ctx))
+			if err != nil {
+				slog.Debug("mirror request failed", "error", err)
+				return
+			}
+
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}()
+	}
+}
+
+// cappedBuffer captures a streamed request body up to a limit for
+// mirroring, without slowing the primary request path.
+type cappedBuffer struct {
+	buf        bytes.Buffer
+	limit      int
+	overflowed bool
+}
+
+var _ io.Writer = (*cappedBuffer)(nil)
+
+func (c *cappedBuffer) Write(p []byte) (int, error) {
+	if c.buf.Len()+len(p) > c.limit {
+		c.overflowed = true
+		return len(p), nil
+	}
+
+	c.buf.Write(p)
+
+	return len(p), nil
+}
+
+type readCloser struct {
+	io.Reader
+	io.Closer
 }
 
 // rewriteForwardingHeaders regenerates spoof-sensitive values from the
@@ -274,23 +432,53 @@ func rewriteForwardingHeaders(pr *httputil.ProxyRequest, withTLS bool) {
 		clientIP, hostOnly(pr.In.Host), proto))
 }
 
-// applyFilter runs a compiled HTTPRoute filter after header regeneration:
-// RequestHeaderModifier may override regenerated values (docs/spec/traffic.md).
+// applyFilter runs a compiled request filter after header regeneration:
+// RequestHeaderModifier may override regenerated values, URLRewrite
+// replaces the authority and path seen by the backend
+// (docs/spec/traffic.md).
 func applyFilter(pr *httputil.ProxyRequest, filter compiled.Filter) {
-	if filter.Type != "RequestHeaderModifier" {
+	switch filter.Type {
+	case "RequestHeaderModifier":
+		for name, value := range filter.SetHeaders {
+			pr.Out.Header.Set(name, value)
+		}
+
+		for name, value := range filter.AddHeaders {
+			pr.Out.Header.Add(name, value)
+		}
+
+		for _, name := range filter.RemoveHeaders {
+			pr.Out.Header.Del(name)
+		}
+
+	case "URLRewrite":
+		if filter.Hostname != "" {
+			pr.Out.Host = filter.Hostname
+		}
+
+		if filter.PathRewriteType != "" {
+			pr.Out.URL.Path = rewrittenPath(pr.Out.URL.Path, filter)
+		}
+	}
+}
+
+// applyResponseFilter runs a compiled ResponseHeaderModifier filter on the
+// backend response (docs/spec/traffic.md).
+func applyResponseFilter(resp *http.Response, filter compiled.Filter) {
+	if filter.Type != "ResponseHeaderModifier" {
 		return
 	}
 
 	for name, value := range filter.SetHeaders {
-		pr.Out.Header.Set(name, value)
+		resp.Header.Set(name, value)
 	}
 
 	for name, value := range filter.AddHeaders {
-		pr.Out.Header.Add(name, value)
+		resp.Header.Add(name, value)
 	}
 
 	for _, name := range filter.RemoveHeaders {
-		pr.Out.Header.Del(name)
+		resp.Header.Del(name)
 	}
 }
 

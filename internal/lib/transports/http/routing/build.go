@@ -77,6 +77,32 @@ func BuildGatewayTable(
 				grpc:    route.GRPC,
 			}
 
+			for _, filter := range rule.Filters {
+				if filter.Type != "RequestMirror" || filter.Mirror == nil {
+					continue
+				}
+
+				percent := float64(100)
+				if filter.MirrorPercent != nil {
+					percent = *filter.MirrorPercent
+				}
+
+				entry.mirrors = append(entry.mirrors, &MirrorTable{
+					backend: &BackendTable{
+						namespace: filter.Mirror.Namespace,
+						name:      filter.Mirror.Name,
+						port:      filter.Mirror.Port,
+						weight:    1,
+						valid:     filter.Mirror.Valid,
+					},
+					percent: percent,
+				})
+
+				if filter.Mirror.Valid {
+					table.namespaces[filter.Mirror.Namespace] = true
+				}
+			}
+
 			for _, backend := range rule.Backends {
 				weight := backend.Weight
 				if weight <= 0 {

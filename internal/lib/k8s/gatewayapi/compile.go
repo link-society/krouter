@@ -737,15 +737,16 @@ func (r *Engine) compileGRPCRule(
 	}
 
 	for _, filter := range rule.Filters {
-		if filter.Type != gatewayv1.GRPCRouteFilterRequestHeaderModifier ||
-			filter.RequestHeaderModifier == nil {
+		entry, keep, err := r.compileGRPCFilter(w, route.Namespace, filter, outcome)
+		if err != nil {
 			// Unsupported filters MUST reject the route, never be silently
 			// dropped (docs/spec/traffic.md).
-			return compiled.Rule{}, fmt.Errorf("unsupported filter type %q", filter.Type)
+			return compiled.Rule{}, err
 		}
 
-		compiledRule.Filters = append(compiledRule.Filters,
-			compileHeaderModifier(filter.RequestHeaderModifier))
+		if keep {
+			compiledRule.Filters = append(compiledRule.Filters, entry)
+		}
 	}
 
 	for _, backendRef := range rule.BackendRefs {
@@ -754,6 +755,41 @@ func (r *Engine) compileGRPCRule(
 	}
 
 	return compiledRule, nil
+}
+
+// compileGRPCFilter translates one GRPCRoute filter: header modifiers and
+// request mirroring behave as for HTTPRoute rules (docs/spec/traffic.md).
+func (r *Engine) compileGRPCFilter(
+	w *world,
+	routeNamespace string,
+	filter gatewayv1.GRPCRouteFilter,
+	outcome *routeParentOutcome,
+) (compiled.Filter, bool, error) {
+	switch filter.Type {
+	case gatewayv1.GRPCRouteFilterRequestHeaderModifier:
+		if filter.RequestHeaderModifier == nil {
+			return compiled.Filter{}, false, fmt.Errorf("missing requestHeaderModifier")
+		}
+
+		return compileHeaderModifier("RequestHeaderModifier", filter.RequestHeaderModifier), true, nil
+
+	case gatewayv1.GRPCRouteFilterResponseHeaderModifier:
+		if filter.ResponseHeaderModifier == nil {
+			return compiled.Filter{}, false, fmt.Errorf("missing responseHeaderModifier")
+		}
+
+		return compileHeaderModifier("ResponseHeaderModifier", filter.ResponseHeaderModifier), true, nil
+
+	case gatewayv1.GRPCRouteFilterRequestMirror:
+		if filter.RequestMirror == nil {
+			return compiled.Filter{}, false, fmt.Errorf("missing requestMirror")
+		}
+
+		return r.compileMirror(w, routeNamespace, "GRPCRoute", filter.RequestMirror, outcome)
+
+	default:
+		return compiled.Filter{}, false, fmt.Errorf("unsupported filter type %q", filter.Type)
+	}
 }
 
 // compileRoute builds the (Gateway, Route) attachment payload, validating
@@ -811,12 +847,14 @@ func (r *Engine) compileRoute(
 		}
 
 		for _, filter := range rule.Filters {
-			entry, err := compileHTTPFilter(filter)
+			entry, keep, err := r.compileHTTPFilter(w, route.Namespace, "HTTPRoute", rule, filter, outcome)
 			if err != nil {
 				return nil
 			}
 
-			compiledRule.Filters = append(compiledRule.Filters, entry)
+			if keep {
+				compiledRule.Filters = append(compiledRule.Filters, entry)
+			}
 		}
 
 		for _, backendRef := range rule.BackendRefs {
@@ -830,29 +868,37 @@ func (r *Engine) compileRoute(
 	return config
 }
 
-// compileHTTPFilter translates one HTTPRoute filter. Unsupported filter
-// types or values yield an error so the whole route is rejected with
-// UnsupportedValue instead of silently dropping the filter
-// (docs/spec/traffic.md).
-func compileHTTPFilter(filter gatewayv1.HTTPRouteFilter) (compiled.Filter, error) {
+// compileHTTPFilter translates one HTTPRoute filter (docs/spec/traffic.md).
+// Unsupported filter types or values yield an error so the whole route is
+// rejected with UnsupportedValue instead of silently dropping the filter.
+// A mirror whose backend does not resolve is dropped (keep=false) after
+// degrading the ResolvedRefs condition, per the Gateway API.
+func (r *Engine) compileHTTPFilter(
+	w *world,
+	routeNamespace, routeKind string,
+	rule gatewayv1.HTTPRouteRule,
+	filter gatewayv1.HTTPRouteFilter,
+	outcome *routeParentOutcome,
+) (compiled.Filter, bool, error) {
 	switch filter.Type {
 	case gatewayv1.HTTPRouteFilterRequestHeaderModifier:
 		if filter.RequestHeaderModifier == nil {
-			return compiled.Filter{}, fmt.Errorf("missing requestHeaderModifier")
+			return compiled.Filter{}, false, fmt.Errorf("missing requestHeaderModifier")
 		}
 
-		return compileHeaderModifier(filter.RequestHeaderModifier), nil
+		return compileHeaderModifier("RequestHeaderModifier", filter.RequestHeaderModifier), true, nil
+
+	case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
+		if filter.ResponseHeaderModifier == nil {
+			return compiled.Filter{}, false, fmt.Errorf("missing responseHeaderModifier")
+		}
+
+		return compileHeaderModifier("ResponseHeaderModifier", filter.ResponseHeaderModifier), true, nil
 
 	case gatewayv1.HTTPRouteFilterRequestRedirect:
 		redirect := filter.RequestRedirect
 		if redirect == nil {
-			return compiled.Filter{}, fmt.Errorf("missing requestRedirect")
-		}
-
-		if redirect.Path != nil {
-			// Path rewriting redirects are not supported
-			// (docs/spec/overview.md deferred scope).
-			return compiled.Filter{}, fmt.Errorf("unsupported redirect path rewrite")
+			return compiled.Filter{}, false, fmt.Errorf("missing requestRedirect")
 		}
 
 		entry := compiled.Filter{Type: "RequestRedirect", StatusCode: 302}
@@ -873,16 +919,138 @@ func compileHTTPFilter(filter gatewayv1.HTTPRouteFilter) (compiled.Filter, error
 			entry.StatusCode = *redirect.StatusCode
 		}
 
-		return entry, nil
+		if redirect.Path != nil {
+			if err := compilePathModifier(&entry, redirect.Path, rule.Matches); err != nil {
+				return compiled.Filter{}, false, err
+			}
+		}
+
+		return entry, true, nil
+
+	case gatewayv1.HTTPRouteFilterURLRewrite:
+		rewrite := filter.URLRewrite
+		if rewrite == nil {
+			return compiled.Filter{}, false, fmt.Errorf("missing urlRewrite")
+		}
+
+		entry := compiled.Filter{Type: "URLRewrite"}
+
+		if rewrite.Hostname != nil {
+			entry.Hostname = string(*rewrite.Hostname)
+		}
+
+		if rewrite.Path != nil {
+			if err := compilePathModifier(&entry, rewrite.Path, rule.Matches); err != nil {
+				return compiled.Filter{}, false, err
+			}
+		}
+
+		return entry, true, nil
+
+	case gatewayv1.HTTPRouteFilterRequestMirror:
+		if filter.RequestMirror == nil {
+			return compiled.Filter{}, false, fmt.Errorf("missing requestMirror")
+		}
+
+		return r.compileMirror(w, routeNamespace, routeKind, filter.RequestMirror, outcome)
 
 	default:
-		return compiled.Filter{}, fmt.Errorf("unsupported filter type %q", filter.Type)
+		return compiled.Filter{}, false, fmt.Errorf("unsupported filter type %q", filter.Type)
 	}
 }
 
-func compileHeaderModifier(modifier *gatewayv1.HTTPHeaderFilter) compiled.Filter {
+// compilePathModifier compiles the path replacement shared by
+// RequestRedirect and URLRewrite (docs/spec/traffic.md). ReplacePrefixMatch
+// captures the rule's single PathPrefix match, guaranteed by API
+// validation, so the data plane needs no match context.
+func compilePathModifier(
+	entry *compiled.Filter,
+	modifier *gatewayv1.HTTPPathModifier,
+	matches []gatewayv1.HTTPRouteMatch,
+) error {
+	switch modifier.Type {
+	case gatewayv1.FullPathHTTPPathModifier:
+		if modifier.ReplaceFullPath == nil {
+			return fmt.Errorf("missing replaceFullPath")
+		}
+
+		entry.PathRewriteType = "ReplaceFullPath"
+		entry.PathRewriteValue = *modifier.ReplaceFullPath
+
+	case gatewayv1.PrefixMatchHTTPPathModifier:
+		if modifier.ReplacePrefixMatch == nil {
+			return fmt.Errorf("missing replacePrefixMatch")
+		}
+
+		entry.PathRewriteType = "ReplacePrefixMatch"
+		entry.PathRewriteValue = *modifier.ReplacePrefixMatch
+		entry.PathPrefix = rulePathPrefix(matches)
+
+	default:
+		return fmt.Errorf("unsupported path modifier %q", modifier.Type)
+	}
+
+	return nil
+}
+
+// rulePathPrefix returns the rule's PathPrefix match value; the API
+// guarantees exactly one PathPrefix match when ReplacePrefixMatch is used.
+func rulePathPrefix(matches []gatewayv1.HTTPRouteMatch) string {
+	for _, match := range matches {
+		if match.Path == nil || match.Path.Value == nil {
+			continue
+		}
+
+		if match.Path.Type == nil || *match.Path.Type == gatewayv1.PathMatchPathPrefix {
+			return *match.Path.Value
+		}
+	}
+
+	return "/"
+}
+
+// compileMirror resolves a RequestMirror target (docs/spec/traffic.md).
+func (r *Engine) compileMirror(
+	w *world,
+	routeNamespace, routeKind string,
+	mirror *gatewayv1.HTTPRequestMirrorFilter,
+	outcome *routeParentOutcome,
+) (compiled.Filter, bool, error) {
+	backend := r.compileBackend(w, routeNamespace, routeKind,
+		gatewayv1.BackendRef{BackendObjectReference: mirror.BackendRef}, outcome)
+	if !backend.Valid {
+		// Unresolvable mirrors degrade ResolvedRefs (done by
+		// compileBackend) and are dropped, per the Gateway API.
+		return compiled.Filter{}, false, nil
+	}
+
+	entry := compiled.Filter{Type: "RequestMirror", Mirror: &backend}
+
+	if mirror.Percent != nil {
+		percent := float64(*mirror.Percent)
+		entry.MirrorPercent = &percent
+	}
+
+	if mirror.Fraction != nil {
+		denominator := int32(100)
+		if mirror.Fraction.Denominator != nil {
+			denominator = *mirror.Fraction.Denominator
+		}
+
+		if denominator <= 0 {
+			return compiled.Filter{}, false, fmt.Errorf("invalid mirror fraction denominator")
+		}
+
+		percent := float64(mirror.Fraction.Numerator) / float64(denominator) * 100
+		entry.MirrorPercent = &percent
+	}
+
+	return entry, true, nil
+}
+
+func compileHeaderModifier(filterType string, modifier *gatewayv1.HTTPHeaderFilter) compiled.Filter {
 	entry := compiled.Filter{
-		Type:       "RequestHeaderModifier",
+		Type:       filterType,
 		SetHeaders: map[string]string{},
 		AddHeaders: map[string]string{},
 	}

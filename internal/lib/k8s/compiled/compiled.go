@@ -101,16 +101,31 @@ type HeaderMatch struct {
 }
 
 type Filter struct {
+	// Type is one of RequestHeaderModifier, ResponseHeaderModifier,
+	// RequestRedirect, URLRewrite or RequestMirror
+	// (docs/spec/traffic.md).
 	Type          string            `json:"type"`
 	SetHeaders    map[string]string `json:"setHeaders,omitempty"`
 	AddHeaders    map[string]string `json:"addHeaders,omitempty"`
 	RemoveHeaders []string          `json:"removeHeaders,omitempty"`
-	// RequestRedirect fields (docs/spec/traffic.md): unset values inherit
-	// from the incoming request; StatusCode defaults to 302.
+	// RequestRedirect and URLRewrite fields (docs/spec/traffic.md): unset
+	// values inherit from the incoming request; StatusCode defaults to 302.
 	Scheme     string `json:"scheme,omitempty"`
 	Hostname   string `json:"hostname,omitempty"`
 	Port       int32  `json:"port,omitempty"`
 	StatusCode int    `json:"statusCode,omitempty"`
+	// Path replacement shared by RequestRedirect and URLRewrite:
+	// PathRewriteType is ReplaceFullPath or ReplacePrefixMatch, and
+	// PathPrefix carries the rule's PathPrefix match consumed by
+	// ReplacePrefixMatch (docs/spec/traffic.md).
+	PathRewriteType  string `json:"pathRewriteType,omitempty"`
+	PathRewriteValue string `json:"pathRewriteValue,omitempty"`
+	PathPrefix       string `json:"pathPrefix,omitempty"`
+	// RequestMirror target: a copy of the request goes to a single
+	// endpoint of this backend; MirrorPercent (0-100) samples requests,
+	// nil mirrors all of them (docs/spec/traffic.md).
+	Mirror        *Backend `json:"mirror,omitempty"`
+	MirrorPercent *float64 `json:"mirrorPercent,omitempty"`
 }
 
 type Backend struct {

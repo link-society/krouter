@@ -111,6 +111,7 @@ type RuleTable struct {
 	matches  []compiled.Match
 	filters  []compiled.Filter
 	backends []*BackendTable
+	mirrors  []*MirrorTable
 	grpc     bool
 	total    int64
 	counter  atomic.Int64
@@ -118,6 +119,20 @@ type RuleTable struct {
 
 // Filters returns the compiled filters of the rule.
 func (r *RuleTable) Filters() []compiled.Filter { return r.filters }
+
+// Mirrors returns the rule's request mirror targets (docs/spec/traffic.md).
+func (r *RuleTable) Mirrors() []*MirrorTable { return r.mirrors }
+
+// MirrorTable is one RequestMirror target: a copy of matching requests is
+// delivered to a single endpoint of the backend, sampled by percent
+// (docs/spec/traffic.md).
+type MirrorTable struct {
+	backend *BackendTable
+	percent float64 // 0-100
+}
+
+func (m *MirrorTable) Backend() *BackendTable { return m.backend }
+func (m *MirrorTable) Percent() float64       { return m.percent }
 
 // GRPC reports whether the rule belongs to a GRPCRoute: it only matches
 // gRPC requests and its backends speak cleartext HTTP/2
