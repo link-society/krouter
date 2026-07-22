@@ -13,7 +13,9 @@ func TestHostnameMatches(t *testing.T) {
 		{"hello.example.com", "other.example.com", false},
 		{"*.example.com", "hello.example.com", true},
 		{"*.example.com", "example.com", false},
-		{"*.example.com", "a.b.example.com", false},
+		// A wildcard matches one or more labels (Gateway API Hostname
+		// semantics, docs/spec/traffic.md).
+		{"*.example.com", "a.b.example.com", true},
 	}
 
 	for _, tc := range cases {

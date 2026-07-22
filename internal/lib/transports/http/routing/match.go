@@ -114,9 +114,9 @@ func hostnameMatches(pattern, host string) bool {
 	if strings.HasPrefix(pattern, "*.") {
 		suffix := pattern[1:] // ".example.com"
 
-		return len(host) > len(suffix) &&
-			strings.HasSuffix(host, suffix) &&
-			!strings.Contains(host[:len(host)-len(suffix)], ".")
+		// A wildcard label matches one or more labels (Gateway API
+		// Hostname semantics, docs/spec/traffic.md).
+		return len(host) > len(suffix) && strings.HasSuffix(host, suffix)
 	}
 
 	return strings.EqualFold(pattern, host)
