@@ -32,8 +32,9 @@ at least:
 - Actual client IP.
 - Error classification when applicable.
 
-For TCP listeners, the data plane writes one event per closed connection
-with the same fields minus the HTTP-specific ones.
+For TCP and TLS passthrough listeners, the data plane writes one event per
+closed connection with the same fields minus the HTTP-specific ones (plus
+the SNI value for TLS passthrough).
 
 ## Metrics
 

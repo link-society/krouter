@@ -1,7 +1,7 @@
 # Traffic
 
 The data-plane request path, its lifecycle guarantees, and the required
-HTTP and TCP behavior.
+HTTP, TCP, and TLS passthrough behavior.
 
 ## Request path
 
@@ -36,6 +36,28 @@ rewritten.
 - An established connection keeps its selected backend across configuration
   reloads; listener removal stops new accepts while established connections
   finish.
+
+## TLS passthrough
+
+A TLS listener in `Passthrough` mode routes on the SNI value of the
+ClientHello and forwards the connection still encrypted; krouter never
+terminates the session and never holds the certificate — the backend owns
+TLS end to end.
+
+- A TLSRoute attaches to a TLS passthrough listener; its hostnames are
+  matched against the SNI value with the same exact-then-wildcard
+  precedence as HTTP hostname matching.
+- The listener's own hostname restricts which SNI values it serves, as for
+  HTTP listeners.
+- Once a route is selected, the backend endpoint is chosen once per
+  downstream connection, applying the same weights, eligibility rules and
+  load-balancing algorithm as every other route type.
+- The forwarded stream includes the ClientHello: the backend performs the
+  TLS handshake with the original client bytes.
+- A connection whose SNI matches no route MUST be refused without
+  completing a handshake.
+- Established connections keep their selected backend across configuration
+  reloads, exactly as for TCP forwarding.
 
 ## Connection lifecycle and hot reload
 
@@ -77,6 +99,8 @@ plane access to or compiling a cross-namespace backend reference.
   listeners.
 - Accept raw TCP connections on TCP listeners and forward them without
   interpretation.
+- Accept TLS connections on TLS passthrough listeners, route by SNI, and
+  forward them still encrypted.
 - Use HTTP/1.1 for connections to backend endpoints of HTTP routes.
 - Terminate HTTPS using certificates referenced by Gateway listeners.
 - Support standard HTTP upgrade behavior required by the Core conformance
@@ -88,8 +112,9 @@ plane access to or compiling a cross-namespace backend reference.
 
 krouter implements the exact matching, precedence, backend weighting,
 listener isolation, reference resolution, and filter behavior required by
-the Gateway API v1.5.1 `GATEWAY-HTTP` Core conformance profile, and the
-TCPRoute attachment semantics defined by the upstream API specification.
+the Gateway API v1.5.1 `GATEWAY-HTTP` and `GATEWAY-TLS` Core conformance
+profiles, and the TCPRoute attachment semantics defined by the upstream
+API specification.
 
 No implementation-specific annotations or Route extensions are added.
 

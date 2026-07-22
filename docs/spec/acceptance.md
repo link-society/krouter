@@ -26,3 +26,6 @@ The implementation is accepted when:
     atomic-update, last-valid, and connection-survival guarantees as HTTP
     traffic. TCPRoute has no conformance profile in Gateway API v1.5.1;
     the krouter end-to-end suite is the verification.
+14. TLS passthrough listeners route by SNI to TLSRoute backends without
+    terminating the session, with the same guarantees as TCP forwarding,
+    and the `GATEWAY-TLS` Core conformance tests pass.

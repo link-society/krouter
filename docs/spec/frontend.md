@@ -75,6 +75,8 @@ port for each `(Gateway UID, external port, listener protocol)` group.
 - HTTP listeners sharing an external port for the same Gateway share one
   internal listener and are distinguished by hostname and routing rules.
 - HTTP and HTTPS listeners use different internal listeners.
+- TLS passthrough listeners sharing an external port for the same Gateway
+  share one internal listener and are distinguished by SNI.
 - TCP listeners carry no hostname, so a Gateway MUST NOT declare more than
   one TCP listener per external port; each TCP listener group maps to its
   own internal listener.

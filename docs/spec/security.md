@@ -13,6 +13,9 @@
   connections using the previous certificate.
 - Generated Secrets MUST NOT appear in logs, metrics, ConfigMaps, or status
   messages.
+- TLS passthrough listeners carry no certificate reference: krouter reads
+  the SNI value from the ClientHello without decrypting anything, and the
+  backend owns the TLS session end to end.
 
 ## RBAC
 
