@@ -64,8 +64,10 @@ func desiredServicePorts(
 			order = append(order, key)
 		}
 
-		if requested, ok := infra.Service.NodePorts[string(lst.spec.Name)]; ok {
-			port.nodePort = requested
+		if lst.set == nil {
+			if requested, ok := infra.Service.NodePorts[string(lst.spec.Name)]; ok {
+				port.nodePort = requested
+			}
 		}
 	}
 

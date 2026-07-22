@@ -23,80 +23,152 @@ import (
 
 // ------------------------------------------------------------ listeners --
 
+// validateListeners builds the effective listener set of one Gateway: its
+// own listeners first, then the entries of every accepted ListenerSet in
+// precedence order (docs/spec/frontend.md Listener sets).
 func (r *Engine) validateListeners(
 	ctx context.Context,
 	w *world,
 	gw *gatewayv1.Gateway,
+	sets []*listenerSetState,
 	allocator *portAllocator,
 ) []*listenerState {
 	listeners := make([]*listenerState, 0, len(gw.Spec.Listeners))
-	tcpPorts := map[gatewayv1.PortNumber]bool{}
-	udpPorts := map[gatewayv1.PortNumber]bool{}
 
 	for _, spec := range gw.Spec.Listeners {
-		state := &listenerState{
-			spec:           spec,
-			accepted:       true,
-			acceptedReason: string(gatewayv1.ListenerReasonAccepted),
-			refsResolved:   true,
-			refsReason:     string(gatewayv1.ListenerReasonResolvedRefs),
-			certData:       map[string][]byte{},
-		}
-
-		switch spec.Protocol {
-		case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType:
-
-		case gatewayv1.TLSProtocolType:
-			// Passthrough only (docs/spec/overview.md): krouter routes on the
-			// SNI value and never holds the certificate. Terminate is a
-			// valid protocol with an unsupported mode value.
-			if spec.TLS == nil || spec.TLS.Mode == nil ||
-				*spec.TLS.Mode != gatewayv1.TLSModePassthrough {
-				state.accepted = false
-				state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedValue)
-			}
-
-		case gatewayv1.TCPProtocolType:
-			// TCP listeners carry no hostname, so a Gateway MUST NOT declare
-			// more than one TCP listener per external port (docs/spec/frontend.md).
-			if tcpPorts[spec.Port] {
-				state.accepted = false
-				state.acceptedReason = string(gatewayv1.ListenerReasonProtocolConflict)
-			}
-			tcpPorts[spec.Port] = true
-
-		case gatewayv1.UDPProtocolType:
-			// Same rule for UDP listeners (docs/spec/frontend.md).
-			if udpPorts[spec.Port] {
-				state.accepted = false
-				state.acceptedReason = string(gatewayv1.ListenerReasonProtocolConflict)
-			}
-			udpPorts[spec.Port] = true
-
-		default:
-			state.accepted = false
-			state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedProtocol)
-		}
-
-		resolveRouteKinds(state)
-
-		if spec.Protocol == gatewayv1.HTTPSProtocolType && state.refsResolved {
-			r.resolveCertificates(ctx, w, gw, state)
-		}
-
-		port, err := allocator.Allocate(string(gw.UID), int32(spec.Port), string(spec.Protocol))
-		if err != nil {
-			// Exhausted range: reject programming without disturbing
-			// existing allocations (docs/spec/frontend.md, docs/spec/failure-modes.md).
-			state.accepted = false
-			state.acceptedReason = string(gatewayv1.ListenerReasonPortUnavailable)
-		}
-		state.internalPort = port
-
-		listeners = append(listeners, state)
+		listeners = append(listeners, r.validateListener(ctx, w, gw, spec, nil, allocator))
 	}
 
+	for _, set := range sets {
+		if !set.accepted {
+			continue
+		}
+
+		for _, entry := range set.set.Spec.Listeners {
+			spec := gatewayv1.Listener{
+				Name:          entry.Name,
+				Hostname:      entry.Hostname,
+				Port:          entry.Port,
+				Protocol:      entry.Protocol,
+				TLS:           entry.TLS,
+				AllowedRoutes: entry.AllowedRoutes,
+			}
+
+			listeners = append(listeners,
+				r.validateListener(ctx, w, gw, spec, set.set, allocator))
+		}
+	}
+
+	rejectConflictingListeners(listeners)
+
 	return listeners
+}
+
+// validateListener validates one effective listener owned by the Gateway
+// (set == nil) or by an attached ListenerSet.
+func (r *Engine) validateListener(
+	ctx context.Context,
+	w *world,
+	gw *gatewayv1.Gateway,
+	spec gatewayv1.Listener,
+	set *gatewayv1.ListenerSet,
+	allocator *portAllocator,
+) *listenerState {
+	state := &listenerState{
+		spec:           spec,
+		set:            set,
+		accepted:       true,
+		acceptedReason: string(gatewayv1.ListenerReasonAccepted),
+		refsResolved:   true,
+		refsReason:     string(gatewayv1.ListenerReasonResolvedRefs),
+		certData:       map[string][]byte{},
+	}
+
+	switch spec.Protocol {
+	case gatewayv1.HTTPProtocolType, gatewayv1.HTTPSProtocolType,
+		gatewayv1.TCPProtocolType, gatewayv1.UDPProtocolType:
+
+	case gatewayv1.TLSProtocolType:
+		// Passthrough only (docs/spec/overview.md): krouter routes on the
+		// SNI value and never holds the certificate. Terminate is a
+		// valid protocol with an unsupported mode value.
+		if spec.TLS == nil || spec.TLS.Mode == nil ||
+			*spec.TLS.Mode != gatewayv1.TLSModePassthrough {
+			state.accepted = false
+			state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedValue)
+		}
+
+	default:
+		state.accepted = false
+		state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedProtocol)
+	}
+
+	resolveRouteKinds(state)
+
+	if spec.Protocol == gatewayv1.HTTPSProtocolType && state.refsResolved {
+		r.resolveCertificates(ctx, w, gw, state)
+	}
+
+	port, err := allocator.Allocate(string(gw.UID), int32(spec.Port), string(spec.Protocol))
+	if err != nil {
+		// Exhausted range: reject programming without disturbing
+		// existing allocations (docs/spec/frontend.md, docs/spec/failure-modes.md).
+		state.accepted = false
+		state.acceptedReason = string(gatewayv1.ListenerReasonPortUnavailable)
+	}
+	state.internalPort = port
+
+	return state
+}
+
+// rejectConflictingListeners applies the cross-owner merge rules
+// (docs/spec/frontend.md Listener sets): on one port, differing protocols
+// conflict (ProtocolConflict) and equal protocol+hostname pairs conflict
+// (HostnameConflict). Listeners are already ordered by precedence, so the
+// later entry loses.
+func rejectConflictingListeners(listeners []*listenerState) {
+	type key struct {
+		protocol gatewayv1.ProtocolType
+		hostname string
+	}
+
+	byPort := map[gatewayv1.PortNumber][]key{}
+
+	for _, lst := range listeners {
+		if !lst.accepted {
+			continue
+		}
+
+		hostname := ""
+		if lst.spec.Hostname != nil {
+			hostname = string(*lst.spec.Hostname)
+		}
+
+		conflictReason := ""
+		for _, existing := range byPort[lst.spec.Port] {
+			if existing.protocol != lst.spec.Protocol {
+				conflictReason = string(gatewayv1.ListenerReasonProtocolConflict)
+				break
+			}
+
+			if existing.hostname == hostname {
+				conflictReason = string(gatewayv1.ListenerReasonHostnameConflict)
+				break
+			}
+		}
+
+		if conflictReason != "" {
+			lst.accepted = false
+			lst.acceptedReason = conflictReason
+			lst.conflicted = true
+			resolveRouteKinds(lst) // a rejected listener serves nothing
+
+			continue
+		}
+
+		byPort[lst.spec.Port] = append(byPort[lst.spec.Port],
+			key{protocol: lst.spec.Protocol, hostname: hostname})
+	}
 }
 
 // protocolRouteKinds returns the route kinds a listener protocol can serve
@@ -189,13 +261,23 @@ func resolveRouteKinds(state *listenerState) {
 }
 
 // resolveCertificates validates listener certificate references and
-// applicable ReferenceGrants (docs/spec/security.md).
+// applicable ReferenceGrants (docs/spec/security.md). References resolve in
+// the listener owner's namespace — the Gateway's, or the ListenerSet's for
+// merged listeners — and cross-namespace grants must name the owner's kind
+// (docs/spec/frontend.md Listener sets).
 func (r *Engine) resolveCertificates(
 	ctx context.Context,
 	w *world,
 	gw *gatewayv1.Gateway,
 	state *listenerState,
 ) {
+	ownerNamespace := gw.Namespace
+	ownerKind := "Gateway"
+	if state.set != nil {
+		ownerNamespace = state.set.Namespace
+		ownerKind = "ListenerSet"
+	}
+
 	tls := state.spec.TLS
 	if tls == nil || len(tls.CertificateRefs) == 0 {
 		state.refsResolved = false
@@ -213,15 +295,15 @@ func (r *Engine) resolveCertificates(
 			return
 		}
 
-		namespace := gw.Namespace
+		namespace := ownerNamespace
 		if ref.Namespace != nil {
 			namespace = string(*ref.Namespace)
 		}
 
-		if namespace != gw.Namespace {
+		if namespace != ownerNamespace {
 			allowed := referenceGrantAllows(
 				w.grants,
-				gatewayv1.GroupName, "Gateway", gw.Namespace,
+				gatewayv1.GroupName, ownerKind, ownerNamespace,
 				"Secret", namespace, string(ref.Name),
 			)
 			if !allowed {
@@ -262,8 +344,8 @@ func (r *Engine) resolveCertificates(
 
 		// Only referenced material is copied into the generated Secret
 		// (docs/spec/security.md); the data plane never reads source Secrets.
-		state.certData[string(state.spec.Name)+".tls.crt"] = cert
-		state.certData[string(state.spec.Name)+".tls.key"] = key
+		state.certData[state.effectiveName()+".tls.crt"] = cert
+		state.certData[state.effectiveName()+".tls.key"] = key
 	}
 }
 
@@ -274,6 +356,7 @@ func (r *Engine) resolveCertificates(
 func (r *Engine) attachRoutes(
 	w *world,
 	gw *gatewayv1.Gateway,
+	sets []*listenerSetState,
 	listeners []*listenerState,
 ) []*routeParentOutcome {
 	var outcomes []*routeParentOutcome
@@ -282,11 +365,12 @@ func (r *Engine) attachRoutes(
 		route := &w.routes[i]
 
 		for _, parentRef := range route.Spec.ParentRefs {
-			if !parentRefMatches(parentRef, route.Namespace, gw) {
+			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
+			if !ok {
 				continue
 			}
 
-			outcome := r.attachRoute(w, gw, listeners, route, parentRef)
+			outcome := r.attachRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
 			outcomes = append(outcomes, outcome)
 		}
 	}
@@ -294,13 +378,18 @@ func (r *Engine) attachRoutes(
 	return outcomes
 }
 
-func parentRefMatches(ref gatewayv1.ParentReference, routeNamespace string, gw *gatewayv1.Gateway) bool {
+// resolveRouteParent maps one parentRef onto this Gateway's listener
+// owners: the Gateway itself (owner key "") or one of the ListenerSets
+// targeting it (docs/spec/frontend.md Listener sets). Routes bind only to
+// the listeners of the referenced owner.
+func resolveRouteParent(
+	ref gatewayv1.ParentReference,
+	routeNamespace string,
+	gw *gatewayv1.Gateway,
+	sets []*listenerSetState,
+) (string, bool) {
 	if ref.Group != nil && *ref.Group != gatewayv1.GroupName && *ref.Group != "" {
-		return false
-	}
-
-	if ref.Kind != nil && *ref.Kind != "Gateway" {
-		return false
+		return "", false
 	}
 
 	namespace := routeNamespace
@@ -308,7 +397,38 @@ func parentRefMatches(ref gatewayv1.ParentReference, routeNamespace string, gw *
 		namespace = string(*ref.Namespace)
 	}
 
-	return namespace == gw.Namespace && string(ref.Name) == gw.Name
+	kind := "Gateway"
+	if ref.Kind != nil {
+		kind = string(*ref.Kind)
+	}
+
+	switch kind {
+	case "Gateway":
+		if namespace == gw.Namespace && string(ref.Name) == gw.Name {
+			return "", true
+		}
+
+	case "ListenerSet":
+		for _, set := range sets {
+			if set.set.Namespace == namespace && set.set.Name == string(ref.Name) {
+				return namespace + "/" + string(ref.Name), true
+			}
+		}
+	}
+
+	return "", false
+}
+
+// listenersOwnedBy narrows the effective listeners to one owner's.
+func listenersOwnedBy(listeners []*listenerState, ownerKey string) []*listenerState {
+	var owned []*listenerState
+	for _, lst := range listeners {
+		if lst.ownerKey() == ownerKey {
+			owned = append(owned, lst)
+		}
+	}
+
+	return owned
 }
 
 // admitListeners applies the attachment admission ladder shared by every
@@ -415,6 +535,7 @@ func (r *Engine) attachRoute(
 func (r *Engine) attachTCPRoutes(
 	w *world,
 	gw *gatewayv1.Gateway,
+	sets []*listenerSetState,
 	listeners []*listenerState,
 ) []*routeParentOutcome {
 	var outcomes []*routeParentOutcome
@@ -423,11 +544,12 @@ func (r *Engine) attachTCPRoutes(
 		route := &w.tcpRoutes[i]
 
 		for _, parentRef := range route.Spec.ParentRefs {
-			if !parentRefMatches(parentRef, route.Namespace, gw) {
+			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
+			if !ok {
 				continue
 			}
 
-			outcome := r.attachTCPRoute(w, gw, listeners, route, parentRef)
+			outcome := r.attachTCPRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
 			outcomes = append(outcomes, outcome)
 		}
 	}
@@ -477,7 +599,7 @@ func (r *Engine) attachTCPRoute(
 
 	for _, lst := range admitted {
 		if lst.valid() {
-			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+			config.Listeners = append(config.Listeners, lst.effectiveName())
 		}
 	}
 
@@ -499,6 +621,7 @@ func (r *Engine) attachTCPRoute(
 func (r *Engine) attachUDPRoutes(
 	w *world,
 	gw *gatewayv1.Gateway,
+	sets []*listenerSetState,
 	listeners []*listenerState,
 ) []*routeParentOutcome {
 	var outcomes []*routeParentOutcome
@@ -507,11 +630,12 @@ func (r *Engine) attachUDPRoutes(
 		route := &w.udpRoutes[i]
 
 		for _, parentRef := range route.Spec.ParentRefs {
-			if !parentRefMatches(parentRef, route.Namespace, gw) {
+			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
+			if !ok {
 				continue
 			}
 
-			outcome := r.attachUDPRoute(w, gw, listeners, route, parentRef)
+			outcome := r.attachUDPRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
 			outcomes = append(outcomes, outcome)
 		}
 	}
@@ -561,7 +685,7 @@ func (r *Engine) attachUDPRoute(
 
 	for _, lst := range admitted {
 		if lst.valid() {
-			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+			config.Listeners = append(config.Listeners, lst.effectiveName())
 		}
 	}
 
@@ -583,6 +707,7 @@ func (r *Engine) attachUDPRoute(
 func (r *Engine) attachTLSRoutes(
 	w *world,
 	gw *gatewayv1.Gateway,
+	sets []*listenerSetState,
 	listeners []*listenerState,
 ) []*routeParentOutcome {
 	var outcomes []*routeParentOutcome
@@ -591,11 +716,12 @@ func (r *Engine) attachTLSRoutes(
 		route := &w.tlsRoutes[i]
 
 		for _, parentRef := range route.Spec.ParentRefs {
-			if !parentRefMatches(parentRef, route.Namespace, gw) {
+			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
+			if !ok {
 				continue
 			}
 
-			outcome := r.attachTLSRoute(w, gw, listeners, route, parentRef)
+			outcome := r.attachTLSRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
 			outcomes = append(outcomes, outcome)
 		}
 	}
@@ -657,7 +783,7 @@ func (r *Engine) attachTLSRoute(
 
 	for _, lst := range admitted {
 		if lst.valid() {
-			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+			config.Listeners = append(config.Listeners, lst.effectiveName())
 		}
 	}
 
@@ -683,6 +809,7 @@ func (r *Engine) attachTLSRoute(
 func (r *Engine) attachGRPCRoutes(
 	w *world,
 	gw *gatewayv1.Gateway,
+	sets []*listenerSetState,
 	listeners []*listenerState,
 ) []*routeParentOutcome {
 	var outcomes []*routeParentOutcome
@@ -691,11 +818,12 @@ func (r *Engine) attachGRPCRoutes(
 		route := &w.grpcRoutes[i]
 
 		for _, parentRef := range route.Spec.ParentRefs {
-			if !parentRefMatches(parentRef, route.Namespace, gw) {
+			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
+			if !ok {
 				continue
 			}
 
-			outcome := r.attachGRPCRoute(w, gw, listeners, route, parentRef)
+			outcome := r.attachGRPCRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
 			outcomes = append(outcomes, outcome)
 		}
 	}
@@ -765,7 +893,7 @@ func (r *Engine) attachGRPCRoute(
 		lst.attachedRoutes++
 
 		if lst.valid() {
-			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+			config.Listeners = append(config.Listeners, lst.effectiveName())
 		}
 	}
 
@@ -910,7 +1038,7 @@ func (r *Engine) compileRoute(
 
 	for _, lst := range admitted {
 		if lst.valid() {
-			config.Listeners = append(config.Listeners, string(lst.spec.Name))
+			config.Listeners = append(config.Listeners, lst.effectiveName())
 		}
 	}
 

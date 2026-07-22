@@ -45,7 +45,7 @@ func (r *Engine) publishGeneration(
 		}
 
 		entry := compiled.Listener{
-			Name:         string(lst.spec.Name),
+			Name:         lst.effectiveName(),
 			Port:         int32(lst.spec.Port),
 			InternalPort: lst.internalPort,
 			Protocol:     string(lst.spec.Protocol),

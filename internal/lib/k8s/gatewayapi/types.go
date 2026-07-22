@@ -23,6 +23,8 @@ type world struct {
 	grants     []gatewayv1beta1.ReferenceGrant
 	namespaces map[string]map[string]string
 
+	listenerSets []gatewayv1.ListenerSet
+
 	backendTLSPolicies []gatewayv1.BackendTLSPolicy
 	backendTLSStates   []*backendTLSPolicyState
 	backendTLS         map[string][]*backendTLSBinding // "ns/service" -> bindings
@@ -36,13 +38,25 @@ type world struct {
 	bundleVersion string
 }
 
-// listenerState is the validated view of one Gateway listener.
+// listenerState is the validated view of one effective Gateway listener:
+// the Gateway's own, or one merged from an attached ListenerSet
+// (docs/spec/frontend.md Listener sets).
 type listenerState struct {
 	spec         gatewayv1.Listener
 	internalPort int32
 
+	// set is the owning ListenerSet, nil for the Gateway's own listeners.
+	// Routes bind per owner: a parentRef to the Gateway only reaches its
+	// own listeners, a parentRef to a set only reaches that set's
+	// (docs/spec/frontend.md).
+	set *gatewayv1.ListenerSet
+
 	accepted       bool
 	acceptedReason string
+
+	// conflicted marks a listener rejected by the cross-owner merge
+	// (ProtocolConflict or HostnameConflict, docs/spec/frontend.md).
+	conflicted bool
 
 	refsResolved bool
 	refsReason   string
@@ -58,13 +72,34 @@ type listenerState struct {
 	// set is rejected with NotAllowedByListeners (docs/spec/status.md).
 	allowedKinds map[string]bool
 
-	certData map[string][]byte // keys "<name>.tls.crt" / "<name>.tls.key"
+	certData map[string][]byte // keys "<effective name>.tls.crt" / ".tls.key"
 
 	attachedRoutes int32
 }
 
 func (l *listenerState) valid() bool {
 	return l.accepted && l.refsResolved
+}
+
+// ownerKey identifies the listener's owner for route binding: empty for
+// the Gateway, "namespace/name" for a ListenerSet.
+func (l *listenerState) ownerKey() string {
+	if l.set == nil {
+		return ""
+	}
+
+	return l.set.Namespace + "/" + l.set.Name
+}
+
+// effectiveName uniquely identifies the listener across the Gateway and
+// its ListenerSets in compiled configuration and generated Secrets
+// (listener names are only unique within their owner).
+func (l *listenerState) effectiveName() string {
+	if l.set == nil {
+		return string(l.spec.Name)
+	}
+
+	return l.set.Namespace + "--" + l.set.Name + "--" + string(l.spec.Name)
 }
 
 // routeParentOutcome is the computed status of one (route, gateway)
@@ -138,6 +173,10 @@ type gatewayStatusInput struct {
 	address      string
 	listeners    []*listenerState
 	gatewayAcked bool
+
+	// attachedListenerSets is published when the Gateway allows listener
+	// sets (docs/spec/frontend.md Listener sets).
+	attachedListenerSets *int32
 }
 
 // servicePort is one listener group exposed by the generated Service.

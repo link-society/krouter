@@ -138,6 +138,14 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		return nil, err
 	}
 
+	listenerSetList, err := r.gwClient.GatewayV1().ListenerSets(metav1.NamespaceAll).
+		List(ctx, metav1.ListOptions{})
+	if err == nil {
+		w.listenerSets = listenerSetList.Items
+	} else if !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+
 	grantList, err := r.gwClient.GatewayV1beta1().ReferenceGrants(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -280,13 +288,15 @@ func (r *Engine) reconcileGateway(
 		return
 	}
 
-	listeners := r.validateListeners(ctx, w, gw, allocator)
+	listenerSets := selectListenerSets(w, gw)
 
-	outcomes := r.attachRoutes(w, gw, listeners)
-	outcomes = append(outcomes, r.attachGRPCRoutes(w, gw, listeners)...)
-	outcomes = append(outcomes, r.attachTCPRoutes(w, gw, listeners)...)
-	outcomes = append(outcomes, r.attachTLSRoutes(w, gw, listeners)...)
-	outcomes = append(outcomes, r.attachUDPRoutes(w, gw, listeners)...)
+	listeners := r.validateListeners(ctx, w, gw, listenerSets, allocator)
+
+	outcomes := r.attachRoutes(w, gw, listenerSets, listeners)
+	outcomes = append(outcomes, r.attachGRPCRoutes(w, gw, listenerSets, listeners)...)
+	outcomes = append(outcomes, r.attachTCPRoutes(w, gw, listenerSets, listeners)...)
+	outcomes = append(outcomes, r.attachTLSRoutes(w, gw, listenerSets, listeners)...)
+	outcomes = append(outcomes, r.attachUDPRoutes(w, gw, listenerSets, listeners)...)
 
 	for _, outcome := range outcomes {
 		meta := outcome.routeMeta()
@@ -323,12 +333,36 @@ func (r *Engine) reconcileGateway(
 
 	accepted, programmed := gatewayConditions(gw, nil, acked, validListeners)
 
+	// ListenerSet statuses and the attachedListenerSets count
+	// (docs/spec/frontend.md Listener sets, docs/spec/status.md).
+	r.writeListenerSetStatuses(ctx, listenerSets, listeners, acked)
+
+	// A set counts as attached when its Accepted condition is True: gate
+	// passed and at least one of its listeners is valid.
+	attachedSets := int32(0)
+	for _, set := range listenerSets {
+		if !set.accepted {
+			continue
+		}
+
+		for _, lst := range listeners {
+			if lst.set == set.set && lst.valid() {
+				attachedSets++
+				break
+			}
+		}
+	}
+
 	input := gatewayStatusInput{
 		accepted:     accepted,
 		programmed:   programmed,
 		address:      address,
 		listeners:    listeners,
 		gatewayAcked: acked,
+	}
+
+	if gw.Spec.AllowedListeners != nil {
+		input.attachedListenerSets = &attachedSets
 	}
 
 	topo.addGateway(gw, input, generation)

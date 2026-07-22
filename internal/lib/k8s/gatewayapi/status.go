@@ -200,6 +200,12 @@ func (r *Engine) writeGatewayStatus(
 
 		desired.Listeners = nil
 		for _, lst := range input.listeners {
+			// ListenerSet-owned listeners report on their own resource
+			// (docs/spec/frontend.md Listener sets).
+			if lst.set != nil {
+				continue
+			}
+
 			listenerConditions := []metav1.Condition{
 				condition(
 					string(gatewayv1.ListenerConditionAccepted),
@@ -241,6 +247,10 @@ func (r *Engine) writeGatewayStatus(
 				AttachedRoutes: lst.attachedRoutes,
 				Conditions:     mergeConditions(existingConditions, listenerConditions),
 			})
+		}
+
+		if input.attachedListenerSets != nil {
+			desired.AttachedListenerSets = input.attachedListenerSets
 		}
 
 		if reflect.DeepEqual(&fresh.Status, desired) {
