@@ -34,13 +34,13 @@ resources.
 | Conformance target | All Core tests in `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`; TCPRoute and UDPRoute have no conformance profile in v1.5.1 and are verified by the krouter test suite (plus the provisional UDPRoute conformance test) |
 | Route types | HTTPRoute, GRPCRoute, TCPRoute, TLSRoute, and UDPRoute |
 | Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, TLS passthrough, and UDP |
-| Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends; raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends; UDP datagrams for UDPRoute backends |
+| Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends; raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends; UDP datagrams for UDPRoute backends; HTTPS to backends covered by a BackendTLSPolicy |
 | Listeners | HTTP, HTTPS with TLS termination, TCP, TLS in Passthrough mode, and UDP |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
 | Authentication | Out of scope |
 | Rate limiting | Out of scope |
-| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`), TLSRoute (`v1`), and UDPRoute (`v1alpha2`) |
+| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`), TLSRoute (`v1`), UDPRoute (`v1alpha2`), and BackendTLSPolicy (`v1alpha3`) |
 | Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring) and HTTPRoute rule timeouts are supported and verified by their Extended conformance tests; other Extended features are out of scope |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
@@ -64,8 +64,9 @@ the SNI value and never holds the certificate. TLS listeners in
 - Gateway API Standard Extended features other than the supported
   HTTPRoute filters: CORS, HTTP method and query-parameter matching,
   per-backendRef filters, named rules, and non-default backend protocols.
-- Experimental-channel resources and fields other than TCPRoute and
-  TLSRoute.
+- BackendTLSPolicy `subjectAltNames` validation and `options`.
+- Experimental-channel resources and fields other than TCPRoute,
+  TLSRoute, UDPRoute, and BackendTLSPolicy.
 - Authentication and authorization policies.
 - Rate limiting.
 - Active backend health checks.

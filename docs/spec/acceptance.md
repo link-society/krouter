@@ -47,3 +47,6 @@ The implementation is accepted when:
     guarantees as TCP traffic. UDPRoute has no conformance profile in
     Gateway API v1.5.1; the krouter end-to-end suite and the provisional
     UDPRoute conformance test are the verification.
+20. BackendTLSPolicy re-encryption — SNI, CA verification, fail-closed
+    mismatches, conflict resolution, and ancestor status — passes the
+    corresponding conformance tests.

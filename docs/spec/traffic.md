@@ -91,6 +91,31 @@ TLS end to end.
 - Established connections keep their selected backend across configuration
   reloads, exactly as for TCP forwarding.
 
+## Backend TLS
+
+A BackendTLSPolicy targeting a backend Service (optionally narrowed to one
+Service port by `sectionName`) upgrades connections from the gateway to
+that backend to TLS:
+
+- The `validation.hostname` value is sent as SNI and verified against the
+  backend certificate.
+- The certificate chain is verified against `caCertificateRefs` ConfigMaps
+  (key `ca.crt`) or, with `wellKnownCACertificates: System`, the system
+  trust store.
+- Verification failures MUST fail closed: the request is answered with a
+  bad-gateway response, never sent in cleartext.
+- A policy with an unresolvable or invalid CA reference is rejected
+  (`Accepted=False`/`NoValidCACertificate`,
+  `ResolvedRefs=False`/`InvalidKind` or `InvalidCACertificateRef`) and its
+  backends fail closed.
+- Two policies targeting the same Service and port conflict: the oldest
+  wins and later ones are rejected with reason `Conflicted`.
+- Policy status is reported per Gateway ancestor with this installation's
+  controller name.
+
+`subjectAltNames` and `options` are out of scope: policies using them are
+rejected as invalid rather than partially applied.
+
 ## Connection lifecycle and hot reload
 
 - Configuration reloads occur in process.
