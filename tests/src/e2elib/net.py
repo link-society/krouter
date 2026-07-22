@@ -183,6 +183,64 @@ def wait_tcp_ready(node_port: int, timeout: float = 120, worker: int = 1) -> str
     )
 
 
+class UdpFlow:
+    """
+    One UDP flow (fixed source address) to a published NodePort
+    (docs/spec/traffic.md).
+
+    The test echo backend answers every datagram with the serving pod
+    name, so exchanges double as identity probes.
+    """
+
+    def __init__(self, node_port: int, worker: int = 1, timeout: float = 5):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.settimeout(timeout)
+        self.addr = (config.TEST_HOST, ports.host_port(node_port, worker))
+
+    def exchange(self, payload: str = "ping") -> str:
+        self.sock.sendto(payload.encode(), self.addr)
+        data, _ = self.sock.recvfrom(4096)
+
+        return data.decode().strip()
+
+    def close(self):
+        self.sock.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+def udp_identity(node_port: int, worker: int = 1) -> str:
+    """
+    One fresh flow, one exchange: return the answering backend pod name.
+    """
+
+    with UdpFlow(node_port, worker=worker) as flow:
+        return flow.exchange()
+
+
+def wait_udp_ready(node_port: int, timeout: float = 120, worker: int = 1) -> str:
+    """
+    Wait until the UDP listener forwards to an answering backend.
+    """
+
+    def check():
+        try:
+            return udp_identity(node_port, worker=worker) or None
+
+        except OSError:
+            return None
+
+    return kubectl.wait_for(
+        check,
+        timeout=timeout,
+        desc=f"UDP reply from …:{node_port}",
+    )
+
+
 class TlsStream(TcpStream):
     """
     One TLS connection through a passthrough listener (docs/spec/traffic.md).

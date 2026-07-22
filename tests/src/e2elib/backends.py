@@ -199,6 +199,7 @@ BACKEND_PORT = MOCKSERVER_PORT
 
 TCP_ECHO_IMAGE = "alpine/socat:1.8.0.3"
 TCP_BACKEND_PORT = 9000
+UDP_BACKEND_PORT = 9000
 
 
 def tcp_echo_backend(name: str, namespace: str, replicas: int = 1) -> list[dict]:
@@ -254,6 +255,75 @@ def tcp_echo_backend(name: str, namespace: str, replicas: int = 1) -> list[dict]
                         "name": "tcp",
                         "port": TCP_BACKEND_PORT,
                         "targetPort": TCP_BACKEND_PORT,
+                    },
+                ],
+            },
+        },
+    ]
+
+
+# ------------------------------------------------------------ udp echo --
+
+
+def udp_echo_backend(name: str, namespace: str, replicas: int = 1) -> list[dict]:
+    """
+    Deployment + Service for one UDP backend (docs/spec/traffic.md).
+
+    Every received datagram is answered with one datagram holding the pod
+    name — the identity driving flow-association and distribution
+    assertions.
+    """
+
+    labels = {"app": name}
+
+    return [
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "replicas": replicas,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "echo",
+                                "image": TCP_ECHO_IMAGE,
+                                "args": [
+                                    f"UDP4-RECVFROM:{UDP_BACKEND_PORT},fork",
+                                    "SYSTEM:hostname",
+                                ],
+                                "ports": [
+                                    {
+                                        "containerPort": UDP_BACKEND_PORT,
+                                        "protocol": "UDP",
+                                    },
+                                ],
+                                "readinessProbe": {
+                                    "exec": {"command": ["pgrep", "socat"]},
+                                    "periodSeconds": 2,
+                                    "failureThreshold": 2,
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "selector": labels,
+                "ports": [
+                    {
+                        "name": "udp",
+                        "port": UDP_BACKEND_PORT,
+                        "targetPort": UDP_BACKEND_PORT,
+                        "protocol": "UDP",
                     },
                 ],
             },

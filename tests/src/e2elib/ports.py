@@ -32,8 +32,9 @@ LAST_VALID = 30093
 TCP_ROUTES = 30094
 TLS_ROUTES = 30095
 GRPC_ROUTES = 30096
+UDP_ROUTES = 30097  # published as UDP by the kind cluster config
 
-# spares: 30097-30100
+# spares: 30098-30100
 
 # TLS listeners
 PROTOCOLS_HTTPS = 30443
