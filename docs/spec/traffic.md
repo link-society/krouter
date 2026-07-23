@@ -199,6 +199,13 @@ among the listeners sharing the port. Routes attached to less specific
 listeners MUST NOT serve such requests, even when their own hostnames and
 matches would apply.
 
+On HTTPS listeners sharing a port, a request whose authority is owned by a
+different listener than the one selected by the connection's SNI MUST be
+answered `421 Misdirected Request`, so clients retry on a fresh
+connection. Authorities owned by the SNI-selected listener itself —
+including every authority when that listener has no hostname — are routed
+normally.
+
 The following HTTPRoute rule filters MUST be supported with the upstream
 Gateway API semantics:
 

@@ -64,8 +64,8 @@ the SNI value and never holds the certificate. TLS listeners in
 - Gateway API Standard Extended features other than the supported
   HTTPRoute filters (including CORS), rule timeouts, named rules,
   value-less Gateway addresses, parentRef port matching, method and
-  query-parameter matching, listener isolation, backend protocol
-  selection, and per-backendRef filters: misdirected-request detection,
+  query-parameter matching, listener isolation, misdirected-request
+  detection, backend protocol selection, and per-backendRef filters:
   infrastructure propagation, static Gateway addresses, and
   client-certificate validation.
 - BackendTLSPolicy `subjectAltNames` validation and `options`.
