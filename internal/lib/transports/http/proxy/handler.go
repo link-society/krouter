@@ -104,7 +104,11 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	}
 
 	status := 0
-	if redirect, ok := redirectFilter(rule); ok {
+	if cors := rule.CORS(); cors != nil && isCORSPreflight(r) {
+		// Preflight requests are answered at the gateway
+		// (docs/spec/traffic.md Routing and filters).
+		status = serveCORSPreflight(w, r, cors)
+	} else if redirect, ok := redirectFilter(rule); ok {
 		status = serveRedirect(w, r, redirect, withTLS)
 	} else {
 		status = h.forward(w, r, rule, withTLS)
@@ -347,6 +351,10 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 
 			for _, filter := range backend.Filters() {
 				applyResponseFilter(resp, filter)
+			}
+
+			if cors := rule.CORS(); cors != nil {
+				applyCORSResponse(resp, r.Header.Get("Origin"), cors)
 			}
 
 			status = resp.StatusCode

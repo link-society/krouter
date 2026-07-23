@@ -1196,6 +1196,13 @@ func (r *Engine) compileHTTPFilter(
 
 		return compileHeaderModifier("ResponseHeaderModifier", filter.ResponseHeaderModifier), true, nil
 
+	case gatewayv1.HTTPRouteFilterCORS:
+		if filter.CORS == nil {
+			return compiled.Filter{}, false, fmt.Errorf("missing cors")
+		}
+
+		return compileCORS(filter.CORS), true, nil
+
 	case gatewayv1.HTTPRouteFilterRequestRedirect:
 		redirect := filter.RequestRedirect
 		if redirect == nil {
@@ -1381,6 +1388,39 @@ func (r *Engine) compileMirror(
 	}
 
 	return entry, true, nil
+}
+
+// compileCORS translates the CORS filter configuration
+// (docs/spec/traffic.md Routing and filters). maxAge defaults to 5 seconds
+// per the Gateway API.
+func compileCORS(cors *gatewayv1.HTTPCORSFilter) compiled.Filter {
+	entry := compiled.CORS{MaxAgeSeconds: 5}
+
+	if cors.MaxAge > 0 {
+		entry.MaxAgeSeconds = cors.MaxAge
+	}
+
+	if cors.AllowCredentials != nil {
+		entry.AllowCredentials = *cors.AllowCredentials
+	}
+
+	for _, origin := range cors.AllowOrigins {
+		entry.AllowOrigins = append(entry.AllowOrigins, string(origin))
+	}
+
+	for _, method := range cors.AllowMethods {
+		entry.AllowMethods = append(entry.AllowMethods, string(method))
+	}
+
+	for _, header := range cors.AllowHeaders {
+		entry.AllowHeaders = append(entry.AllowHeaders, string(header))
+	}
+
+	for _, header := range cors.ExposeHeaders {
+		entry.ExposeHeaders = append(entry.ExposeHeaders, string(header))
+	}
+
+	return compiled.Filter{Type: "CORS", CORS: &entry}
 }
 
 // compileBackendHeaderFilter translates one per-backendRef filter

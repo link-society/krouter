@@ -118,6 +118,7 @@ type RuleTable struct {
 	filters        []compiled.Filter
 	backends       []*BackendTable
 	mirrors        []*MirrorTable
+	cors           *compiled.CORS
 	grpc           bool
 	requestTimeout time.Duration // zero means no timeout (docs/spec/traffic.md)
 	backendTimeout time.Duration
@@ -127,6 +128,10 @@ type RuleTable struct {
 
 // Filters returns the compiled filters of the rule.
 func (r *RuleTable) Filters() []compiled.Filter { return r.filters }
+
+// CORS returns the rule's CORS configuration, or nil
+// (docs/spec/traffic.md Routing and filters).
+func (r *RuleTable) CORS() *compiled.CORS { return r.cors }
 
 // Timeout returns the effective per-request deadline of the rule: the
 // smallest non-zero of the request and backendRequest timeouts

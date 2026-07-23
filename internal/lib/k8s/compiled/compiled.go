@@ -115,14 +115,28 @@ type QueryParamMatch struct {
 // (docs/spec/traffic.md Protocol handling).
 const AppProtocolH2C = "kubernetes.io/h2c"
 
+// CORS is the compiled CORS filter configuration
+// (docs/spec/traffic.md Routing and filters).
+type CORS struct {
+	AllowOrigins     []string `json:"allowOrigins,omitempty"`
+	AllowMethods     []string `json:"allowMethods,omitempty"`
+	AllowHeaders     []string `json:"allowHeaders,omitempty"`
+	ExposeHeaders    []string `json:"exposeHeaders,omitempty"`
+	AllowCredentials bool     `json:"allowCredentials,omitempty"`
+	MaxAgeSeconds    int32    `json:"maxAgeSeconds,omitempty"`
+}
+
 type Filter struct {
 	// Type is one of RequestHeaderModifier, ResponseHeaderModifier,
-	// RequestRedirect, URLRewrite or RequestMirror
+	// RequestRedirect, URLRewrite, RequestMirror or CORS
 	// (docs/spec/traffic.md).
 	Type          string            `json:"type"`
 	SetHeaders    map[string]string `json:"setHeaders,omitempty"`
 	AddHeaders    map[string]string `json:"addHeaders,omitempty"`
 	RemoveHeaders []string          `json:"removeHeaders,omitempty"`
+	// CORS carries the CORS filter configuration
+	// (docs/spec/traffic.md Routing and filters).
+	CORS *CORS `json:"cors,omitempty"`
 	// RequestRedirect and URLRewrite fields (docs/spec/traffic.md): unset
 	// values inherit from the incoming request; StatusCode defaults to 302.
 	Scheme     string `json:"scheme,omitempty"`
