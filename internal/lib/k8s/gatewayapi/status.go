@@ -394,7 +394,7 @@ func (r *Engine) writeRouteStatuses(
 			return err
 		})
 		if err != nil {
-			logSyncError("route status", fmtKey(route.Namespace, route.Name), err)
+			logSyncError("route status", nsName(route.Namespace, route.Name), err)
 		}
 	}
 
@@ -424,7 +424,7 @@ func (r *Engine) writeRouteStatuses(
 			return err
 		})
 		if err != nil {
-			logSyncError("grpcroute status", fmtKey(route.Namespace, route.Name), err)
+			logSyncError("grpcroute status", nsName(route.Namespace, route.Name), err)
 		}
 	}
 
@@ -454,7 +454,7 @@ func (r *Engine) writeRouteStatuses(
 			return err
 		})
 		if err != nil {
-			logSyncError("tcproute status", fmtKey(route.Namespace, route.Name), err)
+			logSyncError("tcproute status", nsName(route.Namespace, route.Name), err)
 		}
 	}
 
@@ -484,7 +484,7 @@ func (r *Engine) writeRouteStatuses(
 			return err
 		})
 		if err != nil {
-			logSyncError("tlsroute status", fmtKey(route.Namespace, route.Name), err)
+			logSyncError("tlsroute status", nsName(route.Namespace, route.Name), err)
 		}
 	}
 
@@ -514,7 +514,7 @@ func (r *Engine) writeRouteStatuses(
 			return err
 		})
 		if err != nil {
-			logSyncError("udproute status", fmtKey(route.Namespace, route.Name), err)
+			logSyncError("udproute status", nsName(route.Namespace, route.Name), err)
 		}
 	}
 }

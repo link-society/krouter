@@ -59,8 +59,8 @@ func selectListenerSets(w *world, gw *gatewayv1.Gateway) []*listenerSetState {
 		}
 
 		return strings.Compare(
-			a.set.Namespace+"/"+a.set.Name,
-			b.set.Namespace+"/"+b.set.Name,
+			nsName(a.set.Namespace, a.set.Name),
+			nsName(b.set.Namespace, b.set.Name),
 		)
 	})
 
@@ -256,7 +256,7 @@ func (r *Engine) writeListenerSetStatuses(
 			return err
 		})
 		if err != nil {
-			logSyncError("listenerset status", fmtKey(set.Namespace, set.Name), err)
+			logSyncError("listenerset status", nsName(set.Namespace, set.Name), err)
 		}
 	}
 }

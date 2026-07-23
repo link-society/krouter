@@ -163,7 +163,7 @@ func (r *Engine) resolveBackendTLSPolicies(ctx context.Context, w *world) {
 			return 1
 		}
 
-		return strings.Compare(a.Namespace+"/"+a.Name, b.Namespace+"/"+b.Name)
+		return strings.Compare(nsName(a.Namespace, a.Name), nsName(b.Namespace, b.Name))
 	})
 
 	claimed := map[string]bool{}
@@ -185,7 +185,7 @@ func (r *Engine) resolveBackendTLSPolicies(ctx context.Context, w *world) {
 				section = string(*target.SectionName)
 			}
 
-			claim := policy.Namespace + "/" + string(target.Name) + "|" + section
+			claim := nsName(policy.Namespace, target.Name) + "|" + section
 			conflicted := claimed[claim]
 			if conflicted {
 				// Oldest policy wins (docs/spec/traffic.md); the loser still
@@ -195,7 +195,7 @@ func (r *Engine) resolveBackendTLSPolicies(ctx context.Context, w *world) {
 			}
 			claimed[claim] = true
 
-			key := policy.Namespace + "/" + string(target.Name)
+			key := nsName(policy.Namespace, target.Name)
 			w.backendTLS[key] = append(w.backendTLS[key], &backendTLSBinding{
 				state:       state,
 				sectionName: section,
@@ -342,7 +342,7 @@ func validCAPem(bundle []byte) bool {
 func backendTLSFor(w *world, namespace, name, portName string) *compiled.BackendTLS {
 	var fallback *compiled.BackendTLS
 
-	for _, binding := range w.backendTLS[namespace+"/"+name] {
+	for _, binding := range w.backendTLS[nsName(namespace, name)] {
 		if binding.conflicted {
 			continue
 		}
@@ -378,8 +378,8 @@ func collectBackendTLSAncestors(w *world, outcomes map[string][]*routeParentOutc
 
 			for _, rule := range outcome.config.Rules {
 				for _, backend := range rule.Backends {
-					for _, binding := range w.backendTLS[backend.Namespace+"/"+backend.Name] {
-						key := gwNamespace + "/" + string(outcome.parentRef.Name)
+					for _, binding := range w.backendTLS[nsName(backend.Namespace, backend.Name)] {
+						key := nsName(gwNamespace, outcome.parentRef.Name)
 						binding.state.ancestors[key] = gatewayv1.ParentReference{
 							Group:     ptrTo(gatewayv1.Group(gatewayv1.GroupName)),
 							Kind:      ptrTo(gatewayv1.Kind("Gateway")),
@@ -474,7 +474,7 @@ func (r *Engine) writeBackendTLSPolicyStatuses(ctx context.Context, w *world) {
 			return err
 		})
 		if err != nil {
-			logSyncError("backendtlspolicy status", fmtKey(policy.Namespace, policy.Name), err)
+			logSyncError("backendtlspolicy status", nsName(policy.Namespace, policy.Name), err)
 		}
 	}
 }

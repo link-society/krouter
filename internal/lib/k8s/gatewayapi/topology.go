@@ -269,7 +269,7 @@ func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routePa
 
 	for _, rule := range parent.Rules {
 		for _, backend := range rule.Backends {
-			key := fmtKey(backend.Namespace, backend.Name)
+			key := nsName(backend.Namespace, backend.Name)
 
 			if _, ok := b.backends[key]; ok {
 				continue
@@ -298,11 +298,11 @@ func (b *topologyBuilder) finish() *Topology {
 	}
 
 	slices.SortFunc(topo.Gateways, func(a, z GatewayInfo) int {
-		return strings.Compare(a.Namespace+"/"+a.Name, z.Namespace+"/"+z.Name)
+		return strings.Compare(nsName(a.Namespace, a.Name), nsName(z.Namespace, z.Name))
 	})
 
 	slices.SortFunc(topo.Routes, func(a, z RouteInfo) int {
-		return strings.Compare(a.Namespace+"/"+a.Name, z.Namespace+"/"+z.Name)
+		return strings.Compare(nsName(a.Namespace, a.Name), nsName(z.Namespace, z.Name))
 	})
 
 	payload, err := json.Marshal(topo)

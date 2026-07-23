@@ -2,7 +2,6 @@ package gatewayapi
 
 import (
 	"context"
-	"fmt"
 
 	"slices"
 
@@ -390,8 +389,4 @@ func equalStringMaps(a, b map[string]string) bool {
 	}
 
 	return true
-}
-
-func fmtKey(namespace, name string) string {
-	return fmt.Sprintf("%s/%s", namespace, name)
 }

@@ -93,7 +93,7 @@ func (l *listenerState) ownerKey() string {
 		return ""
 	}
 
-	return l.set.Namespace + "/" + l.set.Name
+	return nsName(l.set.Namespace, l.set.Name)
 }
 
 // effectiveName uniquely identifies the listener across the Gateway and
@@ -166,9 +166,16 @@ func (o *routeParentOutcome) routeMeta() metav1.ObjectMeta {
 	}
 }
 
+// nsName builds the canonical "namespace/name" key used to index and
+// sort objects across the package; name accepts the Gateway API string
+// aliases (ObjectName, SectionName, ...) directly.
+func nsName[T ~string](namespace string, name T) string {
+	return namespace + "/" + string(name)
+}
+
 // outcomeKey disambiguates routes of different kinds sharing a name.
 func outcomeKey(kind, namespace, name string) string {
-	return kind + ":" + namespace + "/" + name
+	return kind + ":" + nsName(namespace, name)
 }
 
 // gatewayStatusInput carries the computed conditions for one status write.

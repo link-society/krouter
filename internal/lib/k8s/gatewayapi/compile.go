@@ -509,7 +509,7 @@ func resolveRouteParent(
 	case "ListenerSet":
 		for _, set := range sets {
 			if set.set.Namespace == namespace && set.set.Name == string(ref.Name) {
-				return namespace + "/" + string(ref.Name), true
+				return nsName(namespace, ref.Name), true
 			}
 		}
 	}
@@ -1638,7 +1638,7 @@ func (r *Engine) compileBackend(
 		}
 	}
 
-	if _, ok := w.services[backend.Namespace+"/"+backend.Name]; !ok {
+	if _, ok := w.services[nsName(backend.Namespace, backend.Name)]; !ok {
 		invalidate(string(gatewayv1.RouteReasonBackendNotFound), fmt.Sprintf(
 			"Service %s/%s not found", backend.Namespace, backend.Name,
 		))
@@ -1662,7 +1662,7 @@ func (r *Engine) compileBackend(
 // servicePortName resolves the name of the Service port a backend
 // references, for BackendTLSPolicy sectionName matching.
 func servicePortName(w *world, namespace, name string, port int32) string {
-	svc, ok := w.services[namespace+"/"+name]
+	svc, ok := w.services[nsName(namespace, name)]
 	if !ok {
 		return ""
 	}
@@ -1679,7 +1679,7 @@ func servicePortName(w *world, namespace, name string, port int32) string {
 // servicePortAppProtocol resolves the appProtocol of the Service port a
 // backend references (docs/spec/traffic.md Protocol handling).
 func servicePortAppProtocol(w *world, namespace, name string, port int32) string {
-	svc, ok := w.services[namespace+"/"+name]
+	svc, ok := w.services[nsName(namespace, name)]
 	if !ok {
 		return ""
 	}

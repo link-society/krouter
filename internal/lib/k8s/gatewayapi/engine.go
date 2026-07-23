@@ -168,7 +168,7 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 	}
 	for i := range svcList.Items {
 		svc := &svcList.Items[i]
-		w.services[fmtKey(svc.Namespace, svc.Name)] = svc
+		w.services[nsName(svc.Namespace, svc.Name)] = svc
 
 		if svc.Labels[compiled.LabelManagedBy] == compiled.ManagedByValue {
 			w.krouterServices = append(w.krouterServices, svc)
@@ -296,7 +296,7 @@ func (r *Engine) reconcileGateway(
 		topo.addGateway(gw, input, "")
 
 		if err := r.writeGatewayStatus(ctx, gw, input); err != nil {
-			logSyncError("gateway status", fmtKey(gw.Namespace, gw.Name), err)
+			logSyncError("gateway status", nsName(gw.Namespace, gw.Name), err)
 		}
 
 		return
@@ -329,7 +329,7 @@ func (r *Engine) reconcileGateway(
 
 	generation, err := r.publishGeneration(ctx, w, gw, listeners, outcomes, clientCert)
 	if err != nil {
-		logSyncError("publish generation", fmtKey(gw.Namespace, gw.Name), err)
+		logSyncError("publish generation", nsName(gw.Namespace, gw.Name), err)
 		return
 	}
 
@@ -339,7 +339,7 @@ func (r *Engine) reconcileGateway(
 		address, err = r.ensureFrontend(ctx, w, gw, ports, infra,
 			allocator.PortMap(string(gw.UID)))
 		if err != nil {
-			logSyncError("frontend", fmtKey(gw.Namespace, gw.Name), err)
+			logSyncError("frontend", nsName(gw.Namespace, gw.Name), err)
 		}
 	}
 
@@ -397,7 +397,7 @@ func (r *Engine) reconcileGateway(
 	topo.addGateway(gw, input, generation)
 
 	if err := r.writeGatewayStatus(ctx, gw, input); err != nil {
-		logSyncError("gateway status", fmtKey(gw.Namespace, gw.Name), err)
+		logSyncError("gateway status", nsName(gw.Namespace, gw.Name), err)
 	}
 }
 
