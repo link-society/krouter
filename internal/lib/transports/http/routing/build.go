@@ -131,11 +131,11 @@ func BuildGatewayTable(
 			}
 
 			for _, filter := range rule.Filters {
-				if filter.Type == "CORS" {
+				if filter.Type == compiled.FilterCORS {
 					entry.cors = filter.CORS
 				}
 
-				if filter.Type != "RequestMirror" || filter.Mirror == nil {
+				if filter.Type != compiled.FilterRequestMirror || filter.Mirror == nil {
 					continue
 				}
 

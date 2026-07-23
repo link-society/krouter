@@ -143,10 +143,19 @@ type CORS struct {
 	MaxAgeSeconds    int32    `json:"maxAgeSeconds,omitempty"`
 }
 
+// Filter type discriminators (docs/spec/traffic.md Routing and filters),
+// mirroring the Gateway API HTTPRouteFilterType values krouter supports.
+const (
+	FilterRequestHeaderModifier  = "RequestHeaderModifier"
+	FilterResponseHeaderModifier = "ResponseHeaderModifier"
+	FilterRequestRedirect        = "RequestRedirect"
+	FilterURLRewrite             = "URLRewrite"
+	FilterRequestMirror          = "RequestMirror"
+	FilterCORS                   = "CORS"
+)
+
 type Filter struct {
-	// Type is one of RequestHeaderModifier, ResponseHeaderModifier,
-	// RequestRedirect, URLRewrite, RequestMirror or CORS
-	// (docs/spec/traffic.md).
+	// Type is one of the Filter* constants above (docs/spec/traffic.md).
 	Type          string            `json:"type"`
 	SetHeaders    map[string]string `json:"setHeaders,omitempty"`
 	AddHeaders    map[string]string `json:"addHeaders,omitempty"`

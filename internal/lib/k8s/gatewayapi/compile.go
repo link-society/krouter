@@ -1114,14 +1114,14 @@ func (r *Engine) compileGRPCFilter(
 			return compiled.Filter{}, false, fmt.Errorf("missing requestHeaderModifier")
 		}
 
-		return compileHeaderModifier("RequestHeaderModifier", filter.RequestHeaderModifier), true, nil
+		return compileHeaderModifier(compiled.FilterRequestHeaderModifier, filter.RequestHeaderModifier), true, nil
 
 	case gatewayv1.GRPCRouteFilterResponseHeaderModifier:
 		if filter.ResponseHeaderModifier == nil {
 			return compiled.Filter{}, false, fmt.Errorf("missing responseHeaderModifier")
 		}
 
-		return compileHeaderModifier("ResponseHeaderModifier", filter.ResponseHeaderModifier), true, nil
+		return compileHeaderModifier(compiled.FilterResponseHeaderModifier, filter.ResponseHeaderModifier), true, nil
 
 	case gatewayv1.GRPCRouteFilterRequestMirror:
 		if filter.RequestMirror == nil {
@@ -1285,14 +1285,14 @@ func (r *Engine) compileHTTPFilter(
 			return compiled.Filter{}, false, fmt.Errorf("missing requestHeaderModifier")
 		}
 
-		return compileHeaderModifier("RequestHeaderModifier", filter.RequestHeaderModifier), true, nil
+		return compileHeaderModifier(compiled.FilterRequestHeaderModifier, filter.RequestHeaderModifier), true, nil
 
 	case gatewayv1.HTTPRouteFilterResponseHeaderModifier:
 		if filter.ResponseHeaderModifier == nil {
 			return compiled.Filter{}, false, fmt.Errorf("missing responseHeaderModifier")
 		}
 
-		return compileHeaderModifier("ResponseHeaderModifier", filter.ResponseHeaderModifier), true, nil
+		return compileHeaderModifier(compiled.FilterResponseHeaderModifier, filter.ResponseHeaderModifier), true, nil
 
 	case gatewayv1.HTTPRouteFilterCORS:
 		if filter.CORS == nil {
@@ -1307,7 +1307,7 @@ func (r *Engine) compileHTTPFilter(
 			return compiled.Filter{}, false, fmt.Errorf("missing requestRedirect")
 		}
 
-		entry := compiled.Filter{Type: "RequestRedirect", StatusCode: 302}
+		entry := compiled.Filter{Type: compiled.FilterRequestRedirect, StatusCode: 302}
 
 		if redirect.Scheme != nil {
 			entry.Scheme = *redirect.Scheme
@@ -1339,7 +1339,7 @@ func (r *Engine) compileHTTPFilter(
 			return compiled.Filter{}, false, fmt.Errorf("missing urlRewrite")
 		}
 
-		entry := compiled.Filter{Type: "URLRewrite"}
+		entry := compiled.Filter{Type: compiled.FilterURLRewrite}
 
 		if rewrite.Hostname != nil {
 			entry.Hostname = string(*rewrite.Hostname)
@@ -1464,7 +1464,7 @@ func (r *Engine) compileMirror(
 		return compiled.Filter{}, false, nil
 	}
 
-	entry := compiled.Filter{Type: "RequestMirror", Mirror: &backend}
+	entry := compiled.Filter{Type: compiled.FilterRequestMirror, Mirror: &backend}
 
 	if mirror.Percent != nil {
 		percent := float64(*mirror.Percent)
@@ -1518,7 +1518,7 @@ func compileCORS(cors *gatewayv1.HTTPCORSFilter) compiled.Filter {
 		entry.ExposeHeaders = append(entry.ExposeHeaders, string(header))
 	}
 
-	return compiled.Filter{Type: "CORS", CORS: &entry}
+	return compiled.Filter{Type: compiled.FilterCORS, CORS: &entry}
 }
 
 // compileBackendHeaderFilter translates one per-backendRef filter
@@ -1529,19 +1529,19 @@ func compileBackendHeaderFilter(
 	requestModifier, responseModifier *gatewayv1.HTTPHeaderFilter,
 ) (compiled.Filter, error) {
 	switch filterType {
-	case "RequestHeaderModifier":
+	case compiled.FilterRequestHeaderModifier:
 		if requestModifier == nil {
 			return compiled.Filter{}, fmt.Errorf("missing requestHeaderModifier")
 		}
 
-		return compileHeaderModifier("RequestHeaderModifier", requestModifier), nil
+		return compileHeaderModifier(compiled.FilterRequestHeaderModifier, requestModifier), nil
 
-	case "ResponseHeaderModifier":
+	case compiled.FilterResponseHeaderModifier:
 		if responseModifier == nil {
 			return compiled.Filter{}, fmt.Errorf("missing responseHeaderModifier")
 		}
 
-		return compileHeaderModifier("ResponseHeaderModifier", responseModifier), nil
+		return compileHeaderModifier(compiled.FilterResponseHeaderModifier, responseModifier), nil
 
 	default:
 		return compiled.Filter{}, fmt.Errorf("unsupported backendRef filter type %q", filterType)

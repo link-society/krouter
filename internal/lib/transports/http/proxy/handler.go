@@ -178,7 +178,7 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 // redirectFilter returns the rule's RequestRedirect filter, if any.
 func redirectFilter(rule *routing.RuleTable) (compiled.Filter, bool) {
 	for _, filter := range rule.Filters() {
-		if filter.Type == "RequestRedirect" {
+		if filter.Type == compiled.FilterRequestRedirect {
 			return filter, true
 		}
 	}
@@ -544,7 +544,7 @@ func rewriteForwardingHeaders(pr *httputil.ProxyRequest, withTLS bool) {
 // (docs/spec/traffic.md).
 func applyFilter(pr *httputil.ProxyRequest, filter compiled.Filter) {
 	switch filter.Type {
-	case "RequestHeaderModifier":
+	case compiled.FilterRequestHeaderModifier:
 		for name, value := range filter.SetHeaders {
 			pr.Out.Header.Set(name, value)
 		}
@@ -557,7 +557,7 @@ func applyFilter(pr *httputil.ProxyRequest, filter compiled.Filter) {
 			pr.Out.Header.Del(name)
 		}
 
-	case "URLRewrite":
+	case compiled.FilterURLRewrite:
 		if filter.Hostname != "" {
 			pr.Out.Host = filter.Hostname
 		}
@@ -571,7 +571,7 @@ func applyFilter(pr *httputil.ProxyRequest, filter compiled.Filter) {
 // applyResponseFilter runs a compiled ResponseHeaderModifier filter on the
 // backend response (docs/spec/traffic.md).
 func applyResponseFilter(resp *http.Response, filter compiled.Filter) {
-	if filter.Type != "ResponseHeaderModifier" {
+	if filter.Type != compiled.FilterResponseHeaderModifier {
 		return
 	}
 
