@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 
 	"os"
@@ -36,7 +37,13 @@ func main() {
 	for {
 		n, addr, err := pc.ReadFrom(buf)
 		if err != nil {
-			log.Fatalf("read: %v", err)
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+
+			// Transient read errors must not kill the backend.
+			log.Printf("read: %v", err)
+			continue
 		}
 
 		reply := append(append([]byte{}, prefix...), buf[:n]...)

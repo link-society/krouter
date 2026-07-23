@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -14,6 +15,8 @@ import (
 	"io"
 
 	"net"
+
+	"time"
 )
 
 func main() {
@@ -37,7 +40,15 @@ func main() {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Fatalf("accept: %v", err)
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+
+			// Transient accept errors (e.g. exhausted descriptors) must
+			// not kill the backend.
+			log.Printf("accept: %v", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
 
 		go handle(conn, hostname)
