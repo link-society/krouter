@@ -156,6 +156,10 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		// port (docs/spec/traffic.md TLS passthrough and termination).
 		features.SupportTLSRouteModeTerminate,
 		features.SupportTLSRouteModeMixed,
+
+		// Frontend client certificate validation (docs/spec/security.md).
+		features.SupportGatewayFrontendClientCertificateValidation,
+		features.SupportGatewayFrontendClientCertificateValidationInsecureFallback,
 	}
 
 	slices.Sort(names)
@@ -237,6 +241,24 @@ func (r *Engine) writeGatewayStatus(
 
 		desired.Conditions = mergeConditions(fresh.Status.Conditions,
 			[]metav1.Condition{input.accepted, input.programmed, input.resolvedRefs})
+
+		// InsecureFrontendValidationMode is present exactly while a
+		// listener uses AllowInsecureFallback (docs/spec/security.md).
+		if input.insecureFallback {
+			desired.Conditions = mergeConditions(desired.Conditions,
+				[]metav1.Condition{condition(
+					string(gatewayv1.GatewayConditionInsecureFrontendValidationMode),
+					metav1.ConditionTrue,
+					string(gatewayv1.GatewayReasonConfigurationChanged),
+					"a listener allows insecure client-certificate fallback",
+					fresh.Generation,
+				)})
+		} else {
+			desired.Conditions = slices.DeleteFunc(desired.Conditions,
+				func(c metav1.Condition) bool {
+					return c.Type == string(gatewayv1.GatewayConditionInsecureFrontendValidationMode)
+				})
+		}
 
 		desired.Addresses = nil
 		switch {
