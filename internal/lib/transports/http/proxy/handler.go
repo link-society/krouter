@@ -94,7 +94,13 @@ func (h *Handler) TLSConfigFor(port int32, serverName string) (*tls.Config, erro
 		return nil, fmt.Errorf("no certificate for port %d", port)
 	}
 
-	config := &tls.Config{Certificates: []tls.Certificate{*cert}}
+	config := &tls.Config{
+		Certificates: []tls.Certificate{*cert},
+		// Configs returned from GetConfigForClient are used verbatim:
+		// ALPN must offer h2 explicitly or downstream HTTP/2 breaks
+		// (docs/spec/traffic.md Protocol handling).
+		NextProtos: []string{"h2", "http/1.1"},
+	}
 
 	if pool, auth := listener.ClientValidation(); auth != tls.NoClientCert {
 		config.ClientAuth = auth
