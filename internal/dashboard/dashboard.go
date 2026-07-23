@@ -10,6 +10,7 @@ import (
 
 	"strings"
 
+	"bytes"
 	"embed"
 	"html/template"
 
@@ -115,7 +116,8 @@ func (h *handler) backends(w http.ResponseWriter, r *http.Request) {
 }
 
 // render writes the full document, or only the page content for htmx
-// refresh requests.
+// refresh requests. The page is rendered to a buffer first, so template
+// errors yield a clean 500 instead of a truncated body.
 func (h *handler) render(w http.ResponseWriter, r *http.Request, page string, data any) {
 	tmpl := h.pages[page]
 
@@ -124,9 +126,13 @@ func (h *handler) render(w http.ResponseWriter, r *http.Request, page string, da
 		root = "content"
 	}
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	if err := tmpl.ExecuteTemplate(w, root, data); err != nil {
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, root, data); err != nil {
 		slog.Error("dashboard render failed", "page", page, "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(buf.Bytes())
 }

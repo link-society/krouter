@@ -197,9 +197,14 @@ func buildGraph(topo *gatewayapi.Topology) graphData {
 }
 
 func (h *handler) graph(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(buildGraph(h.topo.Load())); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Encode to a buffer first: an encoding error after the first byte
+	// could not change the status code anymore.
+	payload, err := json.Marshal(buildGraph(h.topo.Load()))
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(payload)
 }
