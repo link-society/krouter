@@ -28,8 +28,25 @@ data:
     }
 ```
 
+The GatewayClass links to it with `parametersRef` (the `namespace` field is
+required because ConfigMaps are namespaced):
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: krouter
+spec:
+  controllerName: link-society.com/krouter
+  parametersRef:
+    group: ""
+    kind: ConfigMap
+    name: krouter-class-params
+    namespace: krouter-system
+```
+
 Invalid or missing parameters surface as the standard `InvalidParameters`
-status reason — they never crash the controller.
+status reason (they never crash the controller).
 
 ## Gateway infrastructure parameters
 
@@ -61,6 +78,28 @@ data:
     }
 ```
 
+The Gateway links to it with `spec.infrastructure.parametersRef`; the
+ConfigMap must live in the Gateway's own namespace:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: edge
+  namespace: my-team
+spec:
+  gatewayClassName: krouter
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: edge-params
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+```
+
 - The default is a `NodePort` Service with
   [`externalTrafficPolicy: Local`](https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip),
   which preserves client source IPs.
@@ -79,7 +118,7 @@ Each Gateway declares its
 |---|---|
 | `HTTP` | HTTP/1.1 and cleartext HTTP/2 |
 | `HTTPS` | TLS termination with the referenced certificates, HTTP/1.1 + HTTP/2 |
-| `TLS` | `Passthrough` (route by SNI, never decrypt) or `Terminate` — both may share a port |
+| `TLS` | `Passthrough` (route by SNI, never decrypt) or `Terminate`; both may share a port |
 | `TCP` | Raw stream forwarding |
 | `UDP` | Per-flow datagram forwarding |
 
