@@ -15,6 +15,10 @@ import (
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 )
 
+// pollInterval bounds how quickly a published generation reaches the
+// data plane (docs/spec/architecture.md).
+const pollInterval = time.Second
+
 // worker polls the generated configuration every second and mails a new
 // RawConfig whenever anything changed.
 type worker struct {
@@ -34,7 +38,7 @@ func (w *worker) DoWork(ctx actor.Context) actor.WorkerStatus {
 	case <-ctx.Done():
 		return actor.WorkerEnd
 
-	case <-time.After(time.Second):
+	case <-time.After(pollInterval):
 		return actor.WorkerContinue
 	}
 }

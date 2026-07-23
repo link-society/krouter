@@ -16,6 +16,10 @@ import (
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
+// pollInterval bounds how quickly endpoint readiness changes reach the
+// request path (docs/spec/traffic.md Backend discovery and balancing).
+const pollInterval = time.Second
+
 // worker polls Services and EndpointSlices in the declared namespaces and
 // publishes the endpoints index.
 type worker struct {
@@ -39,7 +43,7 @@ func (w *worker) DoWork(ctx actor.Context) actor.WorkerStatus {
 
 		return actor.WorkerContinue
 
-	case <-time.After(time.Second):
+	case <-time.After(pollInterval):
 		w.poll(ctx)
 
 		return actor.WorkerContinue

@@ -22,6 +22,10 @@ import (
 	"github.com/link-society/krouter/internal/lib/snapshot"
 )
 
+// pollInterval bounds how stale the published AckState can be; it drives
+// how quickly Programmed=True follows a data-plane ack (docs/spec/status.md).
+const pollInterval = time.Second
+
 // worker polls the data-plane pods every second and publishes the
 // acknowledgement snapshot.
 type worker struct {
@@ -40,7 +44,7 @@ func (w *worker) DoWork(ctx actor.Context) actor.WorkerStatus {
 	case <-ctx.Done():
 		return actor.WorkerEnd
 
-	case <-time.After(time.Second):
+	case <-time.After(pollInterval):
 		return actor.WorkerContinue
 	}
 }

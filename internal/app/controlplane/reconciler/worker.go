@@ -20,6 +20,10 @@ type worker struct {
 
 var _ actor.Worker = (*worker)(nil)
 
+// syncInterval paces the level-triggered full sync (docs/spec/architecture.md):
+// a shorter interval only trades API server load for status latency.
+const syncInterval = 2 * time.Second
+
 func (w *worker) DoWork(ctx actor.Context) actor.WorkerStatus {
 	if topo := w.engine.Sync(ctx, w.acks.Load()); topo != nil {
 		w.topo.Publish(topo)
@@ -29,7 +33,7 @@ func (w *worker) DoWork(ctx actor.Context) actor.WorkerStatus {
 	case <-ctx.Done():
 		return actor.WorkerEnd
 
-	case <-time.After(2 * time.Second):
+	case <-time.After(syncInterval):
 		return actor.WorkerContinue
 	}
 }
