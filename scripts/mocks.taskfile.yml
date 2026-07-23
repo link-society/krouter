@@ -2,7 +2,7 @@
 version: '3'
 
 vars:
-  MOCKS: httpbin tcpbin udpbin grpcbin
+  MOCKS: httpbin tcpbin udpbin grpcbin wsbin
   MOCK_IMAGE_PREFIX: ghcr.io/link-society/krouter-mock
 
 tasks:
