@@ -137,6 +137,9 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 
 		// CORS filter (docs/spec/traffic.md Routing and filters).
 		features.SupportHTTPRouteCORS,
+
+		// Misdirected-request detection (docs/spec/traffic.md).
+		features.SupportGatewayHTTPSListenerDetectMisdirectedRequests,
 	}
 
 	slices.Sort(names)
