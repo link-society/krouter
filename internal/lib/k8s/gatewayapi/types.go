@@ -174,6 +174,10 @@ type gatewayStatusInput struct {
 	listeners    []*listenerState
 	gatewayAcked bool
 
+	// staticAddresses, when set, replace the generated Service address in
+	// status (docs/spec/frontend.md Gateway addresses).
+	staticAddresses []string
+
 	// attachedListenerSets is published when the Gateway allows listener
 	// sets (docs/spec/frontend.md Listener sets).
 	attachedListenerSets *int32
@@ -218,6 +222,7 @@ func EmptyAckState() AckState {
 type PodAck struct {
 	Healthy  bool
 	IP       string
+	HostIP   string
 	NodeName string
 	Gateways map[string]GatewayAck
 }

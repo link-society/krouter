@@ -143,6 +143,9 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 
 		// Infrastructure metadata propagation (docs/spec/frontend.md).
 		features.SupportGatewayInfrastructurePropagation,
+
+		// Static Gateway addresses (docs/spec/frontend.md Gateway addresses).
+		features.SupportGatewayStaticAddresses,
 	}
 
 	slices.Sort(names)
@@ -226,7 +229,19 @@ func (r *Engine) writeGatewayStatus(
 			[]metav1.Condition{input.accepted, input.programmed})
 
 		desired.Addresses = nil
-		if input.address != "" {
+		switch {
+		case len(input.staticAddresses) > 0:
+			// Usable static addresses (docs/spec/frontend.md Gateway
+			// addresses).
+			for _, addr := range input.staticAddresses {
+				desired.Addresses = append(desired.Addresses,
+					gatewayv1.GatewayStatusAddress{
+						Type:  ptr.To(gatewayv1.IPAddressType),
+						Value: addr,
+					})
+			}
+
+		case input.address != "":
 			desired.Addresses = []gatewayv1.GatewayStatusAddress{{
 				Type:  ptr.To(gatewayv1.IPAddressType),
 				Value: input.address,
@@ -540,7 +555,8 @@ func mergeParentStatuses(
 }
 
 // gatewayConditions builds the top-level Gateway conditions.
-func gatewayConditions(gw *gatewayv1.Gateway, paramsErr error, acked bool,
+func gatewayConditions(gw *gatewayv1.Gateway, paramsErr error,
+	addresses gatewayAddresses, acked bool,
 	validListeners int) (metav1.Condition, metav1.Condition) {
 	if paramsErr != nil {
 		// Invalid or missing parameters (docs/spec/parameters.md).
@@ -562,6 +578,27 @@ func gatewayConditions(gw *gatewayv1.Gateway, paramsErr error, acked bool,
 		return accepted, programmed
 	}
 
+	if addresses.unsupportedType {
+		// Unsupported spec.addresses type (docs/spec/frontend.md Gateway
+		// addresses).
+		accepted := condition(
+			string(gatewayv1.GatewayConditionAccepted),
+			metav1.ConditionFalse,
+			string(gatewayv1.GatewayReasonUnsupportedAddress),
+			"only IPAddress spec.addresses entries are supported",
+			gw.Generation,
+		)
+		programmed := condition(
+			string(gatewayv1.GatewayConditionProgrammed),
+			metav1.ConditionFalse,
+			string(gatewayv1.GatewayReasonUnsupportedAddress),
+			"only IPAddress spec.addresses entries are supported",
+			gw.Generation,
+		)
+
+		return accepted, programmed
+	}
+
 	accepted := condition(
 		string(gatewayv1.GatewayConditionAccepted),
 		metav1.ConditionTrue,
@@ -569,6 +606,21 @@ func gatewayConditions(gw *gatewayv1.Gateway, paramsErr error, acked bool,
 		"Gateway is accepted",
 		gw.Generation,
 	)
+
+	if len(addresses.unusable) > 0 {
+		// Static addresses that no data-plane node serves
+		// (docs/spec/frontend.md Gateway addresses).
+		programmed := condition(
+			string(gatewayv1.GatewayConditionProgrammed),
+			metav1.ConditionFalse,
+			string(gatewayv1.GatewayReasonAddressNotUsable),
+			fmt.Sprintf("addresses not served by any data-plane node: %s",
+				strings.Join(addresses.unusable, ", ")),
+			gw.Generation,
+		)
+
+		return accepted, programmed
+	}
 
 	programmed := condition(
 		string(gatewayv1.GatewayConditionProgrammed),
@@ -588,4 +640,46 @@ func gatewayConditions(gw *gatewayv1.Gateway, paramsErr error, acked bool,
 	}
 
 	return accepted, programmed
+}
+
+// gatewayAddresses is the validation outcome of Gateway.spec.addresses
+// (docs/spec/frontend.md Gateway addresses).
+type gatewayAddresses struct {
+	unsupportedType bool
+	unusable        []string
+	static          []string
+}
+
+// validateGatewayAddresses checks Gateway.spec.addresses: value-less
+// entries are assigned by the controller, IPAddress values must be node
+// addresses serving a healthy data-plane pod, and any other type is
+// unsupported (docs/spec/frontend.md Gateway addresses).
+func validateGatewayAddresses(w *world, gw *gatewayv1.Gateway) gatewayAddresses {
+	result := gatewayAddresses{}
+
+	nodeIPs := map[string]bool{}
+	for _, pod := range w.acks.Pods {
+		if pod.Healthy && pod.HostIP != "" {
+			nodeIPs[pod.HostIP] = true
+		}
+	}
+
+	for _, addr := range gw.Spec.Addresses {
+		if addr.Type != nil && *addr.Type != gatewayv1.IPAddressType {
+			result.unsupportedType = true
+			continue
+		}
+
+		if addr.Value == "" {
+			continue
+		}
+
+		result.static = append(result.static, addr.Value)
+
+		if !nodeIPs[addr.Value] {
+			result.unusable = append(result.unusable, addr.Value)
+		}
+	}
+
+	return result
 }

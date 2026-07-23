@@ -75,6 +75,7 @@ func (w *worker) poll(ctx context.Context) {
 
 		ack := gatewayapi.PodAck{
 			IP:       pod.Status.PodIP,
+			HostIP:   pod.Status.HostIP,
 			NodeName: pod.Spec.NodeName,
 			Gateways: map[string]gatewayapi.GatewayAck{},
 		}

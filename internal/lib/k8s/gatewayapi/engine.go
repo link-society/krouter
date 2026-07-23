@@ -271,8 +271,10 @@ func (r *Engine) reconcileGateway(
 ) {
 	infra, paramsErr := r.loadInfraParams(ctx, gw)
 
-	if paramsErr != nil {
-		accepted, programmed := gatewayConditions(gw, paramsErr, false, 0)
+	addresses := validateGatewayAddresses(w, gw)
+
+	if paramsErr != nil || addresses.unsupportedType {
+		accepted, programmed := gatewayConditions(gw, paramsErr, addresses, false, 0)
 
 		input := gatewayStatusInput{
 			accepted:   accepted,
@@ -331,7 +333,7 @@ func (r *Engine) reconcileGateway(
 
 	acked := validListeners > 0 && w.acks.AllAcked(string(gw.UID), generation)
 
-	accepted, programmed := gatewayConditions(gw, nil, acked, validListeners)
+	accepted, programmed := gatewayConditions(gw, nil, addresses, acked, validListeners)
 
 	// ListenerSet statuses and the attachedListenerSets count
 	// (docs/spec/frontend.md Listener sets, docs/spec/status.md).
@@ -359,6 +361,12 @@ func (r *Engine) reconcileGateway(
 		address:      address,
 		listeners:    listeners,
 		gatewayAcked: acked,
+	}
+
+	// Usable static addresses replace the generated Service address in
+	// status (docs/spec/frontend.md Gateway addresses).
+	if len(addresses.static) > 0 && len(addresses.unusable) == 0 {
+		input.staticAddresses = addresses.static
 	}
 
 	if gw.Spec.AllowedListeners != nil {
