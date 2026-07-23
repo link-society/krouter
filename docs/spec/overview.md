@@ -62,10 +62,10 @@ the SNI value and never holds the certificate. TLS listeners in
 
 - TLS listeners in `Terminate` mode (TLSRoute is passthrough-only).
 - Gateway API Standard Extended features other than the supported
-  HTTPRoute filters, rule timeouts, named rules, value-less Gateway
-  addresses, parentRef port matching, method and query-parameter
-  matching, listener isolation, backend protocol selection, and
-  per-backendRef filters: CORS, misdirected-request detection,
+  HTTPRoute filters (including CORS), rule timeouts, named rules,
+  value-less Gateway addresses, parentRef port matching, method and
+  query-parameter matching, listener isolation, backend protocol
+  selection, and per-backendRef filters: misdirected-request detection,
   infrastructure propagation, static Gateway addresses, and
   client-certificate validation.
 - BackendTLSPolicy `subjectAltNames` validation and `options`.

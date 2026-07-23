@@ -216,6 +216,15 @@ Gateway API semantics:
   endpoint of the mirror backend without influencing the client response;
   mirror failures and responses MUST be ignored. Several mirrors on one
   rule and percentage or fraction sampling MUST be honored.
+- `CORS` — preflight requests (`OPTIONS` with `Origin` and
+  `Access-Control-Request-Method`) are answered directly by the gateway;
+  matching requests receive the configured `Access-Control-*` response
+  headers. Origins match exactly, by `*`, or by wildcard host patterns
+  (one or more leading labels). Non-matching origins receive no CORS
+  headers. Wildcard allow-lists are answered by echoing the requested
+  values, so replies stay valid for credentialed requests;
+  `Access-Control-Allow-Credentials` is only ever emitted when configured.
+  `maxAge` defaults to 5 seconds.
 
 GRPCRoute rules support `RequestHeaderModifier`, `ResponseHeaderModifier`,
 and `RequestMirror` with the same semantics.
