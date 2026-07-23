@@ -44,8 +44,9 @@ func (t *Tables) match(
 
 	// Gateway API matching precedence (docs/spec/traffic.md): most specific
 	// listener hostname, then most specific route hostname, then Exact over
-	// longest-prefix path, then most header matches, then the oldest route
-	// (name as final tie-break), then rule/match order within the route.
+	// longest-prefix path, then method presence, then most header matches,
+	// then most query-parameter matches, then the oldest route (name as
+	// final tie-break), then rule/match order within the route.
 	var (
 		bestRule     *RuleTable
 		bestListener *ListenerTable
@@ -68,7 +69,7 @@ func (t *Tables) match(
 					continue
 				}
 
-				matched, pathScore, headerCount := ruleBestMatch(rule, r)
+				matched, specificity := ruleBestMatch(rule, r)
 				if !matched {
 					continue
 				}
@@ -76,8 +77,7 @@ func (t *Tables) match(
 				score := matchScore{
 					listenerHostname: hostnameScore(listener.hostname),
 					routeHostname:    routeHostnameScore(listener, route, host),
-					path:             pathScore,
-					headers:          headerCount,
+					specificity:      specificity,
 					created:          route.created,
 					name:             route.Key(),
 				}
@@ -93,15 +93,40 @@ func (t *Tables) match(
 	return bestRule, bestListener, bestRoute
 }
 
+// ruleSpecificity ranks one applying match by the in-rule precedence
+// dimensions (docs/spec/traffic.md): path specificity, method presence,
+// matched header count, matched query-parameter count.
+type ruleSpecificity struct {
+	path        int
+	method      int
+	headers     int
+	queryParams int
+}
+
+func (s ruleSpecificity) beats(other ruleSpecificity) bool {
+	if s.path != other.path {
+		return s.path > other.path
+	}
+
+	if s.method != other.method {
+		return s.method > other.method
+	}
+
+	if s.headers != other.headers {
+		return s.headers > other.headers
+	}
+
+	return s.queryParams > other.queryParams
+}
+
 // matchScore orders candidate rules by the Gateway API matching precedence
-// (docs/spec/traffic.md). Higher hostname/path/header scores win; ties fall
+// (docs/spec/traffic.md). Higher hostname/specificity scores win; ties fall
 // to the oldest route, then the lexically smallest namespaced name, then
 // the first candidate in table order.
 type matchScore struct {
 	listenerHostname int
 	routeHostname    int
-	path             int
-	headers          int
+	specificity      ruleSpecificity
 	created          int64
 	name             string
 }
@@ -115,12 +140,8 @@ func (s matchScore) beats(other matchScore) bool {
 		return s.routeHostname > other.routeHostname
 	}
 
-	if s.path != other.path {
-		return s.path > other.path
-	}
-
-	if s.headers != other.headers {
-		return s.headers > other.headers
+	if s.specificity != other.specificity {
+		return s.specificity.beats(other.specificity)
 	}
 
 	if s.created != other.created {
@@ -168,32 +189,36 @@ func routeHostnameScore(listener *ListenerTable, route *RouteTable, host string)
 }
 
 // ruleBestMatch reports whether the rule matches the request and the
-// specificity of its best applying match: the path score (Exact beats any
-// prefix, longer beats shorter) and the number of matched headers.
-func ruleBestMatch(rule *RuleTable, r *http.Request) (bool, int, int) {
+// specificity of its best applying match (docs/spec/traffic.md).
+func ruleBestMatch(rule *RuleTable, r *http.Request) (bool, ruleSpecificity) {
 	if len(rule.matches) == 0 {
-		return true, 0, 0
+		return true, ruleSpecificity{}
 	}
 
 	matched := false
-	bestPath := 0
-	bestHeaders := 0
+	best := ruleSpecificity{}
 
 	for _, match := range rule.matches {
 		if !matchApplies(match, r) {
 			continue
 		}
 
-		path := pathScore(match)
-		headers := len(match.Headers)
+		specificity := ruleSpecificity{
+			path:        pathScore(match),
+			headers:     len(match.Headers),
+			queryParams: len(match.QueryParams),
+		}
+		if match.Method != "" {
+			specificity.method = 1
+		}
 
-		if !matched || path > bestPath || (path == bestPath && headers > bestHeaders) {
-			bestPath, bestHeaders = path, headers
+		if !matched || specificity.beats(best) {
+			best = specificity
 		}
 		matched = true
 	}
 
-	return matched, bestPath, bestHeaders
+	return matched, best
 }
 
 func pathScore(match compiled.Match) int {
@@ -295,9 +320,26 @@ func matchApplies(match compiled.Match, r *http.Request) bool {
 		return false
 	}
 
+	if match.Method != "" && r.Method != match.Method {
+		return false
+	}
+
 	for _, header := range match.Headers {
 		if r.Header.Get(header.Name) != header.Value {
 			return false
+		}
+	}
+
+	if len(match.QueryParams) > 0 {
+		query := r.URL.Query()
+
+		for _, param := range match.QueryParams {
+			// Only the first value of a repeated parameter is considered
+			// (Gateway API HTTPQueryParamMatch semantics, docs/spec/traffic.md).
+			values, ok := query[param.Name]
+			if !ok || len(values) == 0 || values[0] != param.Value {
+				return false
+			}
 		}
 	}
 

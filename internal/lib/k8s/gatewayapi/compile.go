@@ -1023,6 +1023,58 @@ func (r *Engine) compileGRPCFilter(
 	}
 }
 
+// compileHTTPMatch validates one HTTPRoute match (docs/spec/traffic.md
+// Routing and filters): Exact and PathPrefix paths, methods, Exact headers
+// and Exact query parameters. Any other match type rejects the route with
+// UnsupportedValue, never a silently widened match.
+func compileHTTPMatch(match gatewayv1.HTTPRouteMatch) (compiled.Match, error) {
+	entry := compiled.Match{}
+
+	if match.Path != nil {
+		if match.Path.Type != nil {
+			entry.PathType = string(*match.Path.Type)
+		}
+
+		if match.Path.Value != nil {
+			entry.PathValue = *match.Path.Value
+		}
+
+		if match.Path.Type != nil &&
+			*match.Path.Type != gatewayv1.PathMatchExact &&
+			*match.Path.Type != gatewayv1.PathMatchPathPrefix {
+			return entry, fmt.Errorf("unsupported path match type %q", *match.Path.Type)
+		}
+	}
+
+	if match.Method != nil {
+		entry.Method = string(*match.Method)
+	}
+
+	for _, header := range match.Headers {
+		if header.Type != nil && *header.Type != gatewayv1.HeaderMatchExact {
+			return entry, fmt.Errorf("unsupported header match type %q", *header.Type)
+		}
+
+		entry.Headers = append(entry.Headers, compiled.HeaderMatch{
+			Name:  string(header.Name),
+			Value: header.Value,
+		})
+	}
+
+	for _, param := range match.QueryParams {
+		if param.Type != nil && *param.Type != gatewayv1.QueryParamMatchExact {
+			return entry, fmt.Errorf("unsupported query parameter match type %q", *param.Type)
+		}
+
+		entry.QueryParams = append(entry.QueryParams, compiled.QueryParamMatch{
+			Name:  string(param.Name),
+			Value: param.Value,
+		})
+	}
+
+	return entry, nil
+}
+
 // compileRoute builds the (Gateway, Route) attachment payload, validating
 // backend references and ReferenceGrants (docs/spec/traffic.md). It returns
 // nil when the route uses filters this implementation does not support:
@@ -1055,23 +1107,9 @@ func (r *Engine) compileRoute(
 		compiledRule := compiled.Rule{}
 
 		for _, match := range rule.Matches {
-			entry := compiled.Match{}
-
-			if match.Path != nil {
-				if match.Path.Type != nil {
-					entry.PathType = string(*match.Path.Type)
-				}
-
-				if match.Path.Value != nil {
-					entry.PathValue = *match.Path.Value
-				}
-			}
-
-			for _, header := range match.Headers {
-				entry.Headers = append(entry.Headers, compiled.HeaderMatch{
-					Name:  string(header.Name),
-					Value: header.Value,
-				})
+			entry, err := compileHTTPMatch(match)
+			if err != nil {
+				return nil
 			}
 
 			compiledRule.Matches = append(compiledRule.Matches, entry)

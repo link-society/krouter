@@ -94,12 +94,19 @@ type Rule struct {
 }
 
 type Match struct {
-	PathType  string        `json:"pathType,omitempty"`
-	PathValue string        `json:"pathValue,omitempty"`
-	Headers   []HeaderMatch `json:"headers,omitempty"`
+	PathType    string            `json:"pathType,omitempty"`
+	PathValue   string            `json:"pathValue,omitempty"`
+	Method      string            `json:"method,omitempty"`
+	Headers     []HeaderMatch     `json:"headers,omitempty"`
+	QueryParams []QueryParamMatch `json:"queryParams,omitempty"`
 }
 
 type HeaderMatch struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type QueryParamMatch struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
