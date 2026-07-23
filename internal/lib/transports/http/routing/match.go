@@ -250,6 +250,44 @@ func pathScore(match compiled.Match) int {
 	}
 }
 
+// Misdirected reports whether a request authority is owned by a different
+// listener than the one the connection's SNI selected on this port
+// (docs/spec/traffic.md): such requests are answered 421 Misdirected
+// Request so the client retries on a fresh connection.
+func (t *Tables) Misdirected(port int32, serverName, host string) bool {
+	table := t.byPort[port]
+	if table == nil {
+		return false
+	}
+
+	selected := bestListenerFor(table, serverName)
+	if selected == nil {
+		return false
+	}
+
+	return bestListenerFor(table, host) != selected
+}
+
+// bestListenerFor is the listener owning a hostname on the port: the most
+// specific listener whose hostname pattern matches it
+// (docs/spec/traffic.md listener isolation).
+func bestListenerFor(table *PortTable, host string) *ListenerTable {
+	var best *ListenerTable
+	bestScore := -1
+
+	for _, listener := range table.listeners {
+		if !hostnameMatches(listener.hostname, host) {
+			continue
+		}
+
+		if score := hostnameScore(listener.hostname); score > bestScore {
+			best, bestScore = listener, score
+		}
+	}
+
+	return best
+}
+
 // CertificateFor selects the certificate for an SNI value on a port, so a
 // rotated certificate serves new handshakes without terminating connections
 // using the previous one (docs/spec/security.md).

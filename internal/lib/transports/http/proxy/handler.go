@@ -88,7 +88,17 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	start := time.Now()
 	host := hostOnly(r.Host)
 
-	rule, listener, route := h.state.Tables.Load().Match(port, host, r)
+	tables := h.state.Tables.Load()
+
+	// Misdirected-request detection (docs/spec/traffic.md): the authority
+	// must be owned by the listener the connection's SNI selected.
+	if withTLS && r.TLS != nil && tables.Misdirected(port, r.TLS.ServerName, host) {
+		http.Error(w, "misdirected request", http.StatusMisdirectedRequest)
+		requestsTotal.WithLabelValues("4xx").Inc()
+		return
+	}
+
+	rule, listener, route := tables.Match(port, host, r)
 	if rule == nil {
 		if grpc.IsRequest(r) {
 			// docs/spec/traffic.md gRPC routing: unmatched gRPC requests
