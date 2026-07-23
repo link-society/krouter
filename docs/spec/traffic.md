@@ -220,6 +220,13 @@ Gateway API semantics:
 GRPCRoute rules support `RequestHeaderModifier`, `ResponseHeaderModifier`,
 and `RequestMirror` with the same semantics.
 
+Backend references MAY carry their own filters (`backendRefs[].filters`):
+`RequestHeaderModifier` and `ResponseHeaderModifier` are supported and
+apply only to traffic forwarded to that backend, after the rule-level
+filters. Requests mirrored by a rule-level `RequestMirror` MUST NOT be
+affected by per-backendRef filters. Any other per-backendRef filter type
+rejects the route with `UnsupportedValue`.
+
 HTTPRoute and GRPCRoute rules MAY be named (`rules[].name`). Rule names
 MUST be accepted and preserved; they carry no routing behavior.
 
