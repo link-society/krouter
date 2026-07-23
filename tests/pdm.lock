@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:212874d3af178c563fbfcc182fc261571889c389fc209ad019bb85e5495ce55c"
+content_hash = "sha256:aacdb3f61eb473c27424cb1d1a3c062f78caa43a0b577b83904806da916268cc"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -325,6 +325,17 @@ groups = ["default"]
 files = [
     {file = "iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"},
     {file = "iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730"},
+]
+
+[[package]]
+name = "junitparser"
+version = "5.0.1"
+requires_python = ">=3.10"
+summary = "Manipulates JUnit/xUnit Result XML files"
+groups = ["default"]
+files = [
+    {file = "junitparser-5.0.1-py3-none-any.whl", hash = "sha256:019410471ac82c6b49c3cd500b930b3f39a5dae34e5ca5d5f719c4dcd9bb7e9a"},
+    {file = "junitparser-5.0.1.tar.gz", hash = "sha256:45d100ca35ce5e2596c1f251de5e0f9411827aa93edaba7ad2d8eef423eecdd0"},
 ]
 
 [[package]]
