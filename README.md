@@ -75,6 +75,7 @@ task tests:e2e
 task tests:conformance
 task tests:performance
 task tests:bench:all
+task tests:report  # all suites + combined HTML/JUnit report
 ```
 
 ## License

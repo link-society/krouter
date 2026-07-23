@@ -23,9 +23,15 @@ task tests:unit         # Go unit tests
 task tests:e2e          # end-to-end suite
 task tests:conformance  # official Gateway API conformance profile
 task tests:performance  # concurrent-connection release gate
+task tests:report       # all of the above + combined HTML/JUnit report
 task tests:bench:all    # krouter vs NGINX Gateway Fabric vs Traefik
 task k8s:down
 ```
+
+`task tests:report` runs the unit, e2e, conformance and performance suites
+back to back (continuing past failures), then merges their JUnit files into
+tests/results/report/junit.xml, renders tests/results/report/report.html
+and exits non-zero if any suite failed, errored or crashed.
 
 ## The suites
 
