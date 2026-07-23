@@ -189,6 +189,12 @@ path specificity, then method presence, then number of matched headers,
 then number of matched query parameters. Match types outside this set MUST
 be rejected with reason `UnsupportedValue`.
 
+HTTP listeners are isolated by hostname: a request is served exclusively
+by the most specific listener whose hostname matches the request authority
+among the listeners sharing the port. Routes attached to less specific
+listeners MUST NOT serve such requests, even when their own hostnames and
+matches would apply.
+
 The following HTTPRoute rule filters MUST be supported with the upstream
 Gateway API semantics:
 
