@@ -127,6 +127,10 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 
 		// HTTP listener isolation (docs/spec/traffic.md).
 		features.SupportGatewayHTTPListenerIsolation,
+
+		// Backend protocol selection (docs/spec/traffic.md Protocol handling).
+		features.SupportHTTPRouteBackendProtocolH2C,
+		features.SupportHTTPRouteBackendProtocolWebSocket,
 	}
 
 	slices.Sort(names)
