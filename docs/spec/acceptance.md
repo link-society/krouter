@@ -29,13 +29,13 @@ The implementation is accepted when:
 14. TLS passthrough listeners route by SNI to TLSRoute backends without
     terminating the session, with the same guarantees as TCP forwarding,
     and the `GATEWAY-TLS` Core conformance tests pass.
-15. GRPCRoute traffic — method and header matching, h2c backend
-    forwarding, streaming and trailer preservation — passes the
+15. GRPCRoute traffic (method and header matching, h2c backend
+    forwarding, streaming and trailer preservation) passes the
     `GATEWAY-GRPC` Core conformance tests, with the same guarantees as
     HTTP traffic.
-16. The supported Extended HTTPRoute filters — response header
+16. The supported Extended HTTPRoute filters (response header
     modification, URL rewriting, redirect path/scheme/port and
-    alternative status codes, and request mirroring — pass the
+    alternative status codes, and request mirroring) pass the
     corresponding Extended conformance tests.
 17. HTTPRoute rule timeouts (`request` and `backendRequest`) pass the
     corresponding Extended conformance tests.
@@ -47,12 +47,12 @@ The implementation is accepted when:
     guarantees as TCP traffic. UDPRoute has no conformance profile in
     Gateway API v1.5.1; the krouter end-to-end suite and the provisional
     UDPRoute conformance test are the verification.
-20. BackendTLSPolicy re-encryption — SNI, CA verification, fail-closed
-    mismatches, conflict resolution, and ancestor status — passes the
+20. BackendTLSPolicy re-encryption (SNI, CA verification, fail-closed
+    mismatches, conflict resolution, and ancestor status) passes the
     corresponding conformance tests.
-21. ListenerSet attachment — allowed-listeners gating, listener merging
+21. ListenerSet attachment (allowed-listeners gating, listener merging
     with conflict rejection, per-set route binding, ReferenceGrant
-    semantics, and set statuses — passes the corresponding conformance
+    semantics, and set statuses) passes the corresponding conformance
     tests.
 22. The Gateway API conformance suite passes every non-Mesh test in the
     `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS` profiles: the only

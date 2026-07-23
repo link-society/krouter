@@ -73,8 +73,8 @@ A UDP listener forwards datagrams; nothing is interpreted or rewritten.
 
 A TLS listener in `Passthrough` mode routes on the SNI value of the
 ClientHello and forwards the connection still encrypted; krouter never
-terminates the session and never holds the certificate — the backend owns
-TLS end to end.
+terminates the session and never holds the certificate (the backend owns
+TLS end to end).
 
 - A TLSRoute attaches to a TLS passthrough listener; its hostnames are
   matched against the SNI value with the same exact-then-wildcard
@@ -224,28 +224,28 @@ matches would apply.
 On HTTPS listeners sharing a port, a request whose authority is owned by a
 different listener than the one selected by the connection's SNI MUST be
 answered `421 Misdirected Request`, so clients retry on a fresh
-connection. Authorities owned by the SNI-selected listener itself —
-including every authority when that listener has no hostname — are routed
+connection. Authorities owned by the SNI-selected listener itself
+(including every authority when that listener has no hostname) are routed
 normally.
 
 The following HTTPRoute rule filters MUST be supported with the upstream
 Gateway API semantics:
 
-- `RequestHeaderModifier` and `ResponseHeaderModifier` — add, set, and
+- `RequestHeaderModifier` and `ResponseHeaderModifier`: add, set, and
   remove headers on the proxied request or response.
-- `RequestRedirect` — scheme, hostname, port, path replacement
+- `RequestRedirect`: scheme, hostname, port, path replacement
   (`ReplaceFullPath` and `ReplacePrefixMatch`), and the status codes
   permitted by the API. Unset values MUST be inherited from the incoming
-  request — an unset port inherits the incoming listener port unless the
-  scheme is changed, in which case the new scheme's default port applies —
+  request (an unset port inherits the incoming listener port unless the
+  scheme is changed, in which case the new scheme's default port applies)
   and default scheme ports MUST be omitted from the `Location` header.
-- `URLRewrite` — hostname replacement and path replacement
+- `URLRewrite`: hostname replacement and path replacement
   (`ReplaceFullPath` and `ReplacePrefixMatch`) before forwarding.
-- `RequestMirror` — a copy of the request is delivered to a single
+- `RequestMirror`: a copy of the request is delivered to a single
   endpoint of the mirror backend without influencing the client response;
   mirror failures and responses MUST be ignored. Several mirrors on one
   rule and percentage or fraction sampling MUST be honored.
-- `CORS` — preflight requests (`OPTIONS` with `Origin` and
+- `CORS`: preflight requests (`OPTIONS` with `Origin` and
   `Access-Control-Request-Method`) are answered directly by the gateway;
   matching requests receive the configured `Access-Control-*` response
   headers. Origins match exactly, by `*`, or by wildcard host patterns

@@ -35,19 +35,19 @@ and exits non-zero if any suite failed, errored or crashed.
 
 ## The suites
 
-- **Unit** — pure logic tested with `go test`, next to the package it
+- **Unit**: pure logic tested with `go test`, next to the package it
   belongs to (see below).
-- **Conformance** — the official Gateway API conformance suite, running the
+- **Conformance**: the official Gateway API conformance suite, running the
   Core profile required by the spec (docs/spec/overview.md, docs/spec/acceptance.md criterion 1). The compiled test
   binary is executed inside the cluster, because the suite dials the
   addresses published on Gateway status, which are cluster-internal.
-- **End-to-end** — pytest suite driving a real krouter installation solely
+- **End-to-end**: pytest suite driving a real krouter installation solely
   through the Kubernetes API and published entry points, like an operator
   would.
-- **Performance** — the 10,000 simultaneous-connection release gate (docs/spec/performance.md,
+- **Performance**: the 10,000 simultaneous-connection release gate (docs/spec/performance.md,
   docs/spec/acceptance.md criterion 10), driven by a purpose-built load generator that holds connections
   across configuration reloads and counts every disconnect.
-- **Benchmark** — reproducible side-by-side comparison of krouter, NGINX
+- **Benchmark**: reproducible side-by-side comparison of krouter, NGINX
   Gateway Fabric and Traefik (docs/spec/performance.md, docs/spec/acceptance.md criterion 11): identical cluster, backend,
   Gateway resources, request mix and load generator for every
   implementation.

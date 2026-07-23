@@ -54,8 +54,8 @@ reconcile the remaining resources normally and MUST NOT crash or degrade
 HTTP behavior; the affected listeners then receive a negative condition for
 lack of an attachable route kind.
 
-TLS listeners support `Passthrough` mode — krouter routes on the SNI value
-and never holds the certificate — and `Terminate` mode, where krouter
+TLS listeners support `Passthrough` mode (krouter routes on the SNI value
+and never holds the certificate) and `Terminate` mode, where krouter
 terminates the session with the listener certificate and forwards the
 decrypted stream to TLSRoute backends. Both modes MAY share one port
 (mixed termination), selected per connection by SNI.

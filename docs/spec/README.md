@@ -1,4 +1,4 @@
-# krouter — Specification
+# krouter Specification
 
 krouter (Kubernetes Router) is a Kubernetes Gateway API implementation and
 HTTP/HTTPS reverse proxy.

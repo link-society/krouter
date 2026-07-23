@@ -2,8 +2,8 @@
 
 **krouter** (Kubernetes Router) is a [Kubernetes Gateway
 API](https://gateway-api.sigs.k8s.io) implementation and HTTP/HTTPS reverse
-proxy. It uses standard Kubernetes resources only — no custom resource
-definitions — ships as a single binary and container image, applies
+proxy. It uses standard Kubernetes resources only (no custom resource
+definitions), ships as a single binary and container image, applies
 configuration changes without dropping connections, and embeds a live
 dashboard of your gateways, routes and backends.
 
@@ -14,8 +14,8 @@ live on the [website](https://krouter.cloud) (sources in
 
 ## Features
 
-How krouter compares with other Gateway API implementations — including
-what it deliberately does **not** do. Based on each project's public
+How krouter compares with other Gateway API implementations (including
+what it deliberately does **not** do). Based on each project's public
 documentation as of July 2026 (✅ supported · ◐ partial or via vendor
 extensions · — not provided):
 
@@ -45,12 +45,12 @@ extensions · — not provided):
 ## Prerequisites
 
 - A recent [Go](https://go.dev) toolchain (see [go.mod](go.mod))
-- [Task](https://taskfile.dev) — all automation goes through it
-- [Docker](https://www.docker.com) — container image builds
-- [kind](https://kind.sigs.k8s.io) and `kubectl` — local test cluster
-- [Python](https://www.python.org) with [PDM](https://pdm-project.org) —
-  end-to-end test suites only
-- [Helm](https://helm.sh) — comparative benchmarks only
+- [Task](https://taskfile.dev) (all automation goes through it)
+- [Docker](https://www.docker.com) (container image builds)
+- [kind](https://kind.sigs.k8s.io) and `kubectl` (local test cluster)
+- [Python](https://www.python.org) with [PDM](https://pdm-project.org)
+  (end-to-end test suites only)
+- [Helm](https://helm.sh) (comparative benchmarks only)
 
 `task --list` is the authoritative list of available commands.
 
@@ -75,15 +75,15 @@ task k8s:deploy  # build the image, load it, apply the static manifest
 
 For any other cluster, install the Gateway API CRDs and apply the static
 installation manifest from the [k8s](k8s/) directory with `kubectl apply`.
-Everything — namespace, RBAC, control-plane Deployment, data-plane
-DaemonSet, dashboard Service — is contained in that single manifest, as
+Everything (namespace, RBAC, control-plane Deployment, data-plane
+DaemonSet, dashboard Service) is contained in that single manifest, as
 required by the [deployment specification](docs/spec/deployment.md).
 
 ### Trying it out
 
 A self-contained example topology is provided: one Gateway serving HTTP,
 gRPC, TCP, UDP and TLS-passthrough routes, backed by real mock services
-(httpbin, tcpbin, udpbin, grpcbin — built from [tests/mocks](tests/mocks/)):
+(httpbin, tcpbin, udpbin, grpcbin, built from [tests/mocks](tests/mocks/)):
 
 ```sh
 task k8s:serve  # build + load the mock images, deploy the demo, forward the dashboard
