@@ -15,3 +15,4 @@ tests/results/
 # Generated website artifacts
 website/public/
 website/static/report/
+website/.hugo_build.lock
