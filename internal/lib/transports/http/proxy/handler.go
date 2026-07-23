@@ -321,6 +321,12 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 			if len(mirrors) > 0 {
 				mirrorReq = pr.Out.Clone(context.WithoutCancel(pr.In.Context()))
 			}
+
+			// Per-backendRef filters apply only to the selected backend,
+			// never to mirror copies (docs/spec/traffic.md).
+			for _, filter := range backend.Filters() {
+				applyFilter(pr, filter)
+			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -336,6 +342,10 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			for _, filter := range rule.Filters() {
+				applyResponseFilter(resp, filter)
+			}
+
+			for _, filter := range backend.Filters() {
 				applyResponseFilter(resp, filter)
 			}
 

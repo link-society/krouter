@@ -981,8 +981,22 @@ func (r *Engine) compileGRPCRule(
 	}
 
 	for _, backendRef := range rule.BackendRefs {
-		compiledRule.Backends = append(compiledRule.Backends,
-			r.compileBackend(w, route.Namespace, "GRPCRoute", backendRef.BackendRef, outcome))
+		backend := r.compileBackend(w, route.Namespace, "GRPCRoute", backendRef.BackendRef, outcome)
+
+		for _, filter := range backendRef.Filters {
+			entry, err := compileBackendHeaderFilter(
+				string(filter.Type),
+				filter.RequestHeaderModifier,
+				filter.ResponseHeaderModifier,
+			)
+			if err != nil {
+				return compiled.Rule{}, err
+			}
+
+			backend.Filters = append(backend.Filters, entry)
+		}
+
+		compiledRule.Backends = append(compiledRule.Backends, backend)
 	}
 
 	return compiledRule, nil
@@ -1131,8 +1145,22 @@ func (r *Engine) compileRoute(
 		}
 
 		for _, backendRef := range rule.BackendRefs {
-			compiledRule.Backends = append(compiledRule.Backends,
-				r.compileBackend(w, route.Namespace, "HTTPRoute", backendRef.BackendRef, outcome))
+			backend := r.compileBackend(w, route.Namespace, "HTTPRoute", backendRef.BackendRef, outcome)
+
+			for _, filter := range backendRef.Filters {
+				entry, err := compileBackendHeaderFilter(
+					string(filter.Type),
+					filter.RequestHeaderModifier,
+					filter.ResponseHeaderModifier,
+				)
+				if err != nil {
+					return nil
+				}
+
+				backend.Filters = append(backend.Filters, entry)
+			}
+
+			compiledRule.Backends = append(compiledRule.Backends, backend)
 		}
 
 		config.Rules = append(config.Rules, compiledRule)
@@ -1353,6 +1381,33 @@ func (r *Engine) compileMirror(
 	}
 
 	return entry, true, nil
+}
+
+// compileBackendHeaderFilter translates one per-backendRef filter
+// (docs/spec/traffic.md Routing and filters): header modifiers only; any
+// other type rejects the route with UnsupportedValue.
+func compileBackendHeaderFilter(
+	filterType string,
+	requestModifier, responseModifier *gatewayv1.HTTPHeaderFilter,
+) (compiled.Filter, error) {
+	switch filterType {
+	case "RequestHeaderModifier":
+		if requestModifier == nil {
+			return compiled.Filter{}, fmt.Errorf("missing requestHeaderModifier")
+		}
+
+		return compileHeaderModifier("RequestHeaderModifier", requestModifier), nil
+
+	case "ResponseHeaderModifier":
+		if responseModifier == nil {
+			return compiled.Filter{}, fmt.Errorf("missing responseHeaderModifier")
+		}
+
+		return compileHeaderModifier("ResponseHeaderModifier", responseModifier), nil
+
+	default:
+		return compiled.Filter{}, fmt.Errorf("unsupported backendRef filter type %q", filterType)
+	}
 }
 
 func compileHeaderModifier(filterType string, modifier *gatewayv1.HTTPHeaderFilter) compiled.Filter {

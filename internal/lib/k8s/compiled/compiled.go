@@ -153,6 +153,9 @@ type Backend struct {
 	// AppProtocol mirrors the backend Service port appProtocol
 	// (docs/spec/traffic.md Protocol handling).
 	AppProtocol string `json:"appProtocol,omitempty"`
+	// Filters apply only to traffic forwarded to this backend, after the
+	// rule-level filters (docs/spec/traffic.md Routing and filters).
+	Filters []Filter `json:"filters,omitempty"`
 	// TLS carries the BackendTLSPolicy verification parameters for this
 	// backend; nil means cleartext (docs/spec/traffic.md).
 	TLS *BackendTLS `json:"tls,omitempty"`

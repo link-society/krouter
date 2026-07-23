@@ -175,6 +175,10 @@ type BackendTable struct {
 	// (docs/spec/traffic.md Protocol handling).
 	h2c bool
 
+	// filters apply only to traffic forwarded to this backend, after the
+	// rule-level filters (docs/spec/traffic.md Routing and filters).
+	filters []compiled.Filter
+
 	// tlsTransport carries requests to a backend covered by a
 	// BackendTLSPolicy; tlsInvalid marks a rejected policy whose backend
 	// MUST fail closed (docs/spec/traffic.md Backend TLS).
@@ -191,6 +195,10 @@ func (b *BackendTable) Valid() bool { return b.valid }
 // H2C reports whether the backend is dialed with cleartext HTTP/2
 // (docs/spec/traffic.md Protocol handling).
 func (b *BackendTable) H2C() bool { return b.h2c }
+
+// Filters returns the per-backendRef filters of the backend
+// (docs/spec/traffic.md Routing and filters).
+func (b *BackendTable) Filters() []compiled.Filter { return b.filters }
 
 // TLSTransport returns the verified-TLS transport of the backend, or nil
 // for cleartext backends (docs/spec/traffic.md Backend TLS).
