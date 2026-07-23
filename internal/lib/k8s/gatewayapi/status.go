@@ -120,6 +120,10 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		// parentRef port matching (docs/spec/traffic.md Routing and filters).
 		features.SupportHTTPRouteParentRefPort,
 		features.SupportHTTPRouteDestinationPortMatching,
+
+		// Method and query-parameter matching (docs/spec/traffic.md).
+		features.SupportHTTPRouteMethodMatching,
+		features.SupportHTTPRouteQueryParamMatching,
 	}
 
 	slices.Sort(names)
