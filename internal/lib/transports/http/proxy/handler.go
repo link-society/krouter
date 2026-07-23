@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"strconv"
 	"strings"
 
 	"bytes"
@@ -145,8 +146,10 @@ func redirectFilter(rule *routing.RuleTable) (compiled.Filter, bool) {
 }
 
 // serveRedirect answers a RequestRedirect rule (docs/spec/traffic.md):
-// unset filter values inherit from the incoming request, and default
-// scheme ports are omitted from the Location header.
+// unset filter values inherit from the incoming request — an unset port
+// inherits the incoming listener port unless the scheme is changed, in
+// which case the new scheme's default port applies — and default scheme
+// ports are omitted from the Location header.
 func serveRedirect(w http.ResponseWriter, r *http.Request, filter compiled.Filter, withTLS bool) int {
 	scheme := "http"
 	if withTLS {
@@ -161,10 +164,15 @@ func serveRedirect(w http.ResponseWriter, r *http.Request, filter compiled.Filte
 		host = filter.Hostname
 	}
 
-	if filter.Port != 0 &&
-		!(scheme == "http" && filter.Port == 80) &&
-		!(scheme == "https" && filter.Port == 443) {
-		host = fmt.Sprintf("%s:%d", host, filter.Port)
+	port := filter.Port
+	if port == 0 && filter.Scheme == "" {
+		port = requestPort(r, withTLS)
+	}
+
+	if port != 0 &&
+		!(scheme == "http" && port == 80) &&
+		!(scheme == "https" && port == 443) {
+		host = fmt.Sprintf("%s:%d", host, port)
 	}
 
 	location := url.URL{
@@ -530,4 +538,20 @@ func hostOnly(host string) string {
 	}
 
 	return host
+}
+
+// requestPort is the port the client addressed: the explicit port of the
+// Host header, or the default port of the listener scheme.
+func requestPort(r *http.Request, withTLS bool) int32 {
+	if _, p, err := net.SplitHostPort(r.Host); err == nil {
+		if port, err := strconv.Atoi(p); err == nil {
+			return int32(port)
+		}
+	}
+
+	if withTLS {
+		return 443
+	}
+
+	return 80
 }
