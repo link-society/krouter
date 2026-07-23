@@ -580,3 +580,77 @@ def reset_recordings(pod: str, namespace: str) -> None:
     )
     assert resp.status_code == 200, \
         f"failed to clear recordings on {pod}: {resp.status_code} {resp.text[:200]}"
+
+
+# ------------------------------------------------------------- websocket --
+
+WS_IMAGE = "ghcr.io/link-society/krouter-mock-wsbin:dev"
+WS_BACKEND_PORT = 8080
+
+
+def ws_backend(
+    name: str,
+    namespace: str,
+    replicas: int = 1,
+    app_protocol: str | None = "kubernetes.io/ws",
+) -> list[dict]:
+    """
+    Deployment + Service for one WebSocket echo backend
+    (docs/spec/traffic.md Protocol handling). Every accepted connection
+    first receives one text message `wsbin <pod>`, then echoes every
+    message back. `GET /healthz` answers 200 without upgrading.
+
+    The image is built from tests/mocks and loaded by `task mocks:load`.
+    """
+
+    labels = {"app": name}
+
+    port: dict = {
+        "name": "ws",
+        "port": WS_BACKEND_PORT,
+        "targetPort": WS_BACKEND_PORT,
+    }
+    if app_protocol:
+        port["appProtocol"] = app_protocol
+
+    return [
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "replicas": replicas,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "wsbin",
+                                "image": WS_IMAGE,
+                                "imagePullPolicy": "Never",
+                                "ports": [{"containerPort": WS_BACKEND_PORT}],
+                                "readinessProbe": {
+                                    "httpGet": {
+                                        "path": "/healthz",
+                                        "port": WS_BACKEND_PORT,
+                                    },
+                                    "periodSeconds": 2,
+                                    "failureThreshold": 2,
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "selector": labels,
+                "ports": [port],
+            },
+        },
+    ]

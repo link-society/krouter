@@ -600,3 +600,51 @@ def get_server_certificate(node_port: int, sni: str, worker: int = 1) -> x509.Ce
             der = tls_sock.getpeercert(binary_form=True)
 
     return x509.load_der_x509_certificate(der)
+
+
+# --------------------------------------------------------------- websocket --
+
+def ws_connect(
+    node_port: int,
+    path: str = "/",
+    scheme: str = "ws",
+    ca=None,
+    server_hostname: str | None = None,
+    worker: int = 1,
+    timeout: float = 10,
+):
+    """
+    Open one WebSocket connection through a published NodePort
+    (docs/spec/traffic.md Protocol handling). Returns the connection from
+    `websockets.sync.client.connect`; the caller owns closing it.
+
+    For `wss`, pass the trustme CA and the certificate hostname: the TLS
+    session verifies against the CA with that SNI while the URL targets
+    the published loopback port.
+    """
+
+    from websockets.sync.client import connect
+
+    url = f"{scheme}://{config.TEST_HOST}:{ports.host_port(node_port, worker)}{path}"
+
+    kwargs: dict = {"open_timeout": timeout, "close_timeout": timeout}
+
+    if scheme == "wss":
+        ctx = ssl.create_default_context()
+        if ca is not None:
+            ca.configure_trust(ctx)
+
+        kwargs["ssl"] = ctx
+        kwargs["server_hostname"] = server_hostname
+
+    return connect(url, **kwargs)
+
+
+def ws_echo_roundtrip(conn, payload: str) -> str:
+    """
+    Send one text message and return the echoed reply.
+    """
+
+    conn.send(payload)
+
+    return conn.recv(timeout=10)
