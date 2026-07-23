@@ -44,7 +44,10 @@ Generated Services:
 - Have no pod selector because the shared DaemonSet lives in
   `krouter-system`.
 - Have an owner reference to the Gateway.
-- Carry the labels required by the Gateway API in-cluster deployment model.
+- Carry the labels required by the Gateway API in-cluster deployment model,
+  including `gateway.networking.k8s.io/gateway-name`.
+- Carry every label and annotation declared under
+  `Gateway.spec.infrastructure`; krouter-owned keys cannot be overridden.
 - Default to `type: NodePort` and `externalTrafficPolicy: Local`.
 - MAY instead be configured as `LoadBalancer` or `ClusterIP` through Gateway
   infrastructure parameters (see [parameters.md](parameters.md)).

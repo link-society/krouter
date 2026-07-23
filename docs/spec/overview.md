@@ -65,8 +65,8 @@ the SNI value and never holds the certificate. TLS listeners in
   HTTPRoute filters (including CORS), rule timeouts, named rules,
   value-less Gateway addresses, parentRef port matching, method and
   query-parameter matching, listener isolation, misdirected-request
-  detection, backend protocol selection, and per-backendRef filters:
-  infrastructure propagation, static Gateway addresses, and
+  detection, backend protocol selection, per-backendRef filters, and
+  infrastructure metadata propagation: static Gateway addresses and
   client-certificate validation.
 - BackendTLSPolicy `subjectAltNames` validation and `options`.
 - Policy attachment to ListenerSets.
