@@ -6,7 +6,7 @@ infrastructure parameters (docs/spec/parameters.md) and must be published by
 tests/config/kind/cluster.yaml. Keeping the registry central prevents port
 collisions between test modules sharing the session cluster.
 
-Published window: 30080-30100 and 30443-30445.
+Published window: 30080-30104 and 30443-30446.
 """
 
 from e2elib import config
@@ -37,10 +37,16 @@ UDP_ROUTES = 30097  # published as UDP by the kind cluster config
 # demo topology (tests/config/mocks/manifest.yml): 30098 (http), 30099 (tcp),
 # 30100 (tls) — held while the demo is deployed, do not reuse in tests
 
+WEBSOCKET = 30101
+EXTENSIONS_RATELIMIT = 30102
+EXTENSIONS_WAF = 30103
+GOTESTWAF = 30104  # standing WAF target (tests/config/waf/manifest.yml)
+
 # TLS listeners
 PROTOCOLS_HTTPS = 30443
 CONN_LIFECYCLE_TLS = 30444
 CROSS_NAMESPACE_TLS = 30445
+WEBSOCKET_TLS = 30446
 
 
 def host_port(node_port: int, worker: int = 1) -> int:
