@@ -134,6 +134,9 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 
 		// Per-backendRef filters (docs/spec/traffic.md Routing and filters).
 		features.SupportHTTPRouteBackendRequestHeaderModification,
+
+		// CORS filter (docs/spec/traffic.md Routing and filters).
+		features.SupportHTTPRouteCORS,
 	}
 
 	slices.Sort(names)
