@@ -128,10 +128,6 @@ type RouteTable struct {
 	hostnames []string
 	created   int64 // creation unix time, precedence tie-break (docs/spec/traffic.md)
 	rules     []*RuleTable
-
-	// l4Counter drives the pooled weighted round-robin of PickL4Backend
-	// (docs/spec/traffic.md TCP and UDP forwarding).
-	l4Counter atomic.Int64
 }
 
 func (r *RouteTable) Key() string { return r.namespace + "/" + r.name }

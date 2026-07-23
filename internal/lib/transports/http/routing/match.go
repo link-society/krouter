@@ -422,26 +422,6 @@ func (r *RuleTable) PickBackend() *BackendTable {
 	return pickBucket(r.counter.Add(1)-1, r.backends, r.total)
 }
 
-// PickL4Backend implements weighted round-robin over the pooled backends
-// of every rule of the route (docs/spec/traffic.md TCP and UDP
-// forwarding): L4 rules carry no matching semantics, so their weighted
-// backendRefs form one pool.
-func (r *RouteTable) PickL4Backend() *BackendTable {
-	if len(r.rules) == 1 {
-		return r.rules[0].PickBackend()
-	}
-
-	var backends []*BackendTable
-	var total int64
-
-	for _, rule := range r.rules {
-		backends = append(backends, rule.backends...)
-		total += rule.total
-	}
-
-	return pickBucket(r.l4Counter.Add(1)-1, backends, total)
-}
-
 // PickTCP selects the backend endpoint for one new downstream connection
 // on a TCP internal listener port (docs/spec/traffic.md): route weights,
 // then round-robin over eligible endpoints. Invalid backends keep their
@@ -503,8 +483,9 @@ var _ udp.Picker = (*State)(nil)
 
 // l4Selection resolves the endpoint serving an L4 port
 // (docs/spec/traffic.md TCP and UDP forwarding): the oldest attached route
-// serves the listener, its rules' weighted backends form one pool, and
-// invalid backends refuse their share, per the Gateway API.
+// serves the listener with its single rule (multi-rule L4 routes are
+// rejected at compile time as ambiguous), and invalid backends refuse
+// their share, per the Gateway API.
 func l4Selection(
 	table *PortTable,
 	index *EndpointsIndex,
@@ -514,7 +495,7 @@ func l4Selection(
 		return "", "", "", false
 	}
 
-	picked := rt.PickL4Backend()
+	picked := rt.rules[0].PickBackend()
 	if picked == nil || !picked.valid {
 		return "", "", "", false
 	}
