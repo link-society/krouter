@@ -61,6 +61,9 @@ func (r *Engine) publishGeneration(
 			// (docs/spec/traffic.md TLS passthrough and termination).
 			HasTLS: lst.spec.Protocol == gatewayv1.HTTPSProtocolType ||
 				listenerTerminatesTLS(lst.spec),
+			// Frontend client certificate validation
+			// (docs/spec/security.md).
+			ClientCAMode: lst.clientCAMode,
 		}
 
 		if lst.spec.Hostname != nil {

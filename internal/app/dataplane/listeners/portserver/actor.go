@@ -60,8 +60,11 @@ func New(port int32, withTLS bool, handler *proxy.Handler) (*Server, error) {
 
 	if withTLS {
 		server.TLSConfig = &tls.Config{
-			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				return handler.CertificateFor(port, hello.ServerName)
+			// Per-connection configuration: the SNI-selected listener
+			// provides the certificate and its client-certificate
+			// validation (docs/spec/security.md).
+			GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+				return handler.TLSConfigFor(port, hello.ServerName)
 			},
 		}
 	}

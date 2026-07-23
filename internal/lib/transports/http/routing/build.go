@@ -58,6 +58,27 @@ func BuildGatewayTable(
 			entry.cert = &cert
 		}
 
+		// Frontend client certificate validation (docs/spec/security.md).
+		if lst.ClientCAMode != "" {
+			if secret == nil {
+				return nil, fmt.Errorf("listener %s: missing generation TLS secret", lst.Name)
+			}
+
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(secret.Data[lst.Name+".client-ca.crt"]) {
+				return nil, fmt.Errorf("listener %s: invalid client CA bundle", lst.Name)
+			}
+
+			entry.clientCAs = pool
+			entry.clientAuth = tls.RequireAndVerifyClientCert
+
+			if lst.ClientCAMode == "AllowInsecureFallback" {
+				// Fallback accepts missing and invalid certificates
+				// (docs/spec/security.md).
+				entry.clientAuth = tls.RequestClientCert
+			}
+		}
+
 		port, ok := table.byPort[lst.InternalPort]
 		if !ok {
 			port = &PortTable{

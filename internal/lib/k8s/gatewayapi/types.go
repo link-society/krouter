@@ -74,6 +74,11 @@ type listenerState struct {
 
 	certData map[string][]byte // keys "<effective name>.tls.crt" / ".tls.key"
 
+	// clientCAMode is the frontend client-certificate validation mode of
+	// the listener (docs/spec/security.md): empty means none; the CA
+	// bundle lives in certData under "<effective name>.client-ca.crt".
+	clientCAMode string
+
 	attachedRoutes int32
 }
 
@@ -178,6 +183,10 @@ type gatewayStatusInput struct {
 	// staticAddresses, when set, replace the generated Service address in
 	// status (docs/spec/frontend.md Gateway addresses).
 	staticAddresses []string
+
+	// insecureFallback publishes the InsecureFrontendValidationMode
+	// condition (docs/spec/security.md).
+	insecureFallback bool
 
 	// attachedListenerSets is published when the Gateway allows listener
 	// sets (docs/spec/frontend.md Listener sets).

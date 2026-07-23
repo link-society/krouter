@@ -74,6 +74,11 @@ type Listener struct {
 	// HasTLS indicates cert material under keys "<name>.tls.crt/.tls.key"
 	// in the generation TLS Secret.
 	HasTLS bool `json:"hasTLS,omitempty"`
+	// ClientCAMode enables frontend client-certificate validation
+	// (docs/spec/security.md): AllowValidOnly or AllowInsecureFallback,
+	// with the CA bundle under key "<name>.client-ca.crt" in the
+	// generation TLS Secret.
+	ClientCAMode string `json:"clientCAMode,omitempty"`
 }
 
 // RouteConfig is the per-generation compiled (Gateway, HTTPRoute)

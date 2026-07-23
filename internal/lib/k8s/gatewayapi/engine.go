@@ -382,6 +382,14 @@ func (r *Engine) reconcileGateway(
 		input.staticAddresses = addresses.static
 	}
 
+	// Insecure frontend validation mode (docs/spec/security.md).
+	for _, lst := range listeners {
+		if lst.clientCAMode == string(gatewayv1.AllowInsecureFallback) {
+			input.insecureFallback = true
+			break
+		}
+	}
+
 	if gw.Spec.AllowedListeners != nil {
 		input.attachedListenerSets = &attachedSets
 	}

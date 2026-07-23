@@ -110,6 +110,10 @@ func (r *Engine) validateListener(
 		r.resolveCertificates(ctx, w, gw, state)
 	}
 
+	if spec.Protocol == gatewayv1.HTTPSProtocolType && state.refsResolved {
+		r.resolveFrontendValidation(ctx, w, gw, state)
+	}
+
 	port, err := allocator.Allocate(string(gw.UID), int32(spec.Port), string(spec.Protocol))
 	if err != nil {
 		// Exhausted range: reject programming without disturbing
@@ -128,6 +132,96 @@ func listenerTerminatesTLS(spec gatewayv1.Listener) bool {
 	return spec.Protocol == gatewayv1.TLSProtocolType &&
 		spec.TLS != nil && spec.TLS.Mode != nil &&
 		*spec.TLS.Mode == gatewayv1.TLSModeTerminate
+}
+
+// frontendValidationFor selects the client-certificate validation applying
+// to a listener port: the per-port entry, or the gateway default
+// (docs/spec/security.md Frontend client certificate validation).
+func frontendValidationFor(gw *gatewayv1.Gateway, port gatewayv1.PortNumber) *gatewayv1.FrontendTLSValidation {
+	if gw.Spec.TLS == nil || gw.Spec.TLS.Frontend == nil {
+		return nil
+	}
+
+	for i := range gw.Spec.TLS.Frontend.PerPort {
+		entry := &gw.Spec.TLS.Frontend.PerPort[i]
+		if entry.Port == port && entry.TLS.Validation != nil {
+			return entry.TLS.Validation
+		}
+	}
+
+	return gw.Spec.TLS.Frontend.Default.Validation
+}
+
+// resolveFrontendValidation resolves the client-certificate CAs of one
+// HTTPS listener (docs/spec/security.md Frontend client certificate
+// validation). Invalid references reject the listener with
+// NoValidCACertificate.
+func (r *Engine) resolveFrontendValidation(
+	ctx context.Context,
+	w *world,
+	gw *gatewayv1.Gateway,
+	state *listenerState,
+) {
+	validation := frontendValidationFor(gw, state.spec.Port)
+	if validation == nil {
+		return
+	}
+
+	invalidate := func(refsReason string) {
+		state.refsResolved = false
+		state.refsReason = refsReason
+		state.accepted = false
+		state.acceptedReason = string(gatewayv1.ListenerReasonNoValidCACertificate)
+	}
+
+	var pemBundle []byte
+
+	for _, ref := range validation.CACertificateRefs {
+		if string(ref.Kind) != "ConfigMap" || string(ref.Group) != "" {
+			invalidate(string(gatewayv1.ListenerReasonInvalidCACertificateKind))
+			return
+		}
+
+		namespace := gw.Namespace
+		if ref.Namespace != nil {
+			namespace = string(*ref.Namespace)
+		}
+
+		if namespace != gw.Namespace {
+			allowed := referenceGrantAllows(
+				w.grants,
+				gatewayv1.GroupName, "Gateway", gw.Namespace,
+				"ConfigMap", namespace, string(ref.Name),
+			)
+			if !allowed {
+				invalidate(string(gatewayv1.ListenerReasonRefNotPermitted))
+				return
+			}
+		}
+
+		cm, err := r.client.CoreV1().ConfigMaps(namespace).
+			Get(ctx, string(ref.Name), metav1.GetOptions{})
+		if err != nil {
+			invalidate(string(gatewayv1.ListenerReasonInvalidCACertificateRef))
+			return
+		}
+
+		pemBundle = append(pemBundle, []byte(cm.Data["ca.crt"])...)
+		pemBundle = append(pemBundle, '\n')
+	}
+
+	if !validCAPem(pemBundle) {
+		invalidate(string(gatewayv1.ListenerReasonInvalidCACertificateRef))
+		return
+	}
+
+	mode := gatewayv1.AllowValidOnly
+	if validation.Mode != "" {
+		mode = validation.Mode
+	}
+
+	state.clientCAMode = string(mode)
+	state.certData[state.effectiveName()+".client-ca.crt"] = pemBundle
 }
 
 // rejectConflictingListeners applies the cross-owner merge rules

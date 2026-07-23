@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 
 	"crypto/tls"
+	"crypto/x509"
 
 	"net/http"
 
@@ -93,10 +94,24 @@ type ListenerTable struct {
 	// session ends at the gateway and the decrypted stream is forwarded
 	// (docs/spec/traffic.md TLS passthrough and termination).
 	terminate bool
-	routes    []*RouteTable
+	// clientCAs + clientAuth implement frontend client-certificate
+	// validation (docs/spec/security.md); NoClientCert means none.
+	clientCAs  *x509.CertPool
+	clientAuth tls.ClientAuthType
+	routes     []*RouteTable
 }
 
 func (l *ListenerTable) Name() string { return l.name }
+
+// ClientValidation returns the frontend client-certificate validation of
+// the listener (docs/spec/security.md).
+func (l *ListenerTable) ClientValidation() (*x509.CertPool, tls.ClientAuthType) {
+	if l == nil {
+		return nil, tls.NoClientCert
+	}
+
+	return l.clientCAs, l.clientAuth
+}
 
 // Certificate returns the listener's TLS certificate, if any.
 func (l *ListenerTable) Certificate() *tls.Certificate {

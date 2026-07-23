@@ -83,6 +83,27 @@ func (h *Handler) CertificateFor(port int32, serverName string) (*tls.Certificat
 	return cert, nil
 }
 
+// TLSConfigFor builds the per-connection TLS configuration of an HTTPS
+// listener selected by SNI: its certificate and, when configured, its
+// frontend client-certificate validation (docs/spec/security.md).
+func (h *Handler) TLSConfigFor(port int32, serverName string) (*tls.Config, error) {
+	listener := h.state.Tables.Load().CertificateFor(port, serverName)
+
+	cert := listener.Certificate()
+	if cert == nil {
+		return nil, fmt.Errorf("no certificate for port %d", port)
+	}
+
+	config := &tls.Config{Certificates: []tls.Certificate{*cert}}
+
+	if pool, auth := listener.ClientValidation(); auth != tls.NoClientCert {
+		config.ClientAuth = auth
+		config.ClientCAs = pool
+	}
+
+	return config, nil
+}
+
 // Serve handles one downstream request on an internal listener port.
 func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, withTLS bool) {
 	start := time.Now()
