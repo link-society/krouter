@@ -127,6 +127,10 @@ type backendTLSPolicyState struct {
 	resolvedOK     bool
 	resolvedReason string
 
+	// message explains a rejection on both conditions; empty when the
+	// policy is accepted (docs/spec/status.md).
+	message string
+
 	ancestors map[string]gatewayv1.ParentReference
 }
 
@@ -224,7 +228,7 @@ func (r *Engine) resolvePolicyValidation(
 			state.resolvedReason = resolvedReason
 		}
 		state.tls = &compiled.BackendTLS{Invalid: true}
-		_ = message
+		state.message = message
 	}
 
 	validation := policy.Spec.Validation
@@ -403,13 +407,13 @@ func (r *Engine) writeBackendTLSPolicyStatuses(ctx context.Context, w *world) {
 		accepted := condition(
 			string(gatewayv1.PolicyConditionAccepted),
 			boolStatus(state.accepted),
-			state.acceptedReason, "",
+			state.acceptedReason, state.message,
 			policy.Generation,
 		)
 		resolved := condition(
 			string(gatewayv1.BackendTLSPolicyConditionResolvedRefs),
 			boolStatus(state.resolvedOK),
-			state.resolvedReason, "",
+			state.resolvedReason, state.message,
 			policy.Generation,
 		)
 
