@@ -46,7 +46,10 @@ tasks:
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance cp tests/results/conformance/conformance.test conformance-runner:/work/conformance.test
       - defer: kubectl --context {{.KIND_CONTEXT}} delete -f tests/config/conformance/runner.yaml --ignore-not-found
       - defer: kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance cp conformance-runner:/work/report.yaml tests/results/conformance/report.yaml
+      # The raw `go test -v` stream is kept so tests:report can convert it
+      # to JUnit with test2json.
       - >-
+        set -o pipefail;
         kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance exec conformance-runner --
         /work/conformance.test -test.v -test.timeout 120m -test.run TestConformance
         -gateway-class=krouter
@@ -57,6 +60,7 @@ tasks:
         -contact=https://github.com/link-society/krouter/issues
         -report-output=/work/report.yaml
         {{.CLI_ARGS}}
+        | tee tests/results/conformance/output.log
 
   performance:
     desc: Run the 10,000 concurrent-connection release gate (docs/spec/performance.md, docs/spec/acceptance.md criterion 10)
@@ -71,6 +75,29 @@ tasks:
       - task: e2e
       - task: conformance
       - task: performance
+
+  report:
+    desc: Run every suite and produce a combined JUnit + HTML report (tests/results/report)
+    deps: [install-deps]
+    cmds:
+      - mkdir -p tests/results/unit tests/results/e2e tests/results/conformance tests/results/performance tests/results/report
+      - go vet ./...
+      # Suites keep going on failure: the final report step recomputes the
+      # overall verdict from the JUnit files and sets the exit code.
+      - cmd: go run gotest.tools/gotestsum@{{.GOTESTSUM_VERSION}} --junitfile tests/results/unit/junit.xml -- -race -count=1 ./...
+        ignore_error: true
+      - cmd: task tests:e2e -- --junitxml=tests/results/e2e/junit.xml
+        ignore_error: true
+      - cmd: task tests:conformance
+        ignore_error: true
+      - cmd: task tests:performance -- --junitxml=tests/results/performance/junit.xml
+        ignore_error: true
+      # Convert the captured conformance `go test -v` stream to JUnit.
+      - cmd: go tool test2json -p conformance < tests/results/conformance/output.log > tests/results/conformance/events.json
+        ignore_error: true
+      - cmd: go run gotest.tools/gotestsum@{{.GOTESTSUM_VERSION}} --junitfile tests/results/conformance/junit.xml --raw-command -- cat tests/results/conformance/events.json
+        ignore_error: true
+      - pdm run -p tests python tests/src/report/build.py
 
   bench:
     desc: 'Benchmark one implementation (usage: task tests:bench -- krouter|nginx|traefik)'

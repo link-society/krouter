@@ -10,6 +10,7 @@ vars:
   IMAGE: ghcr.io/link-society/krouter:dev
 
   GOLANG_IMAGE: golang:1.26
+  GOTESTSUM_VERSION: v1.13.0
 
 includes:
   build: scripts/build.taskfile.yml
