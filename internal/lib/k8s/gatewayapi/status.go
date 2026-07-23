@@ -146,6 +146,11 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 
 		// Static Gateway addresses (docs/spec/frontend.md Gateway addresses).
 		features.SupportGatewayStaticAddresses,
+
+		// Backend TLS SAN validation and client certificates
+		// (docs/spec/traffic.md Backend TLS).
+		features.SupportBackendTLSPolicySANValidation,
+		features.SupportGatewayBackendClientCertificate,
 	}
 
 	slices.Sort(names)
@@ -226,7 +231,7 @@ func (r *Engine) writeGatewayStatus(
 		desired := fresh.Status.DeepCopy()
 
 		desired.Conditions = mergeConditions(fresh.Status.Conditions,
-			[]metav1.Condition{input.accepted, input.programmed})
+			[]metav1.Condition{input.accepted, input.programmed, input.resolvedRefs})
 
 		desired.Addresses = nil
 		switch {
