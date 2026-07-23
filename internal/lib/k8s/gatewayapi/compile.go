@@ -45,14 +45,9 @@ func (r *Engine) validateListeners(
 		}
 
 		for _, entry := range set.set.Spec.Listeners {
-			spec := gatewayv1.Listener{
-				Name:          entry.Name,
-				Hostname:      entry.Hostname,
-				Port:          entry.Port,
-				Protocol:      entry.Protocol,
-				TLS:           entry.TLS,
-				AllowedRoutes: entry.AllowedRoutes,
-			}
+			// ListenerEntry and Listener are field-for-field identical in
+			// v1.5.1; the conversion breaks loudly if they ever diverge.
+			spec := gatewayv1.Listener(entry)
 
 			listeners = append(listeners,
 				r.validateListener(ctx, w, gw, spec, set.set, allocator))

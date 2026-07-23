@@ -432,31 +432,17 @@ func (t *Tables) PickTCP(port int32, index *EndpointsIndex) (tcp.Selection, bool
 		return tcp.Selection{}, false
 	}
 
-	for _, listener := range table.listeners {
-		for _, route := range listener.routes {
-			for _, rule := range route.rules {
-				backend := rule.PickBackend()
-				if backend == nil || !backend.valid {
-					return tcp.Selection{}, false
-				}
-
-				endpoint, ok := backend.Pick(index)
-				if !ok {
-					return tcp.Selection{}, false
-				}
-
-				return tcp.Selection{
-					Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
-					Gateway:  table.gatewayName,
-					Route:    route.Key(),
-					Backend: fmt.Sprintf("%s/%s:%d",
-						backend.namespace, backend.name, backend.port),
-				}, true
-			}
-		}
+	endpoint, route, backend, ok := l4Selection(table, index)
+	if !ok {
+		return tcp.Selection{}, false
 	}
 
-	return tcp.Selection{}, false
+	return tcp.Selection{
+		Endpoint: endpoint,
+		Gateway:  table.gatewayName,
+		Route:    route,
+		Backend:  backend,
+	}, true
 }
 
 // PickTCP implements tcp.Picker over the live snapshots.
@@ -475,31 +461,17 @@ func (t *Tables) PickUDP(port int32, index *EndpointsIndex) (udp.Selection, bool
 		return udp.Selection{}, false
 	}
 
-	for _, listener := range table.listeners {
-		for _, route := range listener.routes {
-			for _, rule := range route.rules {
-				backend := rule.PickBackend()
-				if backend == nil || !backend.valid {
-					return udp.Selection{}, false
-				}
-
-				endpoint, ok := backend.Pick(index)
-				if !ok {
-					return udp.Selection{}, false
-				}
-
-				return udp.Selection{
-					Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
-					Gateway:  table.gatewayName,
-					Route:    route.Key(),
-					Backend: fmt.Sprintf("%s/%s:%d",
-						backend.namespace, backend.name, backend.port),
-				}, true
-			}
-		}
+	endpoint, route, backend, ok := l4Selection(table, index)
+	if !ok {
+		return udp.Selection{}, false
 	}
 
-	return udp.Selection{}, false
+	return udp.Selection{
+		Endpoint: endpoint,
+		Gateway:  table.gatewayName,
+		Route:    route,
+		Backend:  backend,
+	}, true
 }
 
 // PickUDP implements udp.Picker over the live snapshots.
@@ -508,6 +480,50 @@ func (s *State) PickUDP(port int32) (udp.Selection, bool) {
 }
 
 var _ udp.Picker = (*State)(nil)
+
+// l4Selection resolves the endpoint serving an L4 port. A TCP or UDP
+// listener is served by a single attached route (docs/spec/traffic.md TCP
+// and UDP forwarding), so the first populated route's first rule applies:
+// weights and endpoint round-robin work as for every other route type,
+// and invalid backends refuse their share, per the Gateway API.
+func l4Selection(
+	table *PortTable,
+	index *EndpointsIndex,
+) (endpoint, route, backend string, ok bool) {
+	rule, rt := l4Rule(table)
+	if rule == nil {
+		return "", "", "", false
+	}
+
+	picked := rule.PickBackend()
+	if picked == nil || !picked.valid {
+		return "", "", "", false
+	}
+
+	target, found := picked.Pick(index)
+	if !found {
+		return "", "", "", false
+	}
+
+	return fmt.Sprintf("%s:%d", target.Address, target.Port),
+		rt.Key(),
+		fmt.Sprintf("%s/%s:%d", picked.namespace, picked.name, picked.port),
+		true
+}
+
+// l4Rule finds the rule serving an L4 port: the first rule of the first
+// populated route.
+func l4Rule(table *PortTable) (*RuleTable, *RouteTable) {
+	for _, listener := range table.listeners {
+		for _, route := range listener.routes {
+			if len(route.rules) > 0 {
+				return route.rules[0], route
+			}
+		}
+	}
+
+	return nil, nil
+}
 
 // PickTLS selects the backend endpoint for one new downstream connection
 // on a TLS passthrough port (docs/spec/traffic.md): the SNI value selects
