@@ -1,0 +1,30 @@
+---
+version: '3'
+
+tasks:
+  report:
+    desc: Copy the latest test report into the site (build-time inclusion)
+    internal: true
+    preconditions:
+      - sh: test -f tests/results/report/report.html
+        msg: "tests/results/report/report.html not found — run `task tests:report` first"
+    cmds:
+      - mkdir -p website/static/report
+      - cp tests/results/report/report.html website/static/report/report.html
+
+  build:
+    desc: Build the website into website/public (includes the test report)
+    deps: [report]
+    cmds:
+      - hugo --minify --source website
+
+  serve:
+    desc: Serve the website locally with live reload on http://localhost:1313
+    deps: [report]
+    cmds:
+      - hugo server --source website
+
+  clean:
+    desc: Remove generated website artifacts
+    cmds:
+      - rm -rf website/public website/static/report

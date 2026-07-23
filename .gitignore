@@ -11,3 +11,7 @@ tests/.pdm-python
 
 # Generated test artifacts
 tests/results/
+
+# Generated website artifacts
+website/public/
+website/static/report/
