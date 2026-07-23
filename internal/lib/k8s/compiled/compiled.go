@@ -111,6 +111,10 @@ type QueryParamMatch struct {
 	Value string `json:"value"`
 }
 
+// AppProtocolH2C marks backend Service ports dialed with cleartext HTTP/2
+// (docs/spec/traffic.md Protocol handling).
+const AppProtocolH2C = "kubernetes.io/h2c"
+
 type Filter struct {
 	// Type is one of RequestHeaderModifier, ResponseHeaderModifier,
 	// RequestRedirect, URLRewrite or RequestMirror
@@ -146,6 +150,9 @@ type Backend struct {
 	Weight        int32  `json:"weight"`
 	Valid         bool   `json:"valid"`
 	InvalidReason string `json:"invalidReason,omitempty"`
+	// AppProtocol mirrors the backend Service port appProtocol
+	// (docs/spec/traffic.md Protocol handling).
+	AppProtocol string `json:"appProtocol,omitempty"`
 	// TLS carries the BackendTLSPolicy verification parameters for this
 	// backend; nil means cleartext (docs/spec/traffic.md).
 	TLS *BackendTLS `json:"tls,omitempty"`

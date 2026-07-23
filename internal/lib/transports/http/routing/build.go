@@ -152,6 +152,7 @@ func buildBackendTable(backend compiled.Backend) *BackendTable {
 		port:      backend.Port,
 		weight:    backend.Weight,
 		valid:     backend.Valid,
+		h2c:       backend.AppProtocol == compiled.AppProtocolH2C,
 	}
 
 	if backend.TLS == nil {

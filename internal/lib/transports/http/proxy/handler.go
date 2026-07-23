@@ -264,7 +264,8 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 	}
 
 	transport := h.transport
-	if rule.GRPC() {
+	if rule.GRPC() || backend.H2C() {
+		// Cleartext HTTP/2 backends (docs/spec/traffic.md Protocol handling).
 		transport = h.grpcTransport
 	}
 

@@ -170,6 +170,11 @@ type BackendTable struct {
 	weight    int32
 	valid     bool
 
+	// h2c marks a backend Service port declaring appProtocol
+	// kubernetes.io/h2c, dialed with cleartext HTTP/2
+	// (docs/spec/traffic.md Protocol handling).
+	h2c bool
+
 	// tlsTransport carries requests to a backend covered by a
 	// BackendTLSPolicy; tlsInvalid marks a rejected policy whose backend
 	// MUST fail closed (docs/spec/traffic.md Backend TLS).
@@ -182,6 +187,10 @@ type BackendTable struct {
 // Valid reports whether the backend reference resolved (invalid refs answer
 // 500 for their traffic share, per the Gateway API).
 func (b *BackendTable) Valid() bool { return b.valid }
+
+// H2C reports whether the backend is dialed with cleartext HTTP/2
+// (docs/spec/traffic.md Protocol handling).
+func (b *BackendTable) H2C() bool { return b.h2c }
 
 // TLSTransport returns the verified-TLS transport of the backend, or nil
 // for cleartext backends (docs/spec/traffic.md Backend TLS).

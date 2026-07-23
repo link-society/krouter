@@ -1459,6 +1459,10 @@ func (r *Engine) compileBackend(
 	backend.TLS = backendTLSFor(w, backend.Namespace, backend.Name,
 		servicePortName(w, backend.Namespace, backend.Name, backend.Port))
 
+	// Backend protocol selection (docs/spec/traffic.md Protocol handling).
+	backend.AppProtocol = servicePortAppProtocol(
+		w, backend.Namespace, backend.Name, backend.Port)
+
 	return backend
 }
 
@@ -1473,6 +1477,23 @@ func servicePortName(w *world, namespace, name string, port int32) string {
 	for _, svcPort := range svc.Spec.Ports {
 		if svcPort.Port == port {
 			return svcPort.Name
+		}
+	}
+
+	return ""
+}
+
+// servicePortAppProtocol resolves the appProtocol of the Service port a
+// backend references (docs/spec/traffic.md Protocol handling).
+func servicePortAppProtocol(w *world, namespace, name string, port int32) string {
+	svc, ok := w.services[namespace+"/"+name]
+	if !ok {
+		return ""
+	}
+
+	for _, svcPort := range svc.Spec.Ports {
+		if svcPort.Port == port && svcPort.AppProtocol != nil {
+			return *svcPort.AppProtocol
 		}
 	}
 
