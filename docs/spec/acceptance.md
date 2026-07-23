@@ -56,4 +56,6 @@ The implementation is accepted when:
     tests.
 22. The Gateway API conformance suite passes every non-Mesh test in the
     `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS` profiles: the only
-    skipped tests are those requiring the `MESH` profile.
+    skipped tests are those requiring the `MESH` profile and the
+    "not supported" tests that skip themselves because krouter supports
+    the corresponding feature (TLSRoute Terminate and mixed termination).

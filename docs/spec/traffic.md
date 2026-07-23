@@ -69,7 +69,7 @@ A UDP listener forwards datagrams; nothing is interpreted or rewritten.
 - Established flows keep their selected backend across configuration
   reloads; listener removal stops the listener and expires its flows.
 
-## TLS passthrough
+## TLS passthrough and termination
 
 A TLS listener in `Passthrough` mode routes on the SNI value of the
 ClientHello and forwards the connection still encrypted; krouter never
@@ -90,6 +90,16 @@ TLS end to end.
   completing a handshake.
 - Established connections keep their selected backend across configuration
   reloads, exactly as for TCP forwarding.
+
+A TLS listener in `Terminate` mode terminates the session at the gateway
+with the listener's `certificateRefs` material, then forwards the
+decrypted stream to the selected TLSRoute backend with raw TCP semantics.
+Route selection by SNI, refusal of unmatched SNI values, per-connection
+backend choice, and reload behavior are identical to passthrough.
+
+`Passthrough` and `Terminate` listeners MAY share one port (mixed
+termination): the SNI value selects the listener, which decides per
+connection whether the session terminates at the gateway.
 
 ## Backend TLS
 
