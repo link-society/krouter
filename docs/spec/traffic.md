@@ -182,6 +182,13 @@ of the referenced parent with that port; carrying both, the named listener
 MUST also have that port. A parentRef whose port matches no listener MUST
 NOT be accepted (reason `NoMatchingParent`).
 
+HTTPRoute matches support paths (`Exact` and `PathPrefix`), methods,
+headers (`Exact`), and query parameters (`Exact`, first value of the
+parameter). Precedence between matching rules follows the upstream order:
+path specificity, then method presence, then number of matched headers,
+then number of matched query parameters. Match types outside this set MUST
+be rejected with reason `UnsupportedValue`.
+
 The following HTTPRoute rule filters MUST be supported with the upstream
 Gateway API semantics:
 
