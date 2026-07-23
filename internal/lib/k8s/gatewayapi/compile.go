@@ -432,7 +432,8 @@ func listenersOwnedBy(listeners []*listenerState, ownerKey string) []*listenerSt
 }
 
 // admitListeners applies the attachment admission ladder shared by every
-// route kind (docs/spec/status.md): sectionName narrowing first, then
+// route kind (docs/spec/status.md): sectionName and parentRef port
+// narrowing first (docs/spec/traffic.md Routing and filters), then
 // listener kind admission, then namespace policy. It returns the admitted
 // listeners, or the Accepted-condition reason for the rejection.
 func admitListeners(
@@ -445,6 +446,10 @@ func admitListeners(
 	var candidates []*listenerState
 	for _, lst := range listeners {
 		if parentRef.SectionName != nil && *parentRef.SectionName != lst.spec.Name {
+			continue
+		}
+
+		if parentRef.Port != nil && *parentRef.Port != lst.spec.Port {
 			continue
 		}
 
