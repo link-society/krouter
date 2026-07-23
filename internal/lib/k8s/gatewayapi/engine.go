@@ -19,6 +19,7 @@ import (
 	extclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
 	"github.com/link-society/krouter/internal/config"
@@ -306,11 +307,21 @@ func (r *Engine) reconcileGateway(
 
 	listeners := r.validateListeners(ctx, w, gw, listenerSets, allocator)
 
-	outcomes := r.attachRoutes(w, gw, listenerSets, listeners)
-	outcomes = append(outcomes, r.attachGRPCRoutes(w, gw, listenerSets, listeners)...)
-	outcomes = append(outcomes, r.attachTCPRoutes(w, gw, listenerSets, listeners)...)
-	outcomes = append(outcomes, r.attachTLSRoutes(w, gw, listenerSets, listeners)...)
-	outcomes = append(outcomes, r.attachUDPRoutes(w, gw, listenerSets, listeners)...)
+	outcomes := attachAll(w, gw, listenerSets, listeners, w.routes,
+		func(rt *gatewayv1.HTTPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		r.attachRoute)
+	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.grpcRoutes,
+		func(rt *gatewayv1.GRPCRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		r.attachGRPCRoute)...)
+	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.tcpRoutes,
+		func(rt *gatewayv1alpha2.TCPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		r.attachTCPRoute)...)
+	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.tlsRoutes,
+		func(rt *gatewayv1alpha2.TLSRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		r.attachTLSRoute)...)
+	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.udpRoutes,
+		func(rt *gatewayv1alpha2.UDPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		r.attachUDPRoute)...)
 
 	for _, outcome := range outcomes {
 		meta := outcome.routeMeta()

@@ -16,6 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/gateway-api/pkg/features"
 )
 
@@ -358,6 +359,55 @@ func boolStatus(ok bool) metav1.ConditionStatus {
 
 // ----------------------------------------------------------------- Routes --
 
+// syncRouteStatuses updates status.parents[] for every route of one kind,
+// replacing only entries carrying our controller name
+// (docs/spec/status.md). Accessor closures bridge the typed clients of
+// each route kind.
+func syncRouteStatuses[R any, PR interface {
+	*R
+	GetNamespace() string
+	GetName() string
+	GetGeneration() int64
+}](
+	ctx context.Context,
+	kind string,
+	routes []R,
+	outcomes map[string][]*routeParentOutcome,
+	controllerName gatewayv1.GatewayController,
+	get func(ctx context.Context, namespace, name string) (PR, error),
+	parents func(PR) *[]gatewayv1.RouteParentStatus,
+	update func(ctx context.Context, fresh PR) error,
+) {
+	for i := range routes {
+		route := PR(&routes[i])
+		key := outcomeKey(kind, route.GetNamespace(), route.GetName())
+
+		ours := parentStatuses(outcomes[key], controllerName, route.GetGeneration())
+
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			fresh, err := get(ctx, route.GetNamespace(), route.GetName())
+			if err != nil {
+				return err
+			}
+
+			slot := parents(fresh)
+
+			desired, changed := mergeParentStatuses(*slot, ours, controllerName)
+			if !changed {
+				return nil
+			}
+
+			*slot = desired
+
+			return update(ctx, fresh)
+		})
+		if err != nil {
+			logSyncError(strings.ToLower(kind)+" status",
+				nsName(route.GetNamespace(), route.GetName()), err)
+		}
+	}
+}
+
 // writeRouteStatuses updates status.parents[] for every route touched by
 // this controller, replacing only entries carrying our controller name
 // (docs/spec/status.md).
@@ -368,155 +418,58 @@ func (r *Engine) writeRouteStatuses(
 ) {
 	controllerName := gatewayv1.GatewayController(r.settings.ControllerName)
 
-	for i := range w.routes {
-		route := &w.routes[i]
-		key := outcomeKey("HTTPRoute", route.Namespace, route.Name)
+	v1 := r.gwClient.GatewayV1()
+	v1alpha2 := r.gwClient.GatewayV1alpha2()
 
-		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
-
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			fresh, err := r.gwClient.GatewayV1().HTTPRoutes(route.Namespace).
-				Get(ctx, route.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-
-			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
-			if !changed {
-				return nil
-			}
-
-			fresh.Status.Parents = desired
-
-			_, err = r.gwClient.GatewayV1().HTTPRoutes(route.Namespace).
-				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
-
+	syncRouteStatuses(ctx, "HTTPRoute", w.routes, outcomes, controllerName,
+		func(ctx context.Context, namespace, name string) (*gatewayv1.HTTPRoute, error) {
+			return v1.HTTPRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		},
+		func(rt *gatewayv1.HTTPRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1.HTTPRoute) error {
+			_, err := v1.HTTPRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
-		if err != nil {
-			logSyncError("route status", nsName(route.Namespace, route.Name), err)
-		}
-	}
 
-	for i := range w.grpcRoutes {
-		route := &w.grpcRoutes[i]
-		key := outcomeKey("GRPCRoute", route.Namespace, route.Name)
-
-		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
-
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			fresh, err := r.gwClient.GatewayV1().GRPCRoutes(route.Namespace).
-				Get(ctx, route.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-
-			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
-			if !changed {
-				return nil
-			}
-
-			fresh.Status.Parents = desired
-
-			_, err = r.gwClient.GatewayV1().GRPCRoutes(route.Namespace).
-				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
-
+	syncRouteStatuses(ctx, "GRPCRoute", w.grpcRoutes, outcomes, controllerName,
+		func(ctx context.Context, namespace, name string) (*gatewayv1.GRPCRoute, error) {
+			return v1.GRPCRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		},
+		func(rt *gatewayv1.GRPCRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1.GRPCRoute) error {
+			_, err := v1.GRPCRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
-		if err != nil {
-			logSyncError("grpcroute status", nsName(route.Namespace, route.Name), err)
-		}
-	}
 
-	for i := range w.tcpRoutes {
-		route := &w.tcpRoutes[i]
-		key := outcomeKey("TCPRoute", route.Namespace, route.Name)
-
-		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
-
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			fresh, err := r.gwClient.GatewayV1alpha2().TCPRoutes(route.Namespace).
-				Get(ctx, route.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-
-			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
-			if !changed {
-				return nil
-			}
-
-			fresh.Status.Parents = desired
-
-			_, err = r.gwClient.GatewayV1alpha2().TCPRoutes(route.Namespace).
-				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
-
+	syncRouteStatuses(ctx, "TCPRoute", w.tcpRoutes, outcomes, controllerName,
+		func(ctx context.Context, namespace, name string) (*gatewayv1alpha2.TCPRoute, error) {
+			return v1alpha2.TCPRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		},
+		func(rt *gatewayv1alpha2.TCPRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1alpha2.TCPRoute) error {
+			_, err := v1alpha2.TCPRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
-		if err != nil {
-			logSyncError("tcproute status", nsName(route.Namespace, route.Name), err)
-		}
-	}
 
-	for i := range w.tlsRoutes {
-		route := &w.tlsRoutes[i]
-		key := outcomeKey("TLSRoute", route.Namespace, route.Name)
-
-		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
-
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			fresh, err := r.gwClient.GatewayV1alpha2().TLSRoutes(route.Namespace).
-				Get(ctx, route.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-
-			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
-			if !changed {
-				return nil
-			}
-
-			fresh.Status.Parents = desired
-
-			_, err = r.gwClient.GatewayV1alpha2().TLSRoutes(route.Namespace).
-				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
-
+	syncRouteStatuses(ctx, "TLSRoute", w.tlsRoutes, outcomes, controllerName,
+		func(ctx context.Context, namespace, name string) (*gatewayv1alpha2.TLSRoute, error) {
+			return v1alpha2.TLSRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		},
+		func(rt *gatewayv1alpha2.TLSRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1alpha2.TLSRoute) error {
+			_, err := v1alpha2.TLSRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
-		if err != nil {
-			logSyncError("tlsroute status", nsName(route.Namespace, route.Name), err)
-		}
-	}
 
-	for i := range w.udpRoutes {
-		route := &w.udpRoutes[i]
-		key := outcomeKey("UDPRoute", route.Namespace, route.Name)
-
-		ours := parentStatuses(outcomes[key], controllerName, route.Generation)
-
-		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			fresh, err := r.gwClient.GatewayV1alpha2().UDPRoutes(route.Namespace).
-				Get(ctx, route.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-
-			desired, changed := mergeParentStatuses(fresh.Status.Parents, ours, controllerName)
-			if !changed {
-				return nil
-			}
-
-			fresh.Status.Parents = desired
-
-			_, err = r.gwClient.GatewayV1alpha2().UDPRoutes(route.Namespace).
-				UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
-
+	syncRouteStatuses(ctx, "UDPRoute", w.udpRoutes, outcomes, controllerName,
+		func(ctx context.Context, namespace, name string) (*gatewayv1alpha2.UDPRoute, error) {
+			return v1alpha2.UDPRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		},
+		func(rt *gatewayv1alpha2.UDPRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1alpha2.UDPRoute) error {
+			_, err := v1alpha2.UDPRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
-		if err != nil {
-			logSyncError("udproute status", nsName(route.Namespace, route.Name), err)
-		}
-	}
 }
 
 // parentStatuses renders this controller's status.parents[] entries for

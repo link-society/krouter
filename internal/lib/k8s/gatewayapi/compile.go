@@ -449,26 +449,34 @@ func (r *Engine) resolveCertificates(
 
 // ---------------------------------------------------------------- routes --
 
-// attachRoutes computes every (route, gateway) attachment outcome and
-// increments per-listener attachedRoutes counts (docs/spec/status.md).
-func (r *Engine) attachRoutes(
+// attachAll computes every (route, gateway) attachment outcome for one
+// route kind (docs/spec/status.md): each parentRef resolving onto this
+// Gateway or one of its ListenerSets yields one outcome, attached against
+// the owner's listeners only (docs/spec/frontend.md Listener sets).
+func attachAll[R any, PR interface {
+	*R
+	GetNamespace() string
+}](
 	w *world,
 	gw *gatewayv1.Gateway,
 	sets []*listenerSetState,
 	listeners []*listenerState,
+	routes []R,
+	parentRefs func(PR) []gatewayv1.ParentReference,
+	attach func(*world, *gatewayv1.Gateway, []*listenerState, PR, gatewayv1.ParentReference) *routeParentOutcome,
 ) []*routeParentOutcome {
 	var outcomes []*routeParentOutcome
 
-	for i := range w.routes {
-		route := &w.routes[i]
+	for i := range routes {
+		route := PR(&routes[i])
 
-		for _, parentRef := range route.Spec.ParentRefs {
-			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
+		for _, parentRef := range parentRefs(route) {
+			ownerKey, ok := resolveRouteParent(parentRef, route.GetNamespace(), gw, sets)
 			if !ok {
 				continue
 			}
 
-			outcome := r.attachRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
+			outcome := attach(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
 			outcomes = append(outcomes, outcome)
 		}
 	}
@@ -583,6 +591,19 @@ func admitListeners(
 	return admitted, ""
 }
 
+// admitByHostname narrows admitted listeners to those whose hostname
+// intersects the route's (docs/spec/traffic.md).
+func admitByHostname(listeners []*listenerState, hostnames []gatewayv1.Hostname) []*listenerState {
+	var admitted []*listenerState
+	for _, lst := range listeners {
+		if hostnamesIntersect(lst.spec.Hostname, hostnames) {
+			admitted = append(admitted, lst)
+		}
+	}
+
+	return admitted
+}
+
 func (r *Engine) attachRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
@@ -604,13 +625,7 @@ func (r *Engine) attachRoute(
 		return outcome
 	}
 
-	var admitted []*listenerState
-	for _, lst := range namespaceAdmitted {
-		if hostnamesIntersect(lst.spec.Hostname, route.Spec.Hostnames) {
-			admitted = append(admitted, lst)
-		}
-	}
-
+	admitted := admitByHostname(namespaceAdmitted, route.Spec.Hostnames)
 	if len(admitted) == 0 {
 		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingListenerHostname)
 		return outcome
@@ -632,34 +647,64 @@ func (r *Engine) attachRoute(
 	return outcome
 }
 
-// attachTCPRoutes computes every (TCPRoute, gateway) attachment outcome
-// (docs/spec/traffic.md): TCPRoutes attach to TCP listeners only and carry
-// no hostname, path or filter semantics.
-func (r *Engine) attachTCPRoutes(
+// attachL4Route finishes a TCPRoute, UDPRoute or TLSRoute attachment
+// after kind-specific admission (docs/spec/traffic.md): rules carry no
+// matching semantics on L4 routes, so a route declaring more than one
+// rule is ambiguous and rejected with UnsupportedValue, never partially
+// applied.
+func (r *Engine) attachL4Route(
 	w *world,
-	gw *gatewayv1.Gateway,
-	sets []*listenerSetState,
-	listeners []*listenerState,
-) []*routeParentOutcome {
-	var outcomes []*routeParentOutcome
+	admitted []*listenerState,
+	kind string,
+	meta metav1.ObjectMeta,
+	hostnames []gatewayv1.Hostname,
+	rules [][]gatewayv1.BackendRef,
+	outcome *routeParentOutcome,
+) *routeParentOutcome {
+	if len(rules) != 1 {
+		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
+		return outcome
+	}
 
-	for i := range w.tcpRoutes {
-		route := &w.tcpRoutes[i]
+	outcome.accepted = true
+	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
 
-		for _, parentRef := range route.Spec.ParentRefs {
-			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
-			if !ok {
-				continue
-			}
+	for _, lst := range admitted {
+		lst.attachedRoutes++
+	}
 
-			outcome := r.attachTCPRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
-			outcomes = append(outcomes, outcome)
+	config := &compiled.RouteConfig{
+		UID:       string(meta.UID),
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Created:   meta.CreationTimestamp.Unix(),
+	}
+
+	for _, lst := range admitted {
+		if lst.valid() {
+			config.Listeners = append(config.Listeners, lst.effectiveName())
 		}
 	}
 
-	return outcomes
+	for _, hostname := range hostnames {
+		config.Hostnames = append(config.Hostnames, string(hostname))
+	}
+
+	rule := compiled.Rule{}
+	for _, backendRef := range rules[0] {
+		rule.Backends = append(rule.Backends,
+			r.compileBackend(w, meta.Namespace, kind, backendRef, outcome))
+	}
+
+	config.Rules = append(config.Rules, rule)
+	outcome.config = config
+
+	return outcome
 }
 
+// attachTCPRoute computes one (TCPRoute, gateway) attachment outcome
+// (docs/spec/traffic.md): TCPRoutes attach to TCP listeners only and
+// carry no hostname, path or filter semantics.
 func (r *Engine) attachTCPRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
@@ -681,71 +726,20 @@ func (r *Engine) attachTCPRoute(
 		return outcome
 	}
 
-	if len(route.Spec.Rules) != 1 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
-		return outcome
+	rules := make([][]gatewayv1.BackendRef, 0, len(route.Spec.Rules))
+	for _, rule := range route.Spec.Rules {
+		rules = append(rules, rule.BackendRefs)
 	}
 
-	outcome.accepted = true
-	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
-
-	for _, lst := range admitted {
-		lst.attachedRoutes++
-	}
-
-	config := &compiled.RouteConfig{
-		UID:       string(route.UID),
-		Namespace: route.Namespace,
-		Name:      route.Name,
-		Created:   route.CreationTimestamp.Unix(),
-	}
-
-	for _, lst := range admitted {
-		if lst.valid() {
-			config.Listeners = append(config.Listeners, lst.effectiveName())
-		}
-	}
-
-	rule := compiled.Rule{}
-	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
-		rule.Backends = append(rule.Backends,
-			r.compileBackend(w, route.Namespace, "TCPRoute", backendRef, outcome))
-	}
-
-	config.Rules = append(config.Rules, rule)
-	outcome.config = config
-
-	return outcome
+	return r.attachL4Route(w, admitted, "TCPRoute", route.ObjectMeta, nil, rules, outcome)
 }
 
 // attachUDPRoutes computes every (UDPRoute, gateway) attachment outcome
 // (docs/spec/traffic.md): UDPRoutes attach to UDP listeners only and carry
 // no hostname, path or filter semantics.
-func (r *Engine) attachUDPRoutes(
-	w *world,
-	gw *gatewayv1.Gateway,
-	sets []*listenerSetState,
-	listeners []*listenerState,
-) []*routeParentOutcome {
-	var outcomes []*routeParentOutcome
-
-	for i := range w.udpRoutes {
-		route := &w.udpRoutes[i]
-
-		for _, parentRef := range route.Spec.ParentRefs {
-			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
-			if !ok {
-				continue
-			}
-
-			outcome := r.attachUDPRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
-			outcomes = append(outcomes, outcome)
-		}
-	}
-
-	return outcomes
-}
-
+// attachUDPRoute computes one (UDPRoute, gateway) attachment outcome
+// (docs/spec/traffic.md): UDPRoutes attach to UDP listeners only and
+// carry no hostname, path or filter semantics.
 func (r *Engine) attachUDPRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
@@ -767,71 +761,17 @@ func (r *Engine) attachUDPRoute(
 		return outcome
 	}
 
-	if len(route.Spec.Rules) != 1 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
-		return outcome
+	rules := make([][]gatewayv1.BackendRef, 0, len(route.Spec.Rules))
+	for _, rule := range route.Spec.Rules {
+		rules = append(rules, rule.BackendRefs)
 	}
 
-	outcome.accepted = true
-	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
-
-	for _, lst := range admitted {
-		lst.attachedRoutes++
-	}
-
-	config := &compiled.RouteConfig{
-		UID:       string(route.UID),
-		Namespace: route.Namespace,
-		Name:      route.Name,
-		Created:   route.CreationTimestamp.Unix(),
-	}
-
-	for _, lst := range admitted {
-		if lst.valid() {
-			config.Listeners = append(config.Listeners, lst.effectiveName())
-		}
-	}
-
-	rule := compiled.Rule{}
-	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
-		rule.Backends = append(rule.Backends,
-			r.compileBackend(w, route.Namespace, "UDPRoute", backendRef, outcome))
-	}
-
-	config.Rules = append(config.Rules, rule)
-	outcome.config = config
-
-	return outcome
+	return r.attachL4Route(w, admitted, "UDPRoute", route.ObjectMeta, nil, rules, outcome)
 }
 
-// attachTLSRoutes computes every (TLSRoute, gateway) attachment outcome
+// attachTLSRoute computes one (TLSRoute, gateway) attachment outcome
 // (docs/spec/traffic.md): TLSRoutes attach to TLS passthrough listeners,
 // matched by SNI hostname intersection.
-func (r *Engine) attachTLSRoutes(
-	w *world,
-	gw *gatewayv1.Gateway,
-	sets []*listenerSetState,
-	listeners []*listenerState,
-) []*routeParentOutcome {
-	var outcomes []*routeParentOutcome
-
-	for i := range w.tlsRoutes {
-		route := &w.tlsRoutes[i]
-
-		for _, parentRef := range route.Spec.ParentRefs {
-			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
-			if !ok {
-				continue
-			}
-
-			outcome := r.attachTLSRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
-			outcomes = append(outcomes, outcome)
-		}
-	}
-
-	return outcomes
-}
-
 func (r *Engine) attachTLSRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
@@ -853,85 +793,19 @@ func (r *Engine) attachTLSRoute(
 		return outcome
 	}
 
-	var admitted []*listenerState
-	for _, lst := range namespaceAdmitted {
-		if hostnamesIntersect(lst.spec.Hostname, route.Spec.Hostnames) {
-			admitted = append(admitted, lst)
-		}
-	}
-
+	admitted := admitByHostname(namespaceAdmitted, route.Spec.Hostnames)
 	if len(admitted) == 0 {
 		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingListenerHostname)
 		return outcome
 	}
 
-	if len(route.Spec.Rules) != 1 {
-		outcome.acceptedReason = string(gatewayv1.RouteReasonUnsupportedValue)
-		return outcome
+	rules := make([][]gatewayv1.BackendRef, 0, len(route.Spec.Rules))
+	for _, rule := range route.Spec.Rules {
+		rules = append(rules, rule.BackendRefs)
 	}
 
-	outcome.accepted = true
-	outcome.acceptedReason = string(gatewayv1.RouteReasonAccepted)
-
-	for _, lst := range admitted {
-		lst.attachedRoutes++
-	}
-
-	config := &compiled.RouteConfig{
-		UID:       string(route.UID),
-		Namespace: route.Namespace,
-		Name:      route.Name,
-		Created:   route.CreationTimestamp.Unix(),
-	}
-
-	for _, lst := range admitted {
-		if lst.valid() {
-			config.Listeners = append(config.Listeners, lst.effectiveName())
-		}
-	}
-
-	for _, hostname := range route.Spec.Hostnames {
-		config.Hostnames = append(config.Hostnames, string(hostname))
-	}
-
-	rule := compiled.Rule{}
-	for _, backendRef := range route.Spec.Rules[0].BackendRefs {
-		rule.Backends = append(rule.Backends,
-			r.compileBackend(w, route.Namespace, "TLSRoute", backendRef, outcome))
-	}
-
-	config.Rules = append(config.Rules, rule)
-	outcome.config = config
-
-	return outcome
-}
-
-// attachGRPCRoutes computes every (GRPCRoute, gateway) attachment outcome
-// (docs/spec/traffic.md gRPC routing): GRPCRoutes attach to HTTP and HTTPS
-// listeners alongside HTTPRoutes, with the same hostname semantics.
-func (r *Engine) attachGRPCRoutes(
-	w *world,
-	gw *gatewayv1.Gateway,
-	sets []*listenerSetState,
-	listeners []*listenerState,
-) []*routeParentOutcome {
-	var outcomes []*routeParentOutcome
-
-	for i := range w.grpcRoutes {
-		route := &w.grpcRoutes[i]
-
-		for _, parentRef := range route.Spec.ParentRefs {
-			ownerKey, ok := resolveRouteParent(parentRef, route.Namespace, gw, sets)
-			if !ok {
-				continue
-			}
-
-			outcome := r.attachGRPCRoute(w, gw, listenersOwnedBy(listeners, ownerKey), route, parentRef)
-			outcomes = append(outcomes, outcome)
-		}
-	}
-
-	return outcomes
+	return r.attachL4Route(
+		w, admitted, "TLSRoute", route.ObjectMeta, route.Spec.Hostnames, rules, outcome)
 }
 
 func (r *Engine) attachGRPCRoute(
@@ -955,13 +829,7 @@ func (r *Engine) attachGRPCRoute(
 		return outcome
 	}
 
-	var admitted []*listenerState
-	for _, lst := range namespaceAdmitted {
-		if hostnamesIntersect(lst.spec.Hostname, route.Spec.Hostnames) {
-			admitted = append(admitted, lst)
-		}
-	}
-
+	admitted := admitByHostname(namespaceAdmitted, route.Spec.Hostnames)
 	if len(admitted) == 0 {
 		outcome.acceptedReason = string(gatewayv1.RouteReasonNoMatchingListenerHostname)
 		return outcome
