@@ -118,6 +118,23 @@ func (f *Forwarder) Serve(downstream net.Conn, port int32) {
 		return
 	}
 
+	// Replay the recorded ClientHello: the backend performs the handshake
+	// with the original client bytes (docs/spec/traffic.md).
+	f.forward(downstream, selection, port, sni, "", recorded, start)
+}
+
+// forward dials the backend, optionally replays prefix bytes into it,
+// splices the stream with the backend, and emits the metrics and access
+// log shared by the passthrough and terminate paths
+// (docs/spec/observability.md).
+func (f *Forwarder) forward(
+	stream net.Conn,
+	selection Selection,
+	port int32,
+	sni, mode string,
+	prefix []byte,
+	start time.Time,
+) {
 	backend, err := net.DialTimeout("tcp", selection.Endpoint, f.dialTimeout)
 	if err != nil {
 		connectionsTotal.WithLabelValues("error").Inc()
@@ -132,34 +149,43 @@ func (f *Forwarder) Serve(downstream net.Conn, port int32) {
 	}
 	defer backend.Close()
 
-	// Replay the recorded ClientHello: the backend performs the handshake
-	// with the original client bytes (docs/spec/traffic.md).
-	if _, err := backend.Write(recorded); err != nil {
-		connectionsTotal.WithLabelValues("error").Inc()
+	if len(prefix) > 0 {
+		if _, err := backend.Write(prefix); err != nil {
+			connectionsTotal.WithLabelValues("error").Inc()
 
-		return
+			return
+		}
 	}
 
 	activeConnections.Inc()
 	defer activeConnections.Dec()
 
-	received, sent := tcp.Splice(downstream, backend)
+	received, sent := tcp.Splice(stream, backend)
 
 	connectionsTotal.WithLabelValues("forwarded").Inc()
 
 	// One access-log event per closed connection (docs/spec/observability.md).
-	slog.Info("tls connection closed",
+	attrs := []any{
 		"gateway", selection.Gateway,
 		"route", selection.Route,
 		"backend", selection.Backend,
 		"endpoint", selection.Endpoint,
-		"client", downstream.RemoteAddr().String(),
+		"client", stream.RemoteAddr().String(),
 		"protocol", "TLS",
+	}
+
+	if mode != "" {
+		attrs = append(attrs, "mode", mode)
+	}
+
+	attrs = append(attrs,
 		"sni", sni,
 		"duration", time.Since(start).String(),
-		"bytes_received", received+int64(len(recorded)),
+		"bytes_received", received+int64(len(prefix)),
 		"bytes_sent", sent,
 	)
+
+	slog.Info("tls connection closed", attrs...)
 }
 
 // serveTerminated handles a Terminate-mode listener
@@ -204,40 +230,7 @@ func (f *Forwarder) serveTerminated(
 
 	downstream.SetReadDeadline(time.Time{})
 
-	backend, err := net.DialTimeout("tcp", selection.Endpoint, f.dialTimeout)
-	if err != nil {
-		connectionsTotal.WithLabelValues("error").Inc()
-		slog.Error("tls backend dial failed",
-			"port", port,
-			"sni", sni,
-			"endpoint", selection.Endpoint,
-			"error", err,
-		)
-
-		return
-	}
-	defer backend.Close()
-
-	activeConnections.Inc()
-	defer activeConnections.Dec()
-
-	received, sent := tcp.Splice(tlsConn, backend)
-
-	connectionsTotal.WithLabelValues("forwarded").Inc()
-
-	slog.Info("tls connection closed",
-		"gateway", selection.Gateway,
-		"route", selection.Route,
-		"backend", selection.Backend,
-		"endpoint", selection.Endpoint,
-		"client", downstream.RemoteAddr().String(),
-		"protocol", "TLS",
-		"mode", "terminate",
-		"sni", sni,
-		"duration", time.Since(start).String(),
-		"bytes_received", received,
-		"bytes_sent", sent,
-	)
+	f.forward(tlsConn, selection, port, sni, "terminate", nil, start)
 }
 
 // replayConn prepends the recorded ClientHello bytes to the connection's
