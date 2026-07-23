@@ -34,7 +34,7 @@ resources.
 | Conformance target | Every test in the `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS` profiles, Core and Extended: the suite MUST skip only Mesh-profile tests; TCPRoute and UDPRoute have no conformance profile in v1.5.1 and are verified by the krouter test suite (plus the provisional UDPRoute conformance test) |
 | Route types | HTTPRoute, GRPCRoute, TCPRoute, TLSRoute, and UDPRoute |
 | Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, TLS passthrough, and UDP |
-| Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends; raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends; UDP datagrams for UDPRoute backends; HTTPS to backends covered by a BackendTLSPolicy |
+| Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends and Service ports declaring `appProtocol: kubernetes.io/h2c`; WebSocket upgrade passthrough (incl. `appProtocol: kubernetes.io/ws`); raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends; UDP datagrams for UDPRoute backends; HTTPS to backends covered by a BackendTLSPolicy |
 | Listeners | HTTP, HTTPS with TLS termination, TCP, TLS in Passthrough mode, and UDP |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
@@ -64,8 +64,8 @@ the SNI value and never holds the certificate. TLS listeners in
 - Gateway API Standard Extended features other than the supported
   HTTPRoute filters, rule timeouts, named rules, value-less Gateway
   addresses, parentRef port matching, method and query-parameter
-  matching, and listener isolation: CORS, per-backendRef filters,
-  non-default backend protocols, misdirected-request detection,
+  matching, listener isolation, and backend protocol selection: CORS,
+  per-backendRef filters, misdirected-request detection,
   infrastructure propagation, static Gateway addresses, and
   client-certificate validation.
 - BackendTLSPolicy `subjectAltNames` validation and `options`.

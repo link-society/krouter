@@ -162,6 +162,10 @@ plane access to or compiling a cross-namespace backend reference.
   forward them still encrypted.
 - Use HTTP/1.1 for connections to backend endpoints of HTTP routes, and
   cleartext HTTP/2 (h2c) with preserved trailers for gRPC routes.
+- Honor the backend Service port `appProtocol`: `kubernetes.io/h2c`
+  backends are dialed with cleartext HTTP/2, and `kubernetes.io/ws`
+  backends over HTTP/1.1 with standard upgrade passthrough. WebSocket
+  upgrades MUST traverse the proxy end to end.
 - Terminate HTTPS using certificates referenced by Gateway listeners.
 - Support standard HTTP upgrade behavior required by the Core conformance
   profile.
