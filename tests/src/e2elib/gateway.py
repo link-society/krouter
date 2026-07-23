@@ -355,3 +355,41 @@ def reference_grant(
             "to": [to],
         },
     }
+
+
+def extension_ref(name: str) -> dict:
+    """
+    ExtensionRef filter referencing a core ConfigMap in the route's
+    namespace (docs/spec/extensions.md).
+    """
+
+    return {
+        "type": "ExtensionRef",
+        "extensionRef": {"group": "", "kind": "ConfigMap", "name": name},
+    }
+
+
+def extension_configmap(
+    name: str,
+    namespace: str,
+    ratelimit: str | None = None,
+    waf: str | None = None,
+) -> dict:
+    """
+    Extension ConfigMap carrying `ratelimit.hcl` and/or `waf.hcl`
+    (docs/spec/extensions.md).
+    """
+
+    data: dict = {}
+    if ratelimit is not None:
+        data["ratelimit.hcl"] = ratelimit
+
+    if waf is not None:
+        data["waf.hcl"] = waf
+
+    return {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {"name": name, "namespace": namespace},
+        "data": data,
+    }
