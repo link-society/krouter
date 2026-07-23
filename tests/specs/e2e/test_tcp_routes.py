@@ -155,3 +155,31 @@ def test_connection_survives_reload(stack):
 
     # New connections work against the new generation.
     assert net.tcp_greeting(ports.TCP_ROUTES).startswith(BACKEND + "-")
+
+
+def test_multi_rule_route_rejected(stack):
+    """
+    Rules carry no matching semantics on L4 routes: a TCPRoute declaring
+    more than one rule is ambiguous and MUST be rejected with reason
+    UnsupportedValue, never partially applied (docs/spec/traffic.md).
+    """
+
+    rule = {"backendRefs": [gw.backend_ref(BACKEND, backends.TCP_BACKEND_PORT)]}
+
+    kubectl.apply([
+        gw.tcp_route(
+            "multi-rule-route",
+            stack,
+            [gw.parent_ref("tcp-gw")],
+            rules=[rule, dict(rule)],
+        ),
+    ])
+
+    kubectl.wait_route_parent_condition(
+        "multi-rule-route",
+        stack,
+        "Accepted",
+        status="False",
+        reason="UnsupportedValue",
+        kind="tcproute",
+    )

@@ -233,6 +233,7 @@ def wait_route_parent_condition(
     status: str = "True",
     timeout: float = 120,
     kind: str = "httproute",
+    reason: str | None = None,
 ) -> dict:
     def check():
         route = get_or_none(kind, name, namespace)
@@ -241,8 +242,13 @@ def wait_route_parent_condition(
 
         for parent in route_parent_status(route):
             for cond in parent.get("conditions", []):
-                if cond.get("type") == cond_type and cond.get("status") == status:
-                    return cond
+                if cond.get("type") != cond_type or cond.get("status") != status:
+                    continue
+
+                if reason is not None and cond.get("reason") != reason:
+                    continue
+
+                return cond
 
         return None
 

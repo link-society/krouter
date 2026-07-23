@@ -201,13 +201,17 @@ def tcp_route(
     name: str,
     namespace: str,
     parent_refs: list[dict],
-    backend_refs: list[dict],
+    backend_refs: list[dict] | None = None,
+    rules: list[dict] | None = None,
 ) -> dict:
     """
     TCPRoute (Experimental channel, docs/spec/overview.md): no hostname,
     path or filter semantics — one rule forwarding raw streams to backends
-    (docs/spec/traffic.md).
+    (docs/spec/traffic.md). `rules` overrides the single generated rule.
     """
+
+    if rules is None:
+        rules = [{"backendRefs": backend_refs or []}]
 
     return {
         "apiVersion": "gateway.networking.k8s.io/v1alpha2",
@@ -215,9 +219,7 @@ def tcp_route(
         "metadata": {"name": name, "namespace": namespace},
         "spec": {
             "parentRefs": parent_refs,
-            "rules": [
-                {"backendRefs": backend_refs},
-            ],
+            "rules": rules,
         },
     }
 
@@ -226,13 +228,18 @@ def udp_route(
     name: str,
     namespace: str,
     parent_refs: list[dict],
-    backend_refs: list[dict],
+    backend_refs: list[dict] | None = None,
+    rules: list[dict] | None = None,
 ) -> dict:
     """
     UDPRoute (Experimental channel, docs/spec/overview.md): no hostname,
     path or filter semantics — one rule forwarding datagrams per client
-    flow to backends (docs/spec/traffic.md).
+    flow to backends (docs/spec/traffic.md). `rules` overrides the single
+    generated rule.
     """
+
+    if rules is None:
+        rules = [{"backendRefs": backend_refs or []}]
 
     return {
         "apiVersion": "gateway.networking.k8s.io/v1alpha2",
@@ -240,9 +247,7 @@ def udp_route(
         "metadata": {"name": name, "namespace": namespace},
         "spec": {
             "parentRefs": parent_refs,
-            "rules": [
-                {"backendRefs": backend_refs},
-            ],
+            "rules": rules,
         },
     }
 
