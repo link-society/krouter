@@ -8,7 +8,39 @@ configuration changes without dropping connections, and embeds a live
 dashboard of your gateways, routes and backends.
 
 The design, behavior and guarantees are described in the
-[specification](docs/spec/README.md).
+[specification](docs/spec/README.md); user documentation and tutorials
+live on the [website](https://krouter.cloud) (sources in
+[website/](website/)).
+
+## Features
+
+How krouter compares with other Gateway API implementations — including
+what it deliberately does **not** do. Based on each project's public
+documentation as of July 2026 (✅ supported · ◐ partial or via vendor
+extensions · — not provided):
+
+| Feature | krouter | Envoy Gateway | NGINX Gateway Fabric | Traefik | Istio |
+|---|:-:|:-:|:-:|:-:|:-:|
+| **Gateway API** | | | | | |
+| Core conformance (HTTP, GRPC, TLS profiles) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Every non-mesh Extended conformance test (v1.5.1) | ✅ | ◐ | ◐ | ◐ | ◐ |
+| TCPRoute, UDPRoute, TLSRoute | ✅ | ✅ | ◐ | ◐ | ✅ |
+| ListenerSet (merged listeners) | ✅ | ◐ | — | — | — |
+| BackendTLSPolicy (incl. SAN validation) | ✅ | ✅ | ◐ | — | ◐ |
+| Client certificate validation (frontend mTLS) | ✅ | ✅ | — | ✅ | ✅ |
+| CORS filter | ✅ | ✅ | — | ✅ | ✅ |
+| **Operations** | | | | | |
+| No custom CRDs required | ✅ | — | — | — | — |
+| Single binary and container image | ✅ | — | — | ✅ | — |
+| Hitless reloads (proven with 10,000 live connections) | ✅ | ✅ | ◐ | ✅ | ✅ |
+| Built-in live topology dashboard | ✅ | — | — | ✅ | ◐ |
+| Conformance report published with every build | ✅ | ◐ | ◐ | ◐ | ◐ |
+| **Beyond krouter's scope** | | | | | |
+| Service mesh (east-west traffic) | — | — | — | — | ✅ |
+| Rate limiting | — | ✅ | — | ✅ | ✅ |
+| Authentication / authorization policies | — | ✅ | — | ✅ | ✅ |
+| Retries and circuit breaking | — | ✅ | — | ✅ | ✅ |
+| Active backend health checks | — | ✅ | — | ✅ | ✅ |
 
 ## Prerequisites
 
