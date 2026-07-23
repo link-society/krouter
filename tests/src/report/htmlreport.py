@@ -226,7 +226,11 @@ body {
     Inter, sans-serif;
 }
 .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-header { background: var(--card); border-bottom: 1px solid var(--border); }
+header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
 header .wrap {
   display: flex; align-items: center; justify-content: space-between;
   padding-top: 20px; padding-bottom: 20px; gap: 16px; flex-wrap: wrap;
