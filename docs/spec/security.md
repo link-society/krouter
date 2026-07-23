@@ -17,6 +17,26 @@
   the SNI value from the ClientHello without decrypting anything, and the
   backend owns the TLS session end to end.
 
+## Frontend client certificate validation
+
+`Gateway.spec.tls.frontend` configures client-certificate validation for
+HTTPS listeners: `default.validation` applies to every HTTPS listener, and
+`perPort` entries override it for their port.
+
+- `caCertificateRefs` MUST reference core ConfigMaps (key `ca.crt`);
+  cross-namespace references require a ReferenceGrant. Invalid references
+  set the listener `ResolvedRefs` condition to False with reason
+  `InvalidCACertificateRef`, `InvalidCACertificateKind`, or
+  `RefNotPermitted`, and the listener is rejected with
+  `Accepted=False`/`NoValidCACertificate`.
+- Mode `AllowValidOnly` (default) requires a client certificate verified
+  against the configured CAs; handshakes without one fail.
+- Mode `AllowInsecureFallback` accepts connections with missing or invalid
+  client certificates. While any listener uses it, the Gateway publishes
+  the `InsecureFrontendValidationMode` condition with reason
+  `ConfigurationChanged`; the condition is removed when the mode returns
+  to `AllowValidOnly`.
+
 ## RBAC
 
 The installation follows least privilege within the constraints of a

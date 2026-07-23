@@ -67,8 +67,8 @@ decrypted stream to TLSRoute backends. Both modes MAY share one port
   Gateway addresses (value-less and static), parentRef port matching,
   method and query-parameter matching, listener isolation,
   misdirected-request detection, backend protocol selection,
-  per-backendRef filters, and infrastructure metadata propagation:
-  client-certificate validation.
+  per-backendRef filters, infrastructure metadata propagation, and
+  client-certificate validation (frontend and backend).
 - BackendTLSPolicy `options`.
 - Policy attachment to ListenerSets.
 - Experimental-channel resources and fields other than TCPRoute,
