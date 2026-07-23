@@ -267,7 +267,12 @@ func (r *Engine) ensureManifest(
 	}
 
 	previous := &compiled.Manifest{}
-	json.Unmarshal([]byte(existing.Data[compiled.ManifestKey]), previous)
+	if err := json.Unmarshal([]byte(existing.Data[compiled.ManifestKey]), previous); err != nil {
+		// A corrupted manifest is replaced wholesale: the generation
+		// objects it pointed at are re-collected by the next GC pass
+		// (docs/spec/configuration.md).
+		*previous = compiled.Manifest{}
+	}
 
 	if previous.Generation == manifest.Generation {
 		manifest.Previous = previous.Previous

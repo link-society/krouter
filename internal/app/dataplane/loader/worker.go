@@ -108,6 +108,13 @@ func (w *worker) rebuild(ctx actor.Context, raw configwatcher.RawConfig) {
 	w.state.Tables.Publish(merged)
 	w.state.Statuses.Publish(statuses)
 
-	w.tablesOut.Send(ctx, merged)
-	w.namespaces.Send(ctx, merged.Backends())
+	// Send only fails when a mailbox is closed during shutdown; the
+	// snapshots above already carry the new tables for the request path.
+	if err := w.tablesOut.Send(ctx, merged); err != nil {
+		slog.Debug("tables mailbox closed", "error", err)
+	}
+
+	if err := w.namespaces.Send(ctx, merged.Backends()); err != nil {
+		slog.Debug("namespaces mailbox closed", "error", err)
+	}
 }
