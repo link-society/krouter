@@ -39,7 +39,8 @@ resources.
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
 | Authentication | Out of scope |
-| Rate limiting | Out of scope |
+| Rate limiting | Per-rule token buckets via the `ExtensionRef` filter (docs/spec/extensions.md); enforcement is per data-plane pod |
+| Web application firewall | Coraza with the embedded OWASP Core Rule Set via the `ExtensionRef` filter (docs/spec/extensions.md) |
 | Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`), TLSRoute (`v1`), UDPRoute (`v1alpha2`), BackendTLSPolicy (`v1alpha3`), and ListenerSet (`v1`) |
 | Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring), HTTPRoute rule timeouts, named route rules (HTTPRoute and GRPCRoute), and Gateways whose `spec.addresses` entries carry no value are supported and verified by their Extended conformance tests; the remaining Extended features are listed under deferred work |
 
@@ -74,7 +75,9 @@ decrypted stream to TLSRoute backends. Both modes MAY share one port
 - Experimental-channel resources and fields other than TCPRoute,
   TLSRoute, UDPRoute, BackendTLSPolicy, and ListenerSet.
 - Authentication and authorization policies.
-- Rate limiting.
+- Distributed (cluster-coordinated) rate limiting, WAF response-phase
+  inspection, and in-tunnel WebSocket enforcement
+  (docs/spec/extensions.md).
 - Active backend health checks.
 - Per-Gateway compute isolation inside one installation.
 - Trusted upstream proxy configuration and Proxy Protocol.

@@ -59,3 +59,17 @@ The implementation is accepted when:
     skipped tests are those requiring the `MESH` profile and the
     "not supported" tests that skip themselves because krouter supports
     the corresponding feature (TLSRoute Terminate and mixed termination).
+23. WebSocket upgrades traverse the proxy end to end on HTTP and HTTPS
+    listeners, verified by end-to-end tests exchanging frames through
+    the gateway, surviving configuration reloads.
+24. `ExtensionRef` rate limiting enforces the configured token buckets
+    (exhaustion, `Retry-After`, per-header keys, recovery, WebSocket
+    handshakes), merges partial documents in filter order, fails closed
+    on broken references, and reloads on ConfigMap edits, verified by
+    end-to-end tests.
+25. `ExtensionRef` WAF inspection denies hostile requests and passes
+    clean traffic (HTTP, gRPC headers, WebSocket handshakes before any
+    hijack), composes layered directive fragments in filter order,
+    fails closed on broken references, and the gotestwaf suite scores
+    at or above the agreed threshold against a CRS-protected route,
+    runnable locally.

@@ -267,6 +267,10 @@ Gateway API semantics:
 GRPCRoute rules support `RequestHeaderModifier`, `ResponseHeaderModifier`,
 and `RequestMirror` with the same semantics.
 
+HTTPRoute and GRPCRoute rules additionally support `ExtensionRef` filters
+referencing core ConfigMaps, enabling per-rule rate limiting and WAF
+inspection (docs/spec/extensions.md).
+
 Backend references MAY carry their own filters (`backendRefs[].filters`):
 `RequestHeaderModifier` and `ResponseHeaderModifier` are supported and
 apply only to traffic forwarded to that backend, after the rule-level
@@ -281,7 +285,9 @@ A route using any other filter type, or a filter value outside the
 supported set, MUST be rejected with reason `UnsupportedValue` and MUST NOT
 be partially applied.
 
-No implementation-specific annotations or Route extensions are added.
+No implementation-specific annotations are interpreted, and no custom
+resources are defined: route extensions are limited to the `ExtensionRef`
+ConfigMap contract of docs/spec/extensions.md.
 
 ## Timeouts
 

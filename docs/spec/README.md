@@ -25,6 +25,7 @@ self-contained enough to be consulted on its own.
 | [parameters.md](parameters.md) | GatewayClass and Gateway parameters without custom resources |
 | [configuration.md](configuration.md) | Compiled configuration model, atomic publication, last-valid behavior, ownership and garbage collection |
 | [traffic.md](traffic.md) | Request path, connection lifecycle, hot reload, backend discovery, HTTP behavior |
+| [extensions.md](extensions.md) | ExtensionRef filters: rate limiting and Coraza WAF from ConfigMaps |
 | [security.md](security.md) | TLS material handling, RBAC, workload hardening |
 | [status.md](status.md) | Gateway API status ownership and data-plane acknowledgement |
 | [observability.md](observability.md) | Health endpoints, logging, metrics |
