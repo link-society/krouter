@@ -140,6 +140,9 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 
 		// Misdirected-request detection (docs/spec/traffic.md).
 		features.SupportGatewayHTTPSListenerDetectMisdirectedRequests,
+
+		// Infrastructure metadata propagation (docs/spec/frontend.md).
+		features.SupportGatewayInfrastructurePropagation,
 	}
 
 	slices.Sort(names)
