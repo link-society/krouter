@@ -7,7 +7,7 @@ weight: 4
 ## Live dashboard
 
 The control plane embeds a dashboard showing every gateway, route and
-backend as a live topology map — degraded paths (missing backends, rejected
+backend as a live topology map; degraded paths (missing backends, rejected
 routes) are highlighted, and clicking any node shows the underlying YAML.
 
 ```sh
@@ -45,11 +45,11 @@ variable.
   valid one stays active, and the rejection is visible in status
   conditions and the dashboard.
 - Unresolvable backends answer `500` for their traffic share; a rejected
-  BackendTLSPolicy fails closed with `502` — never a silent cleartext
-  fallback.
+  BackendTLSPolicy fails closed with `502` (never a silent cleartext
+  fallback).
 - Data-plane pods keep serving from their last applied configuration even
   if the control plane is down.
 
-Status is always written to the resources themselves — `kubectl describe
+Status is always written to the resources themselves: `kubectl describe
 gateway my-gw` tells you what krouter thinks, using only upstream
 condition types and reasons.

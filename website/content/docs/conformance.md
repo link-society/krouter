@@ -8,7 +8,7 @@ krouter treats the official
 [Gateway API conformance suite](https://gateway-api.sigs.k8s.io/concepts/conformance/)
 as its contract: **every non-mesh test in the `GATEWAY-HTTP`,
 `GATEWAY-GRPC` and `GATEWAY-TLS` profiles passes**, Core and Extended. The
-supported feature set is not hand-declared either — the suite infers it
+supported feature set is not hand-declared either: the suite infers it
 from what krouter publishes in `GatewayClass.status.supportedFeatures`, so
 an over-claimed feature would fail its own tests.
 
@@ -45,6 +45,6 @@ in `tests/results/conformance/report.yaml`.
 
 krouter is a gateway, not a service mesh: the `MESH` profile tests are the
 only skipped conformance tests. Rate limiting, authentication policies,
-retries and active health checks are also out of scope today — the
+retries and active health checks are also out of scope today; the
 [comparison table](/#how-krouter-compares) lists which alternatives cover
 those.

@@ -1,3 +1,3 @@
 ---
-title: "krouter — Kubernetes Gateway API router"
+title: "krouter: Kubernetes Gateway API router"
 ---

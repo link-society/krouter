@@ -69,7 +69,7 @@ HTTP/2 is negotiated automatically; `curl -v` shows `ALPN: server accepted h2`.
 
 ## 4. Rotate without downtime
 
-Update the Secret with a new certificate — krouter picks it up, activates
+Update the Secret with a new certificate: krouter picks it up, activates
 it atomically for new handshakes, and never terminates connections still
 using the previous one:
 
@@ -78,7 +78,7 @@ kubectl create secret tls hello-cert --cert=new.crt --key=new.key \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-A redirect rule is a nice finishing touch — send HTTP traffic to HTTPS
+A redirect rule is a nice finishing touch: send HTTP traffic to HTTPS
 with a `RequestRedirect` filter on the `http` listener; the
 [traffic management tutorial](/docs/tutorials/traffic-management/) shows
 how.

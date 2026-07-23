@@ -26,8 +26,8 @@ so readiness changes take effect without restarts (see
 Routes attach to Gateways through
 [parentRefs](https://gateway-api.sigs.k8s.io/concepts/api-overview/#attaching-routes-to-gateways):
 
-- `sectionName` pins one listener by name, `port` pins listeners by port —
-  combined, both must match.
+- `sectionName` pins one listener by name, `port` pins listeners by port
+  (combined, both must match).
 - The Gateway side controls admission with
   [allowedRoutes](https://gateway-api.sigs.k8s.io/api-types/gateway/#allowedroutes):
   namespaces (`Same`, `All`, or a
@@ -49,12 +49,12 @@ route. Requests that match nothing get `404` (HTTP) or `UNIMPLEMENTED`
 
 All Standard-channel filters are supported with upstream semantics:
 
-- `RequestHeaderModifier` / `ResponseHeaderModifier` — also per
+- `RequestHeaderModifier` / `ResponseHeaderModifier`: also per
   `backendRefs[].filters`, applied only to that backend's share.
-- `RequestRedirect` — scheme, hostname, port, path, and status codes.
-- `URLRewrite` — hostname and path replacement.
-- `RequestMirror` — one or many mirrors, with percentage sampling.
-- `CORS` — preflights answered at the gateway, wildcard and credentialed
+- `RequestRedirect`: scheme, hostname, port, path, and status codes.
+- `URLRewrite`: hostname and path replacement.
+- `RequestMirror`: one or many mirrors, with percentage sampling.
+- `CORS`: preflights answered at the gateway, wildcard and credentialed
   origins handled per the
   [Fetch specification](https://fetch.spec.whatwg.org/#http-cors-protocol).
 
@@ -62,12 +62,12 @@ Weighted `backendRefs` split traffic for
 [canary-style rollouts](https://kubernetes.io/docs/concepts/cluster-administration/manage-deployment/#canary-deployments),
 and `rules[].timeouts` enforces request and backend deadlines. A route
 using anything krouter does not support is rejected in full with
-`UnsupportedValue` — never partially applied.
+`UnsupportedValue` (never partially applied).
 
 ## Cross-namespace references
 
-Any reference crossing a namespace boundary — route backends, listener
-certificates, CA bundles — requires a
+Any reference crossing a namespace boundary (route backends, listener
+certificates, CA bundles) requires a
 [ReferenceGrant](https://gateway-api.sigs.k8s.io/api-types/referencegrant/)
 in the target namespace. This keeps namespace isolation under the control
 of the namespace owner, complementing Kubernetes

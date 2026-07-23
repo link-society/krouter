@@ -29,7 +29,7 @@ spec:
 ```
 
 GRPCRoute backends always speak cleartext HTTP/2 (h2c) with trailers
-preserved — streaming and rich error details work end to end.
+preserved: streaming and rich error details work end to end.
 
 ## 2. Attach a GRPCRoute
 

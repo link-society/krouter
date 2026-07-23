@@ -11,8 +11,8 @@ old URLs working and observing the new version with mirrored traffic.
 
 ## Canary with weighted backends
 
-Split traffic 90/10 between two Services — the pattern behind
-[canary deployments](https://kubernetes.io/docs/concepts/cluster-administration/manage-deployment/#canary-deployments):
+Split traffic 90/10 between two Services (the pattern behind
+[canary deployments](https://kubernetes.io/docs/concepts/cluster-administration/manage-deployment/#canary-deployments)):
 
 ```yaml
 rules:
@@ -67,7 +67,7 @@ rules:
         port: 80
 ```
 
-Header modifiers also exist per backend (`backendRefs[].filters`) — useful
+Header modifiers also exist per backend (`backendRefs[].filters`), useful
 to tag which side of a canary handled a request.
 
 ## Mirror traffic to a shadow deployment
@@ -82,7 +82,7 @@ filters:
       percent: 20
 ```
 
-Mirrored requests never influence the client response — failures and
+Mirrored requests never influence the client response: failures and
 responses from the mirror are discarded.
 
 ## Enforce timeouts
@@ -111,7 +111,7 @@ filters:
       maxAge: 3600
 ```
 
-Preflight `OPTIONS` requests are answered directly at the gateway — they
-never reach your backends.
+Preflight `OPTIONS` requests are answered directly at the gateway (they
+never reach your backends).
 
 **Next:** [route gRPC services](/docs/tutorials/grpc/).

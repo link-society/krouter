@@ -6,7 +6,7 @@ params:
   level: "Advanced"
 ---
 
-**Use case:** a zero-trust posture — clients must present certificates,
+**Use case:** a zero-trust posture. Clients must present certificates,
 and traffic to backends is re-encrypted and verified, both configured with
 standard resources only.
 
@@ -49,8 +49,8 @@ spec:
 - The default mode, `AllowValidOnly`, rejects handshakes without a valid
   client certificate.
 - `AllowInsecureFallback` also admits clients with missing or invalid
-  certificates — the Gateway then advertises the
-  `InsecureFrontendValidationMode` condition so the relaxation is visible.
+  certificates (the Gateway then advertises the
+  `InsecureFrontendValidationMode` condition so the relaxation is visible).
 
 Test it:
 
@@ -87,7 +87,7 @@ spec:
 ```
 
 With `subjectAltNames`, the backend certificate must match at least one
-entry (DNS or [SPIFFE](https://spiffe.io) URI) — `hostname` is then only
+entry (DNS or [SPIFFE](https://spiffe.io) URI); `hostname` is then only
 used for SNI. Verification failures fail **closed**: krouter answers
 `502` rather than ever falling back to cleartext.
 

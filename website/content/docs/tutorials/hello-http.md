@@ -98,10 +98,10 @@ GW_IP=$(kubectl get gateway edge -o jsonpath='{.status.addresses[0].value}')
 curl -H 'Host: hello.example.com' "http://$GW_IP/"
 ```
 
-Run it a few times: responses alternate between the two pods — that is the
+Run it a few times: responses alternate between the two pods (that is the
 round-robin balancing across ready
 [EndpointSlice](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/)
-endpoints.
+endpoints).
 
 Check what krouter reported back:
 

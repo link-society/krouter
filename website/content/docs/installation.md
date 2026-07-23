@@ -33,13 +33,13 @@ kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/re
 > [installation guide](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api)
 > for channel details.
 
-If you only need HTTP and HTTPS, the Standard channel works too — krouter
+If you only need HTTP and HTTPS, the Standard channel works too: krouter
 detects missing experimental CRDs and degrades gracefully.
 
 ## 2. Deploy krouter
 
-Everything — namespace, RBAC, control-plane Deployment, data-plane
-DaemonSet and dashboard Service — is one static manifest:
+Everything (namespace, RBAC, control-plane Deployment, data-plane
+DaemonSet and dashboard Service) is one static manifest:
 
 ```sh
 kubectl apply -f https://raw.githubusercontent.com/link-society/krouter/main/k8s/krouter.yaml

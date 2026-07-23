@@ -1,12 +1,12 @@
 ---
 title: "L4: TCP, UDP and TLS"
-description: "Forward raw TCP streams, UDP flows, and TLS by SNI — passthrough or terminated at the gateway."
+description: "Forward raw TCP streams, UDP flows, and TLS by SNI (passthrough or terminated at the gateway)."
 weight: 5
 params:
   level: "Intermediate"
 ---
 
-**Use case:** expose non-HTTP workloads — databases, DNS, MQTT, anything —
+**Use case:** expose non-HTTP workloads (databases, DNS, MQTT, anything)
 through the same gateway infrastructure.
 
 These route kinds come from the Gateway API
@@ -46,7 +46,7 @@ spec:
           port: 5432
 ```
 
-Established connections survive configuration reloads — they keep their
+Established connections survive configuration reloads: they keep their
 selected backend until either side closes.
 
 ## UDP flows
@@ -78,7 +78,7 @@ idle expiry), so request/response protocols like
 [DNS](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/)
 behave correctly.
 
-## TLS by SNI — passthrough
+## TLS by SNI (passthrough)
 
 The gateway routes on the SNI value without ever decrypting; your backend
 keeps sole ownership of the TLS session:
@@ -113,7 +113,7 @@ completes.
 
 ## TLS terminated at the gateway
 
-Switch the mode and reference a certificate — krouter terminates the
+Switch the mode and reference a certificate: krouter terminates the
 session and forwards the decrypted stream as raw TCP. Both modes can even
 share one port, selected per connection by SNI:
 

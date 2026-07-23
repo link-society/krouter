@@ -5,8 +5,8 @@ description: "Everything a DevOps engineer needs to install, configure and opera
 
 krouter is a [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io)
 implementation and reverse proxy. It routes HTTP, gRPC, TCP, UDP and TLS
-traffic, is configured entirely through standard Kubernetes resources — no
-custom CRDs — and applies every configuration change without dropping
+traffic, is configured entirely through standard Kubernetes resources (no
+custom CRDs), and applies every configuration change without dropping
 connections.
 
 If you are new to the Gateway API itself, start with the upstream
@@ -38,13 +38,13 @@ configuration keeps serving.
 
 ## Where to go next
 
-- [Installation](/docs/installation/) — prerequisites and deployment.
-- [Configuration](/docs/configuration/) — GatewayClass, parameters,
+- [Installation](/docs/installation/): prerequisites and deployment.
+- [Configuration](/docs/configuration/): GatewayClass, parameters,
   listeners and TLS material.
-- [Routing](/docs/routing/) — route kinds, matching, filters and
+- [Routing](/docs/routing/): route kinds, matching, filters and
   cross-namespace policies.
-- [Observability](/docs/observability/) — dashboard, metrics and logs.
-- [Conformance & testing](/docs/conformance/) — how krouter is verified,
+- [Observability](/docs/observability/): dashboard, metrics and logs.
+- [Conformance & testing](/docs/conformance/): how krouter is verified,
   including the full [test report](/report/report.html).
-- [Tutorials](/docs/tutorials/) — hands-on walkthroughs from a first route
+- [Tutorials](/docs/tutorials/): hands-on walkthroughs from a first route
   to full mutual TLS.

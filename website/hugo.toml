@@ -1,6 +1,6 @@
 baseURL = "https://krouter.cloud/"
 locale = "en-us"
-title = "krouter — Kubernetes Gateway API router"
+title = "krouter: Kubernetes Gateway API router"
 disableKinds = ["taxonomy", "term", "rss"]
 
 [params]

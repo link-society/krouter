@@ -7,7 +7,7 @@ params:
 ---
 
 **Use case:** a platform team owns the edge; application teams attach
-routes — and even whole listeners — from their own
+routes (and even whole listeners) from their own
 [namespaces](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/),
 without being able to step on each other. This mirrors the Gateway API's
 [role-oriented design](https://gateway-api.sigs.k8s.io/concepts/roles-and-personas/).
@@ -51,7 +51,7 @@ Team A then writes a normal HTTPRoute in `team-a` with
 
 Any reference crossing namespaces needs an explicit
 [ReferenceGrant](https://gateway-api.sigs.k8s.io/api-types/referencegrant/)
-**in the target namespace** — the owner of the data stays in control:
+**in the target namespace** (the owner of the data stays in control):
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -74,8 +74,8 @@ targets.
 
 ## Delegate whole listeners with ListenerSets
 
-Teams that need their own listeners — their own ports, hostnames and
-certificates — get a `ListenerSet` instead of write access to the Gateway:
+Teams that need their own listeners (their own ports, hostnames and
+certificates) get a `ListenerSet` instead of write access to the Gateway:
 
 ```yaml
 # Platform side: opt in explicitly (default is: none allowed).
@@ -116,7 +116,7 @@ per entry on the ListenerSet, and counts accepted sets in the Gateway's
 `attachedListenerSets`. Routes may target the set directly with
 `parentRefs: [{kind: ListenerSet, name: team-a-listeners}]`.
 
-That's the full tour — from one route to a multi-tenant edge. For the
+That's the full tour, from one route to a multi-tenant edge. For the
 guarantees behind all of it, read the
 [conformance page](/docs/conformance/) and the
 [test report](/report/report.html).
