@@ -119,10 +119,30 @@ func (r *Engine) ensureFrontend(
 		Controller: ptr.To(true),
 	}
 
-	annotations := map[string]string{compiled.PortMapAnnotation: portMapJSON}
+	annotations := map[string]string{}
+	labels := map[string]string{}
+
+	// Infrastructure metadata propagation (docs/spec/frontend.md): user
+	// metadata first, krouter-owned keys last so they cannot be overridden.
+	if gw.Spec.Infrastructure != nil {
+		for key, value := range gw.Spec.Infrastructure.Annotations {
+			annotations[string(key)] = string(value)
+		}
+
+		for key, value := range gw.Spec.Infrastructure.Labels {
+			labels[string(key)] = string(value)
+		}
+	}
+
 	for key, value := range infra.Service.Annotations {
 		annotations[key] = value
 	}
+	annotations[compiled.PortMapAnnotation] = portMapJSON
+
+	for key, value := range compiled.BaseLabels(string(gw.UID)) {
+		labels[key] = value
+	}
+	labels["gateway.networking.k8s.io/gateway-name"] = gw.Name
 
 	existing, err := services.Get(ctx, name, metav1.GetOptions{})
 
@@ -130,7 +150,7 @@ func (r *Engine) ensureFrontend(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
 			Namespace:       gw.Namespace,
-			Labels:          compiled.BaseLabels(string(gw.UID)),
+			Labels:          labels,
 			Annotations:     annotations,
 			OwnerReferences: []metav1.OwnerReference{ownerRef},
 		},
