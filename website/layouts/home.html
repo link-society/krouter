@@ -1,0 +1,164 @@
+{{ define "main" }}
+<section class="hero is-link hero-landing">
+  <div class="hero-body">
+    <div class="container has-text-centered">
+      <h1 class="title is-1 hero-title">Route everything.<br>Break nothing.</h1>
+      <p class="subtitle is-4 hero-subtitle">
+        krouter is a Kubernetes-native gateway built on the official
+        Gateway&nbsp;API — one tiny binary that routes HTTP, gRPC, TCP, UDP
+        and TLS without ever dropping a connection.
+      </p>
+      <div class="buttons is-centered">
+        <a class="button is-white is-medium" href="{{ "/docs/installation/" | relURL }}">
+          <strong>Get started</strong>
+        </a>
+        <a class="button is-link is-inverted is-outlined is-medium" href="{{ site.Params.github }}">
+          View on GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section stats-strip">
+  <div class="container">
+    <div class="columns is-mobile is-multiline has-text-centered">
+      <div class="column"><p class="stat-number">713</p><p class="stat-label">automated tests on every build</p></div>
+      <div class="column"><p class="stat-number">630</p><p class="stat-label">Gateway API conformance checks</p></div>
+      <div class="column"><p class="stat-number">0</p><p class="stat-label">custom CRDs to learn</p></div>
+      <div class="column"><p class="stat-number">1</p><p class="stat-label">binary to run</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2 class="title is-3 has-text-centered">Why teams pick krouter</h2>
+    <div class="columns is-multiline mt-5">
+      <div class="column is-4">
+        <div class="feature-card">
+          <h3 class="title is-5">Standards, not lock-in</h3>
+          <p>Pure Gateway API v1.5.1. Your Gateways and Routes are portable
+          Kubernetes resources — adopt krouter today, swap it out tomorrow,
+          keep your YAML forever.</p>
+        </div>
+      </div>
+      <div class="column is-4">
+        <div class="feature-card">
+          <h3 class="title is-5">Hitless by design</h3>
+          <p>Configuration changes apply atomically. Ten thousand live
+          connections survive every reload and certificate rotation — and a
+          release gate proves it, every time.</p>
+        </div>
+      </div>
+      <div class="column is-4">
+        <div class="feature-card">
+          <h3 class="title is-5">Five protocols, one gateway</h3>
+          <p>HTTP, gRPC, raw TCP, UDP and TLS — passthrough or terminated —
+          through the same tiny data plane. No sidecars, no fleet of proxies
+          to babysit.</p>
+        </div>
+      </div>
+      <div class="column is-4">
+        <div class="feature-card">
+          <h3 class="title is-5">Proof, not promises</h3>
+          <p>Every build ships with the full official conformance report:
+          630 checks, zero failures. <a href="{{ "/report/report.html" | relURL }}">Read
+          the latest report</a> — we publish it as-is.</p>
+        </div>
+      </div>
+      <div class="column is-4">
+        <div class="feature-card">
+          <h3 class="title is-5">See your traffic</h3>
+          <p>A live dashboard is built in: gateways, routes and backends as
+          an always-current topology map, with degraded paths highlighted
+          before your users notice.</p>
+        </div>
+      </div>
+      <div class="column is-4">
+        <div class="feature-card">
+          <h3 class="title is-5">Secure at both ends</h3>
+          <p>Terminate TLS, validate client certificates, re-encrypt to
+          backends with SAN-verified policies — mTLS in and out, configured
+          entirely through standard resources.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section comparison-section">
+  <div class="container">
+    <h2 class="title is-3 has-text-centered">How krouter compares</h2>
+    <p class="has-text-centered has-text-grey mb-5">
+      An honest look at what krouter does — and deliberately does not do —
+      next to other Gateway API implementations.
+    </p>
+
+    <div class="table-container">
+      <table class="table is-fullwidth comparison-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            {{ range hugo.Data.comparison.columns }}
+              <th class="has-text-centered{{ if eq . "krouter" }} is-krouter{{ end }}">{{ . }}</th>
+            {{ end }}
+          </tr>
+        </thead>
+        <tbody>
+          {{ range hugo.Data.comparison.groups }}
+            <tr class="group-row">
+              <td colspan="{{ add (len hugo.Data.comparison.columns) 1 }}">{{ .name }}</td>
+            </tr>
+            {{ range .rows }}
+              <tr>
+                <td>{{ .feature }}</td>
+                {{ range $i, $value := .values }}
+                  {{ $v := printf "%v" $value }}
+                  <td class="has-text-centered{{ if eq $i 0 }} is-krouter{{ end }}">
+                    {{ if or (eq $v "true") (eq $v "yes") }}<span class="mark-yes" title="Supported">✓</span>
+                    {{ else if eq $v "partial" }}<span class="mark-partial" title="Partial or via extensions">◐</span>
+                    {{ else }}<span class="mark-no" title="Not provided">—</span>{{ end }}
+                  </td>
+                {{ end }}
+              </tr>
+            {{ end }}
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+
+    <p class="is-size-7 has-text-grey has-text-centered">
+      ✓ supported &nbsp;·&nbsp; ◐ partial or via vendor extensions &nbsp;·&nbsp; — not provided.
+      Based on each project's public documentation as of July 2026 — always
+      check upstream for the latest state.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container get-started">
+    <h2 class="title is-3 has-text-centered">Up and running in three commands</h2>
+    <div class="columns mt-5">
+      <div class="column">
+        <p class="step-label">1 · Install the Gateway API CRDs</p>
+        <pre><code>kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/experimental-install.yaml</code></pre>
+      </div>
+      <div class="column">
+        <p class="step-label">2 · Deploy krouter</p>
+        <pre><code>kubectl apply -f https://raw.githubusercontent.com/link-society/krouter/main/k8s/krouter.yaml</code></pre>
+      </div>
+      <div class="column">
+        <p class="step-label">3 · Create your first Gateway</p>
+        <pre><code>kubectl apply -f my-gateway.yaml
+# then follow the tutorials!</code></pre>
+      </div>
+    </div>
+    <div class="has-text-centered mt-5">
+      <a class="button is-link is-medium" href="{{ "/docs/tutorials/hello-http/" | relURL }}">
+        Start the first tutorial
+      </a>
+    </div>
+  </div>
+</section>
+{{ end }}

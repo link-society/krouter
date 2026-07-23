@@ -1,0 +1,25 @@
+<aside class="menu docs-menu">
+  <p class="menu-label">Documentation</p>
+  <ul class="menu-list">
+    {{ $docs := site.GetPage "/docs" }}
+    <li><a href="{{ $docs.RelPermalink }}"{{ if eq . $docs }} class="is-active"{{ end }}>Overview</a></li>
+    {{ range where $docs.RegularPages "Weight" "gt" 0 }}
+      <li><a href="{{ .RelPermalink }}"{{ if eq . $ }} class="is-active"{{ end }}>{{ .LinkTitle }}</a></li>
+    {{ end }}
+  </ul>
+
+  <p class="menu-label">Tutorials</p>
+  <ul class="menu-list">
+    {{ $tutorials := site.GetPage "/docs/tutorials" }}
+    {{ range $tutorials.RegularPages.ByWeight }}
+      <li><a href="{{ .RelPermalink }}"{{ if eq . $ }} class="is-active"{{ end }}>{{ .LinkTitle }}</a></li>
+    {{ end }}
+  </ul>
+
+  <p class="menu-label">Reference</p>
+  <ul class="menu-list">
+    <li><a href="{{ "/report/report.html" | relURL }}">Test report</a></li>
+    <li><a href="https://gateway-api.sigs.k8s.io">Gateway API docs</a></li>
+    <li><a href="https://kubernetes.io/docs/">Kubernetes docs</a></li>
+  </ul>
+</aside>

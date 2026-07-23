@@ -1,0 +1,203 @@
+/* krouter website — on top of vendored Bulma (static/vendor/bulma.min.css). */
+
+:root {
+  --krouter-link: #485fc7;
+  --krouter-ink: #1a202c;
+}
+
+/* ------------------------------------------------------------- navbar -- */
+
+.navbar .brand-mark {
+  width: 26px;
+  height: 26px;
+  margin-right: 0.5rem;
+}
+
+.navbar .brand-name {
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+
+.navbar .gh-mark {
+  width: 20px;
+  height: 20px;
+}
+
+.navbar .release-badge img {
+  height: 20px;
+}
+
+/* --------------------------------------------------------------- hero -- */
+
+.hero-landing {
+  background: linear-gradient(160deg, #3850b7 0%, #485fc7 55%, #5a71d8 100%);
+}
+
+.hero-landing .hero-body {
+  padding-top: 6rem;
+  padding-bottom: 6rem;
+}
+
+.hero-title {
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.hero-subtitle {
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 720px;
+  margin: 1.5rem auto 2.5rem !important;
+}
+
+/* -------------------------------------------------------------- stats -- */
+
+.stats-strip {
+  border-bottom: 1px solid #e3e8ee;
+  padding-top: 2.5rem;
+  padding-bottom: 2.5rem;
+}
+
+.stat-number {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--krouter-link);
+  line-height: 1.1;
+}
+
+.stat-label {
+  color: #64748b;
+}
+
+/* ------------------------------------------------------ feature cards -- */
+
+.feature-card {
+  height: 100%;
+  padding: 1.75rem;
+  border: 1px solid #e3e8ee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.feature-card .title {
+  margin-bottom: 0.75rem;
+}
+
+.feature-card p {
+  color: #4a5568;
+}
+
+/* ---------------------------------------------------------- comparison -- */
+
+.comparison-section {
+  background: #f6f8fb;
+}
+
+.comparison-table {
+  background: #fff;
+  border: 1px solid #e3e8ee;
+  border-radius: 12px;
+}
+
+.comparison-table th.is-krouter,
+.comparison-table td.is-krouter {
+  background: rgba(72, 95, 199, 0.07);
+}
+
+.comparison-table .group-row td {
+  background: #f1f4f9;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+}
+
+.mark-yes {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.mark-partial {
+  color: #d97706;
+}
+
+.mark-no {
+  color: #cbd5e1;
+}
+
+/* ---------------------------------------------------------- get started -- */
+
+.get-started .step-label {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.get-started pre {
+  border-radius: 10px;
+  background: #1e2430;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---------------------------------------------------------------- docs -- */
+
+.docs-container {
+  padding: 3rem 1.5rem 5rem;
+}
+
+.docs-menu {
+  position: sticky;
+  top: 2rem;
+}
+
+.docs-content h2 {
+  margin-top: 2.5rem;
+}
+
+.docs-content .section-card {
+  height: 100%;
+  display: block;
+}
+
+.docs-content .section-card:hover {
+  border-color: var(--krouter-link);
+}
+
+.docs-content pre {
+  border-radius: 8px;
+}
+
+.docs-content blockquote {
+  border-left-color: var(--krouter-link);
+  background: rgba(72, 95, 199, 0.05);
+}
+
+/* -------------------------------------------------------------- footer -- */
+
+.footer {
+  background: #1a202c;
+  color: #cbd5e1;
+}
+
+.footer .footer-brand {
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: #fff;
+}
+
+.footer .menu-label {
+  color: #94a3b8;
+}
+
+.footer a {
+  color: #a5b4fc;
+}
+
+.footer-links {
+  list-style: none;
+  margin: 0;
+}

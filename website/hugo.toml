@@ -1,0 +1,31 @@
+baseURL = "https://krouter.cloud/"
+locale = "en-us"
+title = "krouter — Kubernetes Gateway API router"
+disableKinds = ["taxonomy", "term", "rss"]
+
+[params]
+  description = "krouter is a production-grade Kubernetes Gateway API implementation: one binary, no CRDs of its own, hitless reloads, and a live dashboard."
+  github = "https://github.com/link-society/krouter"
+  releaseBadge = "https://img.shields.io/github/v/release/link-society/krouter?display_name=tag&sort=semver&label=release&color=485fc7"
+
+[markup.goldmark.renderer]
+  # Documentation pages embed curated raw HTML (tables, notices).
+  unsafe = true
+
+[markup.highlight]
+  style = "monokai"
+  noClasses = true
+
+[menus]
+  [[menus.main]]
+    name = "Documentation"
+    url = "/docs/"
+    weight = 10
+  [[menus.main]]
+    name = "Tutorials"
+    url = "/docs/tutorials/"
+    weight = 20
+  [[menus.main]]
+    name = "Test report"
+    url = "/report/report.html"
+    weight = 30

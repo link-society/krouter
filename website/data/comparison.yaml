@@ -1,0 +1,53 @@
+# Feature comparison shown on the landing page (and mirrored in the README).
+# Verified against each project's public documentation as of July 2026.
+# yes = supported, partial = partial/via extensions, no = not provided.
+columns:
+  - krouter
+  - Envoy Gateway
+  - NGINX Gateway Fabric
+  - Traefik
+  - Istio
+
+groups:
+  - name: Gateway API
+    rows:
+      - feature: "Core conformance (HTTP, GRPC, TLS profiles)"
+        values: [yes, yes, yes, yes, yes]
+      - feature: "Every non-mesh Extended conformance test (v1.5.1)"
+        values: [yes, partial, partial, partial, partial]
+      - feature: "TCPRoute, UDPRoute, TLSRoute"
+        values: [yes, yes, partial, partial, yes]
+      - feature: "ListenerSet (merged listeners)"
+        values: [yes, partial, no, no, no]
+      - feature: "BackendTLSPolicy (incl. SAN validation)"
+        values: [yes, yes, partial, no, partial]
+      - feature: "Client certificate validation (frontend mTLS)"
+        values: [yes, yes, no, yes, yes]
+      - feature: "CORS filter"
+        values: [yes, yes, no, yes, yes]
+
+  - name: Operations
+    rows:
+      - feature: "No custom CRDs required"
+        values: [yes, no, no, no, no]
+      - feature: "Single binary and container image"
+        values: [yes, no, no, yes, no]
+      - feature: "Hitless reloads (proven with 10,000 live connections)"
+        values: [yes, yes, partial, yes, yes]
+      - feature: "Built-in live topology dashboard"
+        values: [yes, no, no, yes, partial]
+      - feature: "Conformance report published with every build"
+        values: [yes, partial, partial, partial, partial]
+
+  - name: Beyond krouter's scope
+    rows:
+      - feature: "Service mesh (east-west traffic)"
+        values: [no, no, no, no, yes]
+      - feature: "Rate limiting"
+        values: [no, yes, no, yes, yes]
+      - feature: "Authentication / authorization policies"
+        values: [no, yes, no, yes, yes]
+      - feature: "Retries and circuit breaking"
+        values: [no, yes, no, yes, yes]
+      - feature: "Active backend health checks"
+        values: [no, yes, no, yes, yes]

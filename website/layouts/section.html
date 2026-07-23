@@ -1,0 +1,30 @@
+{{ define "main" }}
+<div class="container docs-container">
+  <div class="columns">
+    <div class="column is-3">
+      {{ partial "docs-nav.html" . }}
+    </div>
+    <div class="column is-9">
+      <article class="content docs-content">
+        <h1 class="title is-2">{{ .Title }}</h1>
+        {{ with .Description }}<p class="subtitle is-5 has-text-grey">{{ . }}</p>{{ end }}
+        {{ .Content }}
+
+        {{ if .RegularPages }}
+          <div class="columns is-multiline mt-4">
+            {{ range .RegularPages.ByWeight }}
+              <div class="column is-6">
+                <a class="box section-card" href="{{ .RelPermalink }}">
+                  <p class="title is-5">{{ .LinkTitle }}</p>
+                  <p class="has-text-grey">{{ .Description }}</p>
+                  {{ with .Params.level }}<span class="tag is-link is-light">{{ . }}</span>{{ end }}
+                </a>
+              </div>
+            {{ end }}
+          </div>
+        {{ end }}
+      </article>
+    </div>
+  </div>
+</div>
+{{ end }}
