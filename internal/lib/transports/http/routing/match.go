@@ -47,6 +47,10 @@ func (t *Tables) match(
 	// longest-prefix path, then method presence, then most header matches,
 	// then most query-parameter matches, then the oldest route (name as
 	// final tie-break), then rule/match order within the route.
+	//
+	// Listener isolation (docs/spec/traffic.md): only the most specific
+	// listener whose hostname matches the request authority serves it;
+	// routes attached to less specific listeners never apply.
 	var (
 		bestRule     *RuleTable
 		bestListener *ListenerTable
@@ -54,8 +58,20 @@ func (t *Tables) match(
 		bestScore    matchScore
 	)
 
+	winning := -1
 	for _, listener := range table.listeners {
 		if !hostnameMatches(listener.hostname, host) {
+			continue
+		}
+
+		if score := hostnameScore(listener.hostname); score > winning {
+			winning = score
+		}
+	}
+
+	for _, listener := range table.listeners {
+		if !hostnameMatches(listener.hostname, host) ||
+			hostnameScore(listener.hostname) != winning {
 			continue
 		}
 
