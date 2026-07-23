@@ -1,0 +1,142 @@
+---
+# Standing WAF target for the gotestwaf evaluation (docs/spec/extensions.md
+# Verification, docs/spec/acceptance.md criterion 25).
+#
+# One Gateway serving one HTTPRoute protected by a CRS-backed ExtensionRef
+# WAF ConfigMap, backed by the httpbin mock (`task mocks:load`). The
+# Gateway requests NodePort 30104, published on 127.0.0.1 by the kind
+# cluster (tests/config/kind/cluster.yaml).
+#
+# Run the evaluation with `task tests:waf`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: waf-target
+---
+# Same object as tests/config/conformance/gatewayclass.yaml — applying both
+# is idempotent.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: krouter
+spec:
+  controllerName: link-society.com/krouter
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waf-gateway-params
+  namespace: waf-target
+data:
+  krouter.hcl: |
+    version = 1
+
+    service {
+      type                    = "NodePort"
+      external_traffic_policy = "Local"
+
+      node_ports = {
+        "http" = 30104
+      }
+    }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: waf-target
+  namespace: waf-target
+spec:
+  gatewayClassName: krouter
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: waf-gateway-params
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+---
+# The embedded OWASP Core Rule Set in blocking mode
+# (docs/spec/extensions.md Web application firewall).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waf-crs
+  namespace: waf-target
+data:
+  waf.hcl: |
+    version = 1
+
+    waf {
+      directives = <<-EOT
+        Include @coraza.conf-recommended
+        Include @crs-setup.conf.example
+        Include @owasp_crs/*.conf
+        SecRuleEngine On
+      EOT
+    }
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: waf-target
+  namespace: waf-target
+spec:
+  parentRefs:
+    - name: waf-target
+  rules:
+    - filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: ""
+            kind: ConfigMap
+            name: waf-crs
+      backendRefs:
+        - name: httpbin
+          port: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpbin
+  namespace: waf-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: httpbin
+  template:
+    metadata:
+      labels:
+        app: httpbin
+    spec:
+      containers:
+        - name: httpbin
+          image: ghcr.io/link-society/krouter-mock-httpbin:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "8080"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /hostname
+              port: 8080
+            periodSeconds: 2
+            failureThreshold: 2
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpbin
+  namespace: waf-target
+spec:
+  selector:
+    app: httpbin
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

@@ -68,6 +68,31 @@ tasks:
     cmds:
       - pdm run -p tests pytest tests/specs/performance -m performance {{.CLI_ARGS}}
 
+  waf:
+    desc: Evaluate the ExtensionRef WAF with gotestwaf against the standing CRS target (docs/spec/extensions.md, docs/spec/acceptance.md criterion 25)
+    deps: [install-deps, ':mocks:load']
+    vars:
+      WAF_MIN_SCORE: '{{.WAF_MIN_SCORE | default "50"}}'
+    cmds:
+      - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/waf/manifest.yml
+      - kubectl --context {{.KIND_CONTEXT}} -n waf-target rollout status deployment/httpbin --timeout=180s
+      - kubectl --context {{.KIND_CONTEXT}} -n waf-target wait --for=condition=Programmed --timeout=180s gateway/waf-target
+      - mkdir -p tests/results/waf
+      # The kind cluster publishes NodePort 30104 on 127.0.0.1; the
+      # container reaches it through the host network.
+      - >-
+        docker run --rm --network host
+        -v {{.ROOT_DIR}}/tests/results/waf:/app/reports
+        wallarm/gotestwaf
+        --url=http://127.0.0.1:30104
+        --wafName=krouter
+        --noEmailReport
+        --skipWAFIdentification
+        --reportFormat=json,html
+        --reportName=waf-evaluation
+        {{.CLI_ARGS}}
+      - pdm run -p tests python tests/src/report/wafgate.py tests/results/waf/waf-evaluation.json {{.WAF_MIN_SCORE}}
+
   all:
     desc: Run unit, e2e, conformance and performance suites
     cmds:
