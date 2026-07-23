@@ -13,10 +13,13 @@ import (
 // LoadGeneration verifies every object listed in a manifest before building
 // tables: a generation activates only when it is complete, has the expected
 // identity, and matches its checksums (docs/spec/configuration.md).
+// previous is the gateway's live table, if any: unchanged backend
+// transports are adopted from it.
 func LoadGeneration(
 	manifest *compiled.Manifest,
 	configMaps map[string]*corev1.ConfigMap,
 	secrets map[string]*corev1.Secret,
+	previous *GatewayTable,
 ) (*GatewayTable, error) {
 	var gatewayConfig *compiled.GatewayConfig
 	var routes []*compiled.RouteConfig
@@ -83,5 +86,5 @@ func LoadGeneration(
 		return nil, fmt.Errorf("manifest lists no gateway configuration")
 	}
 
-	return BuildGatewayTable(manifest.Generation, gatewayConfig, routes, secret)
+	return BuildGatewayTable(manifest.Generation, gatewayConfig, routes, secret, previous)
 }

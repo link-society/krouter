@@ -203,6 +203,10 @@ type BackendTable struct {
 	// rule-level filters (docs/spec/traffic.md Routing and filters).
 	filters []compiled.Filter
 
+	// tlsKey fingerprints the TLS client configuration behind
+	// tlsTransport, so equivalent transports are adopted across table
+	// swaps and pooled connections survive (docs/spec/configuration.md).
+	tlsKey string
 	// tlsTransport carries requests to a backend covered by a
 	// BackendTLSPolicy; tlsInvalid marks a rejected policy whose backend
 	// MUST fail closed (docs/spec/traffic.md Backend TLS).

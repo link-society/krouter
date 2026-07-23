@@ -19,11 +19,15 @@ import (
 )
 
 // BuildGatewayTable turns verified compiled payloads into runtime tables.
+// Backend transports whose TLS configuration is unchanged since the
+// previous table are adopted, so pooled connections survive table swaps
+// (docs/spec/configuration.md).
 func BuildGatewayTable(
 	generation string,
 	gateway *compiled.GatewayConfig,
 	routes []*compiled.RouteConfig,
 	secret *corev1.Secret,
+	previous *GatewayTable,
 ) (*GatewayTable, error) {
 	table := &GatewayTable{
 		Generation: generation,
@@ -98,27 +102,31 @@ func BuildGatewayTable(
 		listeners[lst.Name] = entry
 	}
 
+	// Backend client certificate (docs/spec/traffic.md Backend TLS):
+	// presented on every backend TLS connection of the gateway.
+	var clientCert *tls.Certificate
+	var clientCertSum string
+	if gateway.BackendClientCert && secret != nil {
+		certPem := secret.Data[compiled.BackendClientCertKey]
+		keyPem := secret.Data[compiled.BackendClientKeyKey]
+
+		cert, err := tls.X509KeyPair(certPem, keyPem)
+		if err != nil {
+			return nil, fmt.Errorf("invalid backend client certificate: %w", err)
+		}
+
+		clientCert = &cert
+		clientCertSum = compiled.ChecksumBytes(append(certPem, keyPem...))
+	}
+
+	transports := previousTransports(previous)
+
 	for _, route := range routes {
 		rt := &RouteTable{
 			namespace: route.Namespace,
 			name:      route.Name,
 			hostnames: route.Hostnames,
 			created:   route.Created,
-		}
-
-		// Backend client certificate (docs/spec/traffic.md Backend TLS):
-		// presented on every backend TLS connection of the gateway.
-		var clientCert *tls.Certificate
-		if gateway.BackendClientCert && secret != nil {
-			cert, err := tls.X509KeyPair(
-				secret.Data[compiled.BackendClientCertKey],
-				secret.Data[compiled.BackendClientKeyKey],
-			)
-			if err != nil {
-				return nil, fmt.Errorf("invalid backend client certificate: %w", err)
-			}
-
-			clientCert = &cert
 		}
 
 		for _, rule := range route.Rules {
@@ -145,7 +153,7 @@ func BuildGatewayTable(
 				}
 
 				entry.mirrors = append(entry.mirrors, &MirrorTable{
-					backend: buildBackendTable(*filter.Mirror, clientCert),
+					backend: buildBackendTable(*filter.Mirror, clientCert, clientCertSum, transports),
 					percent: percent,
 				})
 
@@ -160,7 +168,7 @@ func BuildGatewayTable(
 					continue
 				}
 
-				entry.backends = append(entry.backends, buildBackendTable(backend, clientCert))
+				entry.backends = append(entry.backends, buildBackendTable(backend, clientCert, clientCertSum, transports))
 				entry.total += int64(weight)
 
 				if backend.Valid {
@@ -189,13 +197,71 @@ func BuildGatewayTable(
 	return table, nil
 }
 
+// previousTransports indexes the previous table's backend transports by
+// TLS fingerprint, so unchanged configurations keep their connection
+// pools across table swaps (docs/spec/configuration.md).
+func previousTransports(previous *GatewayTable) map[string]*http.Transport {
+	cache := map[string]*http.Transport{}
+	if previous == nil {
+		return cache
+	}
+
+	adopt := func(b *BackendTable) {
+		if b.tlsTransport != nil && b.tlsKey != "" {
+			cache[b.tlsKey] = b.tlsTransport
+		}
+	}
+
+	for _, port := range previous.byPort {
+		for _, lst := range port.listeners {
+			for _, rt := range lst.routes {
+				for _, rule := range rt.rules {
+					for _, backend := range rule.backends {
+						adopt(backend)
+					}
+
+					for _, mirror := range rule.mirrors {
+						adopt(mirror.backend)
+					}
+				}
+			}
+		}
+	}
+
+	return cache
+}
+
+// backendTLSFingerprint identifies a backend TLS client configuration:
+// transports with equal fingerprints are interchangeable
+// (docs/spec/configuration.md).
+func backendTLSFingerprint(backendTLS *compiled.BackendTLS, clientCertSum string) string {
+	key := backendTLS.Hostname + "|" + clientCertSum + "|"
+
+	if backendTLS.SystemCAs {
+		key += "system"
+	} else {
+		key += compiled.ChecksumBytes([]byte(backendTLS.CAPem))
+	}
+
+	for _, san := range backendTLS.SubjectAltNames {
+		key += "|" + san.Type + ":" + san.Value
+	}
+
+	return key
+}
+
 // buildBackendTable compiles one backend, including its BackendTLSPolicy
 // transport when present (docs/spec/traffic.md Backend TLS): the transport
 // verifies the backend certificate against the policy CAs and sends the
 // policy hostname as SNI; subjectAltNames replace hostname verification,
 // and the gateway's client certificate is presented when configured.
 // Rejected policies fail closed.
-func buildBackendTable(backend compiled.Backend, clientCert *tls.Certificate) *BackendTable {
+func buildBackendTable(
+	backend compiled.Backend,
+	clientCert *tls.Certificate,
+	clientCertSum string,
+	transports map[string]*http.Transport,
+) *BackendTable {
 	entry := &BackendTable{
 		namespace: backend.Namespace,
 		name:      backend.Name,
@@ -212,6 +278,12 @@ func buildBackendTable(backend compiled.Backend, clientCert *tls.Certificate) *B
 
 	if backend.TLS.Invalid {
 		entry.tlsInvalid = true
+		return entry
+	}
+
+	entry.tlsKey = backendTLSFingerprint(backend.TLS, clientCertSum)
+	if transport, ok := transports[entry.tlsKey]; ok {
+		entry.tlsTransport = transport
 		return entry
 	}
 
@@ -251,6 +323,7 @@ func buildBackendTable(backend compiled.Backend, clientCert *tls.Certificate) *B
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 	}
+	transports[entry.tlsKey] = entry.tlsTransport
 
 	return entry
 }

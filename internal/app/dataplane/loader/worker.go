@@ -74,7 +74,7 @@ func (w *worker) rebuild(ctx actor.Context, raw configwatcher.RawConfig) {
 			}
 
 			var table *routing.GatewayTable
-			table, err = routing.LoadGeneration(manifest, raw.ConfigMaps, raw.Secrets)
+			table, err = routing.LoadGeneration(manifest, raw.ConfigMaps, raw.Secrets, w.applied[uid])
 			if err == nil {
 				applied[uid] = table
 				status.AppliedGeneration = manifest.Generation
