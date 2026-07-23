@@ -66,6 +66,14 @@ EndpointSlices in the same namespace. These slices:
 The Service behaves as a normal selectorless Kubernetes Service backed by
 controller-managed EndpointSlices.
 
+## Gateway addresses
+
+The Gateway publishes the generated Service's address in
+`status.addresses`. `spec.addresses` entries that carry a type but no
+value MUST be accepted: the controller assigns the address exactly as if
+the field were unset. Listeners MAY use any valid port, including
+registered ports such as 8080.
+
 ## Internal listener ports
 
 Different Gateways may expose identical external listener ports and

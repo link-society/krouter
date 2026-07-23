@@ -54,3 +54,6 @@ The implementation is accepted when:
     with conflict rejection, per-set route binding, ReferenceGrant
     semantics, and set statuses — passes the corresponding conformance
     tests.
+22. The Gateway API conformance suite passes every non-Mesh test in the
+    `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS` profiles: the only
+    skipped tests are those requiring the `MESH` profile.

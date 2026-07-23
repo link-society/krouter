@@ -76,6 +76,8 @@ and exits non-zero if any suite failed, errored or crashed.
 | 18 | GatewayClass supportedFeatures publication | `task tests:conformance` |
 | 19 | UDPRoute per-flow forwarding, same guarantees | `task tests:e2e` + `task tests:conformance` |
 | 20 | BackendTLSPolicy re-encryption | `task tests:conformance` |
+| 21 | ListenerSet attachment | `task tests:conformance` |
+| 22 | Only Mesh-profile conformance tests are skipped | `task tests:conformance` |
 | 21 | ListenerSet attachment and merging | `task tests:conformance` |
 
 The e2e suite is organized as one test module per criterion (plus one for

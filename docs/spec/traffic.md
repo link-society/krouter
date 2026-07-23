@@ -196,6 +196,9 @@ Gateway API semantics:
 GRPCRoute rules support `RequestHeaderModifier`, `ResponseHeaderModifier`,
 and `RequestMirror` with the same semantics.
 
+HTTPRoute and GRPCRoute rules MAY be named (`rules[].name`). Rule names
+MUST be accepted and preserved; they carry no routing behavior.
+
 A route using any other filter type, or a filter value outside the
 supported set, MUST be rejected with reason `UnsupportedValue` and MUST NOT
 be partially applied.
