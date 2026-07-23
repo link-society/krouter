@@ -108,6 +108,14 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		// HTTPRoute rule timeouts (docs/spec/acceptance.md criterion 17).
 		features.SupportHTTPRouteRequestTimeout,
 		features.SupportHTTPRouteBackendTimeout,
+
+		// Full non-mesh conformance (docs/spec/acceptance.md criterion 22):
+		// listeners on any port, named route rules, and value-less Gateway
+		// addresses (docs/spec/frontend.md Gateway addresses).
+		features.SupportGatewayPort8080,
+		features.SupportGatewayAddressEmpty,
+		features.SupportHTTPRouteNamedRouteRule,
+		features.SupportGRPCRouteNamedRouteRule,
 	}
 
 	slices.Sort(names)
