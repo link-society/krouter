@@ -170,6 +170,7 @@ func outcomeKey(kind, namespace, name string) string {
 type gatewayStatusInput struct {
 	accepted     metav1.Condition
 	programmed   metav1.Condition
+	resolvedRefs metav1.Condition
 	address      string
 	listeners    []*listenerState
 	gatewayAcked bool

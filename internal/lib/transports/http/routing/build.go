@@ -77,6 +77,21 @@ func BuildGatewayTable(
 			created:   route.Created,
 		}
 
+		// Backend client certificate (docs/spec/traffic.md Backend TLS):
+		// presented on every backend TLS connection of the gateway.
+		var clientCert *tls.Certificate
+		if gateway.BackendClientCert && secret != nil {
+			cert, err := tls.X509KeyPair(
+				secret.Data[compiled.BackendClientCertKey],
+				secret.Data[compiled.BackendClientKeyKey],
+			)
+			if err != nil {
+				return nil, fmt.Errorf("invalid backend client certificate: %w", err)
+			}
+
+			clientCert = &cert
+		}
+
 		for _, rule := range route.Rules {
 			entry := &RuleTable{
 				matches:        rule.Matches,
@@ -101,7 +116,7 @@ func BuildGatewayTable(
 				}
 
 				entry.mirrors = append(entry.mirrors, &MirrorTable{
-					backend: buildBackendTable(*filter.Mirror),
+					backend: buildBackendTable(*filter.Mirror, clientCert),
 					percent: percent,
 				})
 
@@ -116,7 +131,7 @@ func BuildGatewayTable(
 					continue
 				}
 
-				entry.backends = append(entry.backends, buildBackendTable(backend))
+				entry.backends = append(entry.backends, buildBackendTable(backend, clientCert))
 				entry.total += int64(weight)
 
 				if backend.Valid {
@@ -148,8 +163,10 @@ func BuildGatewayTable(
 // buildBackendTable compiles one backend, including its BackendTLSPolicy
 // transport when present (docs/spec/traffic.md Backend TLS): the transport
 // verifies the backend certificate against the policy CAs and sends the
-// policy hostname as SNI. Rejected policies fail closed.
-func buildBackendTable(backend compiled.Backend) *BackendTable {
+// policy hostname as SNI; subjectAltNames replace hostname verification,
+// and the gateway's client certificate is presented when configured.
+// Rejected policies fail closed.
+func buildBackendTable(backend compiled.Backend, clientCert *tls.Certificate) *BackendTable {
 	entry := &BackendTable{
 		namespace: backend.Namespace,
 		name:      backend.Name,
@@ -171,14 +188,27 @@ func buildBackendTable(backend compiled.Backend) *BackendTable {
 
 	config := &tls.Config{ServerName: backend.TLS.Hostname}
 
+	if clientCert != nil {
+		config.Certificates = []tls.Certificate{*clientCert}
+	}
+
+	var pool *x509.CertPool
 	if !backend.TLS.SystemCAs {
-		pool := x509.NewCertPool()
+		pool = x509.NewCertPool()
 		if !pool.AppendCertsFromPEM([]byte(backend.TLS.CAPem)) {
 			entry.tlsInvalid = true
 			return entry
 		}
 
 		config.RootCAs = pool
+	}
+
+	if len(backend.TLS.SubjectAltNames) > 0 {
+		// SAN validation replaces hostname verification: the chain is
+		// still verified against the CAs, hostname is SNI-only
+		// (docs/spec/traffic.md Backend TLS).
+		config.InsecureSkipVerify = true
+		config.VerifyPeerCertificate = sanVerifier(pool, backend.TLS.SubjectAltNames)
 	}
 
 	entry.tlsTransport = &http.Transport{
@@ -194,6 +224,65 @@ func buildBackendTable(backend compiled.Backend) *BackendTable {
 	}
 
 	return entry
+}
+
+// sanVerifier verifies the backend chain against the policy CAs (or the
+// system trust store when pool is nil) and requires the leaf certificate
+// to match at least one configured subjectAltName
+// (docs/spec/traffic.md Backend TLS).
+func sanVerifier(
+	pool *x509.CertPool,
+	sans []compiled.SubjectAltName,
+) func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+		if len(rawCerts) == 0 {
+			return fmt.Errorf("backend presented no certificate")
+		}
+
+		certs := make([]*x509.Certificate, 0, len(rawCerts))
+		for _, raw := range rawCerts {
+			cert, err := x509.ParseCertificate(raw)
+			if err != nil {
+				return fmt.Errorf("parsing backend certificate: %w", err)
+			}
+
+			certs = append(certs, cert)
+		}
+
+		leaf := certs[0]
+
+		intermediates := x509.NewCertPool()
+		for _, cert := range certs[1:] {
+			intermediates.AddCert(cert)
+		}
+
+		opts := x509.VerifyOptions{
+			Roots:         pool,
+			Intermediates: intermediates,
+			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		}
+		if _, err := leaf.Verify(opts); err != nil {
+			return fmt.Errorf("verifying backend certificate: %w", err)
+		}
+
+		for _, san := range sans {
+			switch san.Type {
+			case "Hostname":
+				if leaf.VerifyHostname(san.Value) == nil {
+					return nil
+				}
+
+			case "URI":
+				for _, uri := range leaf.URIs {
+					if uri.String() == san.Value {
+						return nil
+					}
+				}
+			}
+		}
+
+		return fmt.Errorf("backend certificate matches no configured subjectAltName")
+	}
 }
 
 // MergeTables combines every gateway's table into the swap-ready set.

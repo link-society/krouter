@@ -51,7 +51,19 @@ type GatewayConfig struct {
 	Namespace string     `json:"namespace"`
 	Name      string     `json:"name"`
 	Listeners []Listener `json:"listeners"`
+	// BackendClientCert indicates a client certificate for backend TLS
+	// connections under the BackendClientCert* keys of the generation TLS
+	// Secret (docs/spec/traffic.md Backend TLS).
+	BackendClientCert bool `json:"backendClientCert,omitempty"`
 }
+
+// Generation TLS Secret keys of the backend client certificate; the
+// leading underscore cannot collide with listener names
+// (docs/spec/traffic.md Backend TLS).
+const (
+	BackendClientCertKey = "_backend-client.tls.crt"
+	BackendClientKeyKey  = "_backend-client.tls.key"
+)
 
 type Listener struct {
 	Name         string `json:"name"`
@@ -184,6 +196,17 @@ type BackendTLS struct {
 	CAPem     string `json:"caPem,omitempty"`
 	SystemCAs bool   `json:"systemCAs,omitempty"`
 	Invalid   bool   `json:"invalid,omitempty"`
+	// SubjectAltNames, when set, replace hostname verification: the
+	// backend certificate must match at least one, and Hostname is only
+	// used for SNI (docs/spec/traffic.md Backend TLS).
+	SubjectAltNames []SubjectAltName `json:"subjectAltNames,omitempty"`
+}
+
+// SubjectAltName is one allowed backend certificate identity: Type is
+// Hostname or URI (docs/spec/traffic.md Backend TLS).
+type SubjectAltName struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
 }
 
 // Manifest is the mutable commit marker identifying the desired generation

@@ -27,6 +27,7 @@ func (r *Engine) publishGeneration(
 	gw *gatewayv1.Gateway,
 	listeners []*listenerState,
 	outcomes []*routeParentOutcome,
+	clientCert backendClientCert,
 ) (string, error) {
 	uid := string(gw.UID)
 
@@ -38,6 +39,13 @@ func (r *Engine) publishGeneration(
 	}
 
 	secretData := map[string][]byte{}
+
+	// Backend client certificate (docs/spec/traffic.md Backend TLS).
+	if clientCert.resolved && clientCert.certPEM != nil {
+		gatewayConfig.BackendClientCert = true
+		secretData[compiled.BackendClientCertKey] = clientCert.certPEM
+		secretData[compiled.BackendClientKeyKey] = clientCert.keyPEM
+	}
 
 	for _, lst := range listeners {
 		if !lst.valid() {

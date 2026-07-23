@@ -10,6 +10,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 
+	stdtls "crypto/tls"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
@@ -17,6 +19,99 @@ import (
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 )
+
+// backendClientCert is the resolved
+// Gateway.spec.tls.backend.clientCertificateRef (docs/spec/traffic.md
+// Backend TLS): the PEM keypair presented on backend TLS connections, and
+// the Gateway ResolvedRefs condition outcome.
+type backendClientCert struct {
+	certPEM []byte
+	keyPEM  []byte
+
+	resolved bool
+	reason   string
+	message  string
+}
+
+// resolveBackendClientCert resolves the Gateway's backend client
+// certificate reference (docs/spec/traffic.md Backend TLS). Invalid
+// references degrade the Gateway ResolvedRefs condition; the Gateway stays
+// accepted and backend connections proceed without a client certificate.
+func (r *Engine) resolveBackendClientCert(
+	ctx context.Context,
+	w *world,
+	gw *gatewayv1.Gateway,
+) backendClientCert {
+	resolved := backendClientCert{
+		resolved: true,
+		reason:   string(gatewayv1.GatewayReasonResolvedRefs),
+		message:  "all references resolved",
+	}
+
+	if gw.Spec.TLS == nil || gw.Spec.TLS.Backend == nil ||
+		gw.Spec.TLS.Backend.ClientCertificateRef == nil {
+		return resolved
+	}
+
+	invalidate := func(reason, message string) backendClientCert {
+		return backendClientCert{
+			resolved: false,
+			reason:   reason,
+			message:  message,
+		}
+	}
+
+	ref := gw.Spec.TLS.Backend.ClientCertificateRef
+
+	if (ref.Group != nil && *ref.Group != "") ||
+		(ref.Kind != nil && *ref.Kind != "Secret") {
+		return invalidate(
+			string(gatewayv1.GatewayReasonInvalidClientCertificateRef),
+			"clientCertificateRef must reference a core Secret",
+		)
+	}
+
+	namespace := gw.Namespace
+	if ref.Namespace != nil {
+		namespace = string(*ref.Namespace)
+	}
+
+	if namespace != gw.Namespace {
+		allowed := referenceGrantAllows(
+			w.grants,
+			gatewayv1.GroupName, "Gateway", gw.Namespace,
+			"Secret", namespace, string(ref.Name),
+		)
+		if !allowed {
+			return invalidate(
+				string(gatewayv1.GatewayReasonRefNotPermitted),
+				fmt.Sprintf("reference to Secret %s/%s not permitted by any ReferenceGrant",
+					namespace, ref.Name),
+			)
+		}
+	}
+
+	secret, err := r.client.CoreV1().Secrets(namespace).
+		Get(ctx, string(ref.Name), metav1.GetOptions{})
+	if err != nil {
+		return invalidate(
+			string(gatewayv1.GatewayReasonInvalidClientCertificateRef),
+			fmt.Sprintf("Secret %s/%s not found", namespace, ref.Name),
+		)
+	}
+
+	certPEM, keyPEM := secret.Data["tls.crt"], secret.Data["tls.key"]
+	if _, err := stdtls.X509KeyPair(certPEM, keyPEM); err != nil {
+		return invalidate(
+			string(gatewayv1.GatewayReasonInvalidClientCertificateRef),
+			fmt.Sprintf("Secret %s/%s holds no valid keypair", namespace, ref.Name),
+		)
+	}
+
+	resolved.certPEM, resolved.keyPEM = certPEM, keyPEM
+
+	return resolved
+}
 
 // backendTLSPolicyState is one BackendTLSPolicy after validation
 // (docs/spec/traffic.md Backend TLS): its compiled verification parameters
@@ -134,14 +229,35 @@ func (r *Engine) resolvePolicyValidation(
 
 	validation := policy.Spec.Validation
 
-	// subjectAltNames and options are out of scope: reject rather than
-	// partially apply (docs/spec/overview.md, docs/spec/traffic.md).
-	if len(validation.SubjectAltNames) > 0 || len(policy.Spec.Options) > 0 {
+	// options is out of scope: reject rather than partially apply
+	// (docs/spec/overview.md, docs/spec/traffic.md).
+	if len(policy.Spec.Options) > 0 {
 		invalidate(string(gatewayv1.PolicyReasonInvalid), "", "unsupported validation options")
 		return state
 	}
 
 	tls := &compiled.BackendTLS{Hostname: string(validation.Hostname)}
+
+	// subjectAltNames (docs/spec/traffic.md Backend TLS): the backend
+	// certificate must match at least one; hostname is then SNI-only.
+	for _, san := range validation.SubjectAltNames {
+		entry := compiled.SubjectAltName{Type: string(san.Type)}
+
+		switch san.Type {
+		case gatewayv1.HostnameSubjectAltNameType:
+			entry.Value = string(san.Hostname)
+
+		case gatewayv1.URISubjectAltNameType:
+			entry.Value = string(san.URI)
+		}
+
+		if entry.Value == "" {
+			invalidate(string(gatewayv1.PolicyReasonInvalid), "", "invalid subjectAltName entry")
+			return state
+		}
+
+		tls.SubjectAltNames = append(tls.SubjectAltNames, entry)
+	}
 
 	if validation.WellKnownCACertificates != nil {
 		tls.SystemCAs = true

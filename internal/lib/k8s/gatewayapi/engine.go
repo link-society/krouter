@@ -273,12 +273,24 @@ func (r *Engine) reconcileGateway(
 
 	addresses := validateGatewayAddresses(w, gw)
 
+	// Backend client certificate + gateway ResolvedRefs condition
+	// (docs/spec/traffic.md Backend TLS). Resolved in every path so the
+	// condition never goes stale.
+	clientCert := r.resolveBackendClientCert(ctx, w, gw)
+	resolvedRefs := condition(
+		string(gatewayv1.GatewayConditionResolvedRefs),
+		boolStatus(clientCert.resolved),
+		clientCert.reason, clientCert.message,
+		gw.Generation,
+	)
+
 	if paramsErr != nil || addresses.unsupportedType {
 		accepted, programmed := gatewayConditions(gw, paramsErr, addresses, false, 0)
 
 		input := gatewayStatusInput{
-			accepted:   accepted,
-			programmed: programmed,
+			accepted:     accepted,
+			programmed:   programmed,
+			resolvedRefs: resolvedRefs,
 		}
 
 		topo.addGateway(gw, input, "")
@@ -315,7 +327,7 @@ func (r *Engine) reconcileGateway(
 		}
 	}
 
-	generation, err := r.publishGeneration(ctx, w, gw, listeners, outcomes)
+	generation, err := r.publishGeneration(ctx, w, gw, listeners, outcomes, clientCert)
 	if err != nil {
 		logSyncError("publish generation", fmtKey(gw.Namespace, gw.Name), err)
 		return
@@ -358,6 +370,7 @@ func (r *Engine) reconcileGateway(
 	input := gatewayStatusInput{
 		accepted:     accepted,
 		programmed:   programmed,
+		resolvedRefs: resolvedRefs,
 		address:      address,
 		listeners:    listeners,
 		gatewayAcked: acked,
