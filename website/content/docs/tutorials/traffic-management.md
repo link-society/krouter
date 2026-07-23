@@ -33,7 +33,9 @@ disturbing established connections.
 ```yaml
 rules:
   - matches:
-      - path: { type: PathPrefix, value: /old }
+      - path:
+          type: PathPrefix
+          value: /old
     filters:
       - type: RequestRedirect
         requestRedirect:
@@ -50,7 +52,9 @@ The same filter with `scheme: https` implements HTTP→HTTPS redirects.
 ```yaml
 rules:
   - matches:
-      - path: { type: PathPrefix, value: /api }
+      - path:
+          type: PathPrefix
+          value: /api
     filters:
       - type: URLRewrite
         urlRewrite:

@@ -22,10 +22,12 @@ metadata:
 spec:
   replicas: 2
   selector:
-    matchLabels: { app: hello }
+    matchLabels:
+      app: hello
   template:
     metadata:
-      labels: { app: hello }
+      labels:
+        app: hello
     spec:
       containers:
         - name: hello
@@ -38,7 +40,8 @@ kind: Service
 metadata:
   name: hello
 spec:
-  selector: { app: hello }
+  selector:
+    app: hello
   ports:
     - port: 80
       targetPort: 8080

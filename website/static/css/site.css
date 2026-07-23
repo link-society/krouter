@@ -5,6 +5,10 @@
   --krouter-ink: #1a202c;
 }
 
+pre {
+  margin-bottom: 1rem;
+}
+
 /* ------------------------------------------------------------- navbar -- */
 
 .navbar .brand-mark {

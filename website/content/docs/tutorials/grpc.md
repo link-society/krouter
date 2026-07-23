@@ -22,7 +22,8 @@ kind: Service
 metadata:
   name: greeter
 spec:
-  selector: { app: greeter }
+  selector:
+    app: greeter
   ports:
     - port: 9000
       appProtocol: kubernetes.io/h2c

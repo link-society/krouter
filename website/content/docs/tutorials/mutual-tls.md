@@ -43,7 +43,8 @@ spec:
       protocol: HTTPS
       port: 443
       tls:
-        certificateRefs: [{ name: edge-cert }]
+        certificateRefs:
+          - name: edge-cert
 ```
 
 - The default mode, `AllowValidOnly`, rejects handshakes without a valid

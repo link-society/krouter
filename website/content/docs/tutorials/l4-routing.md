@@ -30,7 +30,8 @@ spec:
       protocol: TCP
       port: 5432
       allowedRoutes:
-        namespaces: { from: Same }
+        namespaces:
+          from: Same
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TCPRoute
@@ -88,7 +89,8 @@ listeners:
   - name: tls
     protocol: TLS
     port: 8443
-    tls: { mode: Passthrough }
+    tls:
+      mode: Passthrough
 ```
 
 ```yaml

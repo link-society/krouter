@@ -27,7 +27,8 @@ spec:
       protocol: HTTPS
       port: 443
       tls:
-        certificateRefs: [{ name: wildcard-cert }]
+        certificateRefs:
+          - name: wildcard-cert
       allowedRoutes:
         namespaces:
           from: Selector
@@ -43,8 +44,8 @@ Label the namespaces that may attach routes (see
 kubectl label namespace team-a edge-access=granted
 ```
 
-Team A then writes a normal HTTPRoute in `team-a` with
-`parentRefs: [{name: shared-edge, namespace: platform}]`. Per-listener
+Team A then writes a normal HTTPRoute in `team-a` whose `parentRefs` entry
+names `shared-edge` with `namespace: platform`. Per-listener
 `attachedRoutes` counts in the Gateway status show who attached what.
 
 ## Authorize cross-namespace references
@@ -107,14 +108,15 @@ spec:
       port: 8443
       hostname: team-a.example.com
       tls:
-        certificateRefs: [{ name: team-a-cert }]
+        certificateRefs:
+          - name: team-a-cert
 ```
 
 krouter merges set listeners with the Gateway's own, rejects conflicts
 deterministically (`ProtocolConflict`, `HostnameConflict`), reports status
 per entry on the ListenerSet, and counts accepted sets in the Gateway's
-`attachedListenerSets`. Routes may target the set directly with
-`parentRefs: [{kind: ListenerSet, name: team-a-listeners}]`.
+`attachedListenerSets`. Routes may target the set directly with a
+`parentRefs` entry of `kind: ListenerSet` naming `team-a-listeners`.
 
 That's the full tour, from one route to a multi-tenant edge. For the
 guarantees behind all of it, read the
