@@ -131,6 +131,9 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		// Backend protocol selection (docs/spec/traffic.md Protocol handling).
 		features.SupportHTTPRouteBackendProtocolH2C,
 		features.SupportHTTPRouteBackendProtocolWebSocket,
+
+		// Per-backendRef filters (docs/spec/traffic.md Routing and filters).
+		features.SupportHTTPRouteBackendRequestHeaderModification,
 	}
 
 	slices.Sort(names)
