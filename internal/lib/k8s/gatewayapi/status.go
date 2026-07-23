@@ -151,6 +151,11 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		// (docs/spec/traffic.md Backend TLS).
 		features.SupportBackendTLSPolicySANValidation,
 		features.SupportGatewayBackendClientCertificate,
+
+		// TLS listeners in Terminate mode, mixed with Passthrough on one
+		// port (docs/spec/traffic.md TLS passthrough and termination).
+		features.SupportTLSRouteModeTerminate,
+		features.SupportTLSRouteModeMixed,
 	}
 
 	slices.Sort(names)
