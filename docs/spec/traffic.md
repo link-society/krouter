@@ -184,8 +184,9 @@ Gateway API semantics:
 - `RequestRedirect` — scheme, hostname, port, path replacement
   (`ReplaceFullPath` and `ReplacePrefixMatch`), and the status codes
   permitted by the API. Unset values MUST be inherited from the incoming
-  request, and default scheme ports MUST be omitted from the `Location`
-  header.
+  request — an unset port inherits the incoming listener port unless the
+  scheme is changed, in which case the new scheme's default port applies —
+  and default scheme ports MUST be omitted from the `Location` header.
 - `URLRewrite` — hostname replacement and path replacement
   (`ReplaceFullPath` and `ReplacePrefixMatch`) before forwarding.
 - `RequestMirror` — a copy of the request is delivered to a single
