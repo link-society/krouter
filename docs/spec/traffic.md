@@ -45,6 +45,12 @@ rewritten.
 - A TCPRoute attaches to a TCP listener and carries no hostname, path,
   header, or filter semantics: every connection accepted by the listener
   is forwarded to one of the route's backend endpoints.
+- A route MAY declare several rules. Rules carry no matching semantics on
+  L4 routes, so the weighted backendRefs of every rule form one pool,
+  exactly as if a single rule listed them all.
+- When several routes attach to one listener, the oldest route (then the
+  lexically smallest namespaced name) serves it, deterministically on
+  every data-plane pod.
 - The backend endpoint is selected once per downstream connection, applying
   Gateway API backend weights and the GatewayClass load-balancing algorithm
   over eligible endpoints, exactly as for HTTP backends.
@@ -60,6 +66,9 @@ A UDP listener forwards datagrams; nothing is interpreted or rewritten.
 - A UDPRoute attaches to a UDP listener and carries no hostname, path,
   header, or filter semantics: every datagram received by the listener is
   forwarded to one of the route's backend endpoints.
+- Several rules on one route and several routes on one listener follow the
+  TCP forwarding semantics: rule backends form one weighted pool, and the
+  oldest route serves the listener.
 - Datagrams are associated into flows by client source address: a flow
   keeps its selected backend endpoint until it has been idle for a bounded
   period, and responses from the backend are relayed to the flow's client.

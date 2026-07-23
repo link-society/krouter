@@ -422,6 +422,26 @@ func (r *RuleTable) PickBackend() *BackendTable {
 	return pickBucket(r.counter.Add(1)-1, r.backends, r.total)
 }
 
+// PickL4Backend implements weighted round-robin over the pooled backends
+// of every rule of the route (docs/spec/traffic.md TCP and UDP
+// forwarding): L4 rules carry no matching semantics, so their weighted
+// backendRefs form one pool.
+func (r *RouteTable) PickL4Backend() *BackendTable {
+	if len(r.rules) == 1 {
+		return r.rules[0].PickBackend()
+	}
+
+	var backends []*BackendTable
+	var total int64
+
+	for _, rule := range r.rules {
+		backends = append(backends, rule.backends...)
+		total += rule.total
+	}
+
+	return pickBucket(r.l4Counter.Add(1)-1, backends, total)
+}
+
 // PickTCP selects the backend endpoint for one new downstream connection
 // on a TCP internal listener port (docs/spec/traffic.md): route weights,
 // then round-robin over eligible endpoints. Invalid backends keep their
@@ -481,21 +501,20 @@ func (s *State) PickUDP(port int32) (udp.Selection, bool) {
 
 var _ udp.Picker = (*State)(nil)
 
-// l4Selection resolves the endpoint serving an L4 port. A TCP or UDP
-// listener is served by a single attached route (docs/spec/traffic.md TCP
-// and UDP forwarding), so the first populated route's first rule applies:
-// weights and endpoint round-robin work as for every other route type,
-// and invalid backends refuse their share, per the Gateway API.
+// l4Selection resolves the endpoint serving an L4 port
+// (docs/spec/traffic.md TCP and UDP forwarding): the oldest attached route
+// serves the listener, its rules' weighted backends form one pool, and
+// invalid backends refuse their share, per the Gateway API.
 func l4Selection(
 	table *PortTable,
 	index *EndpointsIndex,
 ) (endpoint, route, backend string, ok bool) {
-	rule, rt := l4Rule(table)
-	if rule == nil {
+	rt := l4Route(table)
+	if rt == nil {
 		return "", "", "", false
 	}
 
-	picked := rule.PickBackend()
+	picked := rt.PickL4Backend()
 	if picked == nil || !picked.valid {
 		return "", "", "", false
 	}
@@ -511,18 +530,27 @@ func l4Selection(
 		true
 }
 
-// l4Rule finds the rule serving an L4 port: the first rule of the first
-// populated route.
-func l4Rule(table *PortTable) (*RuleTable, *RouteTable) {
+// l4Route finds the route serving an L4 port: the oldest populated route
+// (name as tie-break), deterministically on every data-plane pod
+// (docs/spec/traffic.md).
+func l4Route(table *PortTable) *RouteTable {
+	var best *RouteTable
+
 	for _, listener := range table.listeners {
 		for _, route := range listener.routes {
-			if len(route.rules) > 0 {
-				return route.rules[0], route
+			if len(route.rules) == 0 {
+				continue
+			}
+
+			if best == nil ||
+				route.created < best.created ||
+				(route.created == best.created && route.Key() < best.Key()) {
+				best = route
 			}
 		}
 	}
 
-	return nil, nil
+	return best
 }
 
 // PickTLS selects the backend endpoint for one new downstream connection
