@@ -77,6 +77,19 @@ value MUST be accepted: the controller assigns the address exactly as if
 the field were unset. Listeners MAY use any valid port, including
 registered ports such as 8080.
 
+Static addresses (`spec.addresses` entries with a value) are supported for
+the `IPAddress` type: the value MUST be the address of a node running a
+healthy data-plane pod, since the generated NodePort Service serves on
+node addresses. Behavior:
+
+- An entry with any other address type: the Gateway is not accepted
+  (`Accepted` = False, reason `UnsupportedAddress`).
+- An `IPAddress` value that is not a usable node address: the Gateway is
+  accepted but not programmed (`Programmed` = False, reason
+  `AddressNotUsable`).
+- All values usable: the Gateway publishes exactly the requested addresses
+  in `status.addresses`.
+
 ## Internal listener ports
 
 Different Gateways may expose identical external listener ports and
