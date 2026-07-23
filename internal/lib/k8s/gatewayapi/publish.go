@@ -57,7 +57,10 @@ func (r *Engine) publishGeneration(
 			Port:         int32(lst.spec.Port),
 			InternalPort: lst.internalPort,
 			Protocol:     string(lst.spec.Protocol),
-			HasTLS:       lst.spec.Protocol == gatewayv1.HTTPSProtocolType,
+			// TLS-protocol listeners with HasTLS terminate at the gateway
+			// (docs/spec/traffic.md TLS passthrough and termination).
+			HasTLS: lst.spec.Protocol == gatewayv1.HTTPSProtocolType ||
+				listenerTerminatesTLS(lst.spec),
 		}
 
 		if lst.spec.Hostname != nil {

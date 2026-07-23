@@ -89,7 +89,11 @@ type ListenerTable struct {
 	name     string
 	hostname string
 	cert     *tls.Certificate
-	routes   []*RouteTable
+	// terminate marks a TLS-protocol listener in Terminate mode: the
+	// session ends at the gateway and the decrypted stream is forwarded
+	// (docs/spec/traffic.md TLS passthrough and termination).
+	terminate bool
+	routes    []*RouteTable
 }
 
 func (l *ListenerTable) Name() string { return l.name }

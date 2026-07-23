@@ -34,7 +34,13 @@ func BuildGatewayTable(
 	listeners := map[string]*ListenerTable{}
 
 	for _, lst := range gateway.Listeners {
-		entry := &ListenerTable{name: lst.Name, hostname: lst.Hostname}
+		entry := &ListenerTable{
+			name:     lst.Name,
+			hostname: lst.Hostname,
+			// TLS listeners with certificate material terminate at the
+			// gateway (docs/spec/traffic.md TLS passthrough and termination).
+			terminate: lst.Protocol == "TLS" && lst.HasTLS,
+		}
 
 		if lst.HasTLS {
 			if secret == nil {
@@ -55,9 +61,11 @@ func BuildGatewayTable(
 		port, ok := table.byPort[lst.InternalPort]
 		if !ok {
 			port = &PortTable{
-				gatewayUID:     gateway.UID,
-				gatewayName:    gateway.Namespace + "/" + gateway.Name,
-				tls:            lst.HasTLS,
+				gatewayUID:  gateway.UID,
+				gatewayName: gateway.Namespace + "/" + gateway.Name,
+				// TLS-protocol ports always go through the SNI-peeking
+				// server, terminate or not (docs/spec/traffic.md).
+				tls:            lst.HasTLS && lst.Protocol != "TLS",
 				tcp:            lst.Protocol == "TCP",
 				udp:            lst.Protocol == "UDP",
 				tlsPassthrough: lst.Protocol == "TLS",

@@ -89,11 +89,11 @@ func (r *Engine) validateListener(
 		gatewayv1.TCPProtocolType, gatewayv1.UDPProtocolType:
 
 	case gatewayv1.TLSProtocolType:
-		// Passthrough only (docs/spec/overview.md): krouter routes on the
-		// SNI value and never holds the certificate. Terminate is a
-		// valid protocol with an unsupported mode value.
+		// Passthrough or Terminate (docs/spec/traffic.md TLS passthrough
+		// and termination); other mode values are unsupported.
 		if spec.TLS == nil || spec.TLS.Mode == nil ||
-			*spec.TLS.Mode != gatewayv1.TLSModePassthrough {
+			(*spec.TLS.Mode != gatewayv1.TLSModePassthrough &&
+				*spec.TLS.Mode != gatewayv1.TLSModeTerminate) {
 			state.accepted = false
 			state.acceptedReason = string(gatewayv1.ListenerReasonUnsupportedValue)
 		}
@@ -105,7 +105,8 @@ func (r *Engine) validateListener(
 
 	resolveRouteKinds(state)
 
-	if spec.Protocol == gatewayv1.HTTPSProtocolType && state.refsResolved {
+	if state.refsResolved &&
+		(spec.Protocol == gatewayv1.HTTPSProtocolType || listenerTerminatesTLS(spec)) {
 		r.resolveCertificates(ctx, w, gw, state)
 	}
 
@@ -119,6 +120,14 @@ func (r *Engine) validateListener(
 	state.internalPort = port
 
 	return state
+}
+
+// listenerTerminatesTLS reports a TLS-protocol listener in Terminate mode
+// (docs/spec/traffic.md TLS passthrough and termination).
+func listenerTerminatesTLS(spec gatewayv1.Listener) bool {
+	return spec.Protocol == gatewayv1.TLSProtocolType &&
+		spec.TLS != nil && spec.TLS.Mode != nil &&
+		*spec.TLS.Mode == gatewayv1.TLSModeTerminate
 }
 
 // rejectConflictingListeners applies the cross-owner merge rules

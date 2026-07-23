@@ -521,9 +521,10 @@ func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Sel
 	}
 
 	var (
-		bestRule  *RuleTable
-		bestRoute *RouteTable
-		bestScore matchScore
+		bestRule     *RuleTable
+		bestRoute    *RouteTable
+		bestListener *ListenerTable
+		bestScore    matchScore
 	)
 
 	for _, listener := range table.listeners {
@@ -545,7 +546,7 @@ func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Sel
 				}
 
 				if bestRule == nil || score.beats(bestScore) {
-					bestRule, bestRoute = rule, route
+					bestRule, bestRoute, bestListener = rule, route, listener
 					bestScore = score
 				}
 			}
@@ -572,6 +573,10 @@ func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Sel
 		Route:    bestRoute.Key(),
 		Backend: fmt.Sprintf("%s/%s:%d",
 			backend.namespace, backend.name, backend.port),
+		// Terminate-mode listener (docs/spec/traffic.md TLS passthrough
+		// and termination).
+		Terminate:   bestListener.terminate,
+		Certificate: bestListener.cert,
 	}, true
 }
 

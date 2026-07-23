@@ -1,14 +1,19 @@
-// Package tls is the data-plane TLS passthrough path: it reads the SNI
-// value from the ClientHello without terminating the session, selects a
-// backend endpoint per connection, and forwards the still-encrypted stream
-// (docs/spec/traffic.md). The backend owns TLS end to end
-// (docs/spec/security.md). It is deliberately not an actor — it is the
-// engine the tlsserver actors drive.
+// Package tls is the data-plane TLS routing path: it reads the SNI value
+// from the ClientHello, selects a backend endpoint per connection, and
+// either forwards the still-encrypted stream (Passthrough listeners) or
+// terminates the session with the listener certificate and forwards the
+// decrypted stream (Terminate listeners) — docs/spec/traffic.md TLS
+// passthrough and termination. It is deliberately not an actor — it is
+// the engine the tlsserver actors drive.
 package tls
 
 import (
 	"log/slog"
 
+	"bytes"
+	"io"
+
+	stdtls "crypto/tls"
 	"net"
 
 	"time"
@@ -42,6 +47,12 @@ type Selection struct {
 	Gateway  string // namespace/name
 	Route    string // namespace/name
 	Backend  string // namespace/name:port
+
+	// Terminate marks a Terminate-mode listener: the session ends at the
+	// gateway with Certificate, and the decrypted stream is forwarded
+	// (docs/spec/traffic.md TLS passthrough and termination).
+	Terminate   bool
+	Certificate *stdtls.Certificate
 }
 
 // Picker selects a backend endpoint for one new downstream connection on
@@ -102,6 +113,11 @@ func (f *Forwarder) Serve(downstream net.Conn, port int32) {
 		return
 	}
 
+	if selection.Terminate {
+		f.serveTerminated(downstream, recorded, selection, port, sni, start)
+		return
+	}
+
 	backend, err := net.DialTimeout("tcp", selection.Endpoint, f.dialTimeout)
 	if err != nil {
 		connectionsTotal.WithLabelValues("error").Inc()
@@ -145,3 +161,90 @@ func (f *Forwarder) Serve(downstream net.Conn, port int32) {
 		"bytes_sent", sent,
 	)
 }
+
+// serveTerminated handles a Terminate-mode listener
+// (docs/spec/traffic.md TLS passthrough and termination): the recorded
+// ClientHello is replayed into a local handshake using the listener
+// certificate, then the decrypted stream is forwarded to the backend with
+// raw TCP semantics.
+func (f *Forwarder) serveTerminated(
+	downstream net.Conn,
+	recorded []byte,
+	selection Selection,
+	port int32,
+	sni string,
+	start time.Time,
+) {
+	if selection.Certificate == nil {
+		connectionsTotal.WithLabelValues("refused").Inc()
+		return
+	}
+
+	tlsConn := stdtls.Server(
+		&replayConn{
+			Conn:   downstream,
+			reader: io.MultiReader(bytes.NewReader(recorded), downstream),
+		},
+		&stdtls.Config{Certificates: []stdtls.Certificate{*selection.Certificate}},
+	)
+
+	downstream.SetReadDeadline(time.Now().Add(f.helloTimeout))
+
+	if err := tlsConn.Handshake(); err != nil {
+		connectionsTotal.WithLabelValues("refused").Inc()
+		slog.Warn("tls handshake failed",
+			"port", port,
+			"sni", sni,
+			"client", downstream.RemoteAddr().String(),
+			"error", err,
+		)
+
+		return
+	}
+
+	downstream.SetReadDeadline(time.Time{})
+
+	backend, err := net.DialTimeout("tcp", selection.Endpoint, f.dialTimeout)
+	if err != nil {
+		connectionsTotal.WithLabelValues("error").Inc()
+		slog.Error("tls backend dial failed",
+			"port", port,
+			"sni", sni,
+			"endpoint", selection.Endpoint,
+			"error", err,
+		)
+
+		return
+	}
+	defer backend.Close()
+
+	activeConnections.Inc()
+	defer activeConnections.Dec()
+
+	received, sent := tcp.Splice(tlsConn, backend)
+
+	connectionsTotal.WithLabelValues("forwarded").Inc()
+
+	slog.Info("tls connection closed",
+		"gateway", selection.Gateway,
+		"route", selection.Route,
+		"backend", selection.Backend,
+		"endpoint", selection.Endpoint,
+		"client", downstream.RemoteAddr().String(),
+		"protocol", "TLS",
+		"mode", "terminate",
+		"sni", sni,
+		"duration", time.Since(start).String(),
+		"bytes_received", received,
+		"bytes_sent", sent,
+	)
+}
+
+// replayConn prepends the recorded ClientHello bytes to the connection's
+// read stream, so the local handshake sees the exact original bytes.
+type replayConn struct {
+	net.Conn
+	reader io.Reader
+}
+
+func (c *replayConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
