@@ -176,6 +176,12 @@ the Gateway API v1.5.1 `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`
 Core conformance profiles, and the TCPRoute attachment semantics defined by
 the upstream API specification.
 
+Route `parentRefs` MAY pin listeners by `port` in addition to
+`sectionName`. A parentRef carrying only `port` attaches to every listener
+of the referenced parent with that port; carrying both, the named listener
+MUST also have that port. A parentRef whose port matches no listener MUST
+NOT be accepted (reason `NoMatchingParent`).
+
 The following HTTPRoute rule filters MUST be supported with the upstream
 Gateway API semantics:
 
