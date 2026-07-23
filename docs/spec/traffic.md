@@ -99,6 +99,9 @@ that backend to TLS:
 
 - The `validation.hostname` value is sent as SNI and verified against the
   backend certificate.
+- `validation.subjectAltNames` entries (`Hostname` or `URI`), when present,
+  replace hostname verification: the backend certificate MUST match at
+  least one of them, and `validation.hostname` is then only used for SNI.
 - The certificate chain is verified against `caCertificateRefs` ConfigMaps
   (key `ca.crt`) or, with `wellKnownCACertificates: System`, the system
   trust store.
@@ -113,8 +116,17 @@ that backend to TLS:
 - Policy status is reported per Gateway ancestor with this installation's
   controller name.
 
-`subjectAltNames` and `options` are out of scope: policies using them are
-rejected as invalid rather than partially applied.
+`Gateway.spec.tls.backend.clientCertificateRef` MAY reference a
+`kubernetes.io/tls` Secret; its keypair is then presented as the client
+certificate on every backend TLS connection of that Gateway. The Gateway
+publishes a `ResolvedRefs` condition: an unresolvable, malformed, or
+wrongly typed reference sets it to False with reason
+`InvalidClientCertificateRef`; a cross-namespace reference without a
+ReferenceGrant sets reason `RefNotPermitted`. The Gateway stays accepted,
+and backend TLS connections proceed without a client certificate.
+
+`options` is out of scope: policies using it are rejected as invalid
+rather than partially applied.
 
 ## Connection lifecycle and hot reload
 

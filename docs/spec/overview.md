@@ -68,7 +68,7 @@ the SNI value and never holds the certificate. TLS listeners in
   misdirected-request detection, backend protocol selection,
   per-backendRef filters, and infrastructure metadata propagation:
   client-certificate validation.
-- BackendTLSPolicy `subjectAltNames` validation and `options`.
+- BackendTLSPolicy `options`.
 - Policy attachment to ListenerSets.
 - Experimental-channel resources and fields other than TCPRoute,
   TLSRoute, UDPRoute, BackendTLSPolicy, and ListenerSet.
