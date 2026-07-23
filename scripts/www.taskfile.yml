@@ -11,6 +11,9 @@ tasks:
     cmds:
       - mkdir -p website/static/report
       - cp tests/results/report/report.html website/static/report/report.html
+      # The gotestwaf evaluation is linked from the report header when the
+      # WAF suite ran (docs/spec/extensions.md Verification).
+      - test ! -f tests/results/report/gotestwaf.html || cp tests/results/report/gotestwaf.html website/static/report/gotestwaf.html
 
   build:
     desc: Build the website into website/public (includes the test report)

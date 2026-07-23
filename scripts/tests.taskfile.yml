@@ -117,6 +117,8 @@ tasks:
         ignore_error: true
       - cmd: task tests:performance -- --junitxml=tests/results/performance/junit.xml
         ignore_error: true
+      - cmd: task tests:waf
+        ignore_error: true
       # Convert the captured conformance `go test -v` stream to JUnit.
       - cmd: go tool test2json -p conformance < tests/results/conformance/output.log > tests/results/conformance/events.json
         ignore_error: true

@@ -67,7 +67,11 @@ def fmt_duration(seconds: float) -> str:
     return ""
 
 
-def render(suites: list[Suite], missing: list[str]) -> str:
+def render(
+    suites: list[Suite],
+    missing: list[str],
+    links: list[tuple[str, str]] | None = None,
+) -> str:
     all_cases = [case for suite in suites for case in suite.cases()]
     totals = {
         status: sum(1 for case in all_cases if case.status == status)
@@ -78,6 +82,18 @@ def render(suites: list[Suite], missing: list[str]) -> str:
     failed = totals["fail"] + totals["error"] > 0 or bool(missing)
 
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    meta = (
+        f"generated {generated} &middot; "
+        f"{len(suites)} suites &middot; {total} tests &middot; "
+        f"{fmt_duration(duration) or '0s'}"
+    )
+
+    for label, href in links or []:
+        meta += (
+            f" &middot; <a href='{html.escape(href, quote=True)}'>"
+            f"{html.escape(label)}</a>"
+        )
 
     parts = [
         "<!doctype html>",
@@ -93,9 +109,7 @@ def render(suites: list[Suite], missing: list[str]) -> str:
         "<div class='wrap'>",
         "<div class='title'>",
         "<h1>krouter <span>test report</span></h1>",
-        f"<div class='meta'>generated {generated} &middot; "
-        f"{len(suites)} suites &middot; {total} tests &middot; "
-        f"{fmt_duration(duration) or '0s'}</div>",
+        f"<div class='meta'>{meta}</div>",
         "</div>",
         f"<div class='verdict {'fail' if failed else 'pass'}'>"
         f"{'FAILED' if failed else 'PASSED'}</div>",
@@ -238,6 +252,7 @@ header .wrap {
 h1 { margin: 0; font-size: 22px; letter-spacing: -0.01em; }
 h1 span { color: var(--muted); font-weight: 400; }
 .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.meta a { color: inherit; text-decoration: underline; }
 .verdict {
   font-weight: 700; font-size: 14px; letter-spacing: 0.08em;
   padding: 8px 18px; border-radius: 999px; color: #fff;

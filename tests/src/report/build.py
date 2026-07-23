@@ -11,6 +11,7 @@ reflects the overall verdict even though the individual suites run with
 their errors ignored.
 """
 
+import shutil
 import sys
 
 from pathlib import Path
@@ -19,10 +20,14 @@ from junitparser import Error, Failure, JUnitXml, Skipped, TestCase, TestSuite
 
 from htmlreport import Case, Group, Suite, render
 
-SUITES = ["unit", "e2e", "conformance", "performance"]
+SUITES = ["unit", "e2e", "conformance", "performance", "waf"]
 
 RESULTS = Path("tests/results")
 REPORT_DIR = RESULTS / "report"
+
+# The full gotestwaf evaluation, bundled next to report.html and linked
+# from its header (docs/spec/extensions.md Verification).
+GOTESTWAF_HTML = RESULTS / "waf" / "waf-evaluation.html"
 
 
 def suite_elements(xml: JUnitXml | TestSuite) -> list[TestSuite]:
@@ -114,8 +119,13 @@ def main() -> int:
     junit_path = REPORT_DIR / "junit.xml"
     merged.write(str(junit_path))
 
+    links: list[tuple[str, str]] = []
+    if GOTESTWAF_HTML.is_file():
+        shutil.copyfile(GOTESTWAF_HTML, REPORT_DIR / "gotestwaf.html")
+        links.append(("gotestwaf report", "gotestwaf.html"))
+
     html_path = REPORT_DIR / "report.html"
-    html_path.write_text(render(suites, missing), encoding="utf-8")
+    html_path.write_text(render(suites, missing, links), encoding="utf-8")
 
     print()
     print(f"{'suite':<14} {'tests':>6} {'failed':>7} {'errors':>7} {'skipped':>8}")

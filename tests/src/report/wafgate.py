@@ -4,7 +4,8 @@ docs/spec/acceptance.md criterion 25).
 
 Reads the JSON report produced by `task tests:waf` and fails when the
 overall application-security true-positive score is below the blocking
-threshold. Usage:
+threshold. A one-case JUnit file is written next to the JSON report so
+the verdict joins the aggregate test report (build.py). Usage:
 
     python wafgate.py <report.json> [threshold-percent]
 """
@@ -12,6 +13,8 @@ threshold. Usage:
 import json
 import pathlib
 import sys
+
+from junitparser import Failure, JUnitXml, TestCase, TestSuite
 
 
 def resolve_score(report: dict) -> float:
@@ -51,6 +54,26 @@ def resolve_score(report: dict) -> float:
     )
 
 
+def write_junit(path: pathlib.Path, score: float, threshold: float) -> None:
+    """
+    One JUnit test case carrying the gate verdict, merged into the
+    aggregate report by build.py.
+    """
+
+    case = TestCase("gotestwaf score gate", classname="waf")
+    if score < threshold:
+        case.result = [Failure(
+            f"score {score:.2f}% below the {threshold:.2f}% threshold")]
+
+    suite = TestSuite("gotestwaf")
+    suite.add_testcase(case)
+
+    xml = JUnitXml()
+    xml.add_testsuite(suite)
+    xml.update_statistics()
+    xml.write(str(path))
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit("usage: wafgate.py <report.json> [threshold-percent]")
@@ -60,6 +83,8 @@ def main() -> None:
 
     report = json.loads(report_path.read_text())
     score = resolve_score(report)
+
+    write_junit(report_path.parent / "junit.xml", score, threshold)
 
     verdict = "PASS" if score >= threshold else "FAIL"
     print(f"gotestwaf score: {score:.2f}% (threshold {threshold:.2f}%) -> {verdict}")
