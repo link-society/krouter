@@ -124,6 +124,9 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		// Method and query-parameter matching (docs/spec/traffic.md).
 		features.SupportHTTPRouteMethodMatching,
 		features.SupportHTTPRouteQueryParamMatching,
+
+		// HTTP listener isolation (docs/spec/traffic.md).
+		features.SupportGatewayHTTPListenerIsolation,
 	}
 
 	slices.Sort(names)
