@@ -173,11 +173,12 @@ def test_10k_concurrent_connections_survive_reload(stack):
 
     log.info(
         "loadgen report: established=%s requests=%s errors=%s disconnects=%s "
-        "close_demanded=%s p99=%.1fms max=%.1fms",
+        "transport_churn=%s close_demanded=%s p99=%.1fms max=%.1fms",
         result["established"],
         result["requests"],
         result["request_errors"],
         result["disconnects"],
+        result["transport_churn"],
         result["close_demanded"],
         result["latency"]["p99_ms"],
         result["latency"]["max_ms"],

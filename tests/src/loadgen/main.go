@@ -22,6 +22,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 
@@ -92,6 +93,7 @@ type report struct {
 	RequestErrors   int64       `json:"request_errors"`
 	Non2xx          int64       `json:"non_2xx"`
 	Disconnects     int64       `json:"disconnects"`
+	TransportChurn  int64       `json:"transport_churn"`
 	CloseDemanded   int64       `json:"close_demanded"`
 	BytesIn         int64       `json:"bytes_in"`
 	RequestsPerSec  float64     `json:"requests_per_sec"`
@@ -101,14 +103,15 @@ type report struct {
 }
 
 type collector struct {
-	established   atomic.Int64
-	connectErrors atomic.Int64
-	requests      atomic.Int64
-	requestErrors atomic.Int64
-	non2xx        atomic.Int64
-	disconnects   atomic.Int64
-	closeDemanded atomic.Int64
-	bytesIn       atomic.Int64
+	established    atomic.Int64
+	connectErrors  atomic.Int64
+	requests       atomic.Int64
+	requestErrors  atomic.Int64
+	non2xx         atomic.Int64
+	disconnects    atomic.Int64
+	transportChurn atomic.Int64
+	closeDemanded  atomic.Int64
+	bytesIn        atomic.Int64
 
 	start time.Time
 
@@ -211,6 +214,7 @@ func (c *collector) report(cfg config, elapsed time.Duration) report {
 		RequestErrors:   c.requestErrors.Load(),
 		Non2xx:          c.non2xx.Load(),
 		Disconnects:     c.disconnects.Load(),
+		TransportChurn:  c.transportChurn.Load(),
 		CloseDemanded:   c.closeDemanded.Load(),
 		BytesIn:         c.bytesIn.Load(),
 		RequestsPerSec:  float64(c.requests.Load()) / elapsed.Seconds(),
@@ -260,14 +264,27 @@ var holdActive atomic.Bool
 // is active, in case a systemic event closes many connections at once.
 var stackBudget atomic.Int64
 
-// tracedConn prints the goroutine stack of whoever closes it while the
-// hold is active: the packet captures proved the loadgen process itself
-// FINs healthy pooled connections moments after a successful exchange,
-// and only the closing code path can say why.
+// tracedConn observes who ends a connection. Read records whether the
+// peer initiated the close (FIN or reset seen before any local close):
+// that separates proxy-generated disconnects from the transport locally
+// discarding a healthy connection (net/http readLoop gives the write
+// loop only 50ms after body-EOF to confirm the request write; under
+// scheduler starvation that misses and the conn is silently dropped).
+// Close prints the closing goroutine's stack while the hold is active.
 type tracedConn struct {
 	net.Conn
-	col  *collector
-	once sync.Once
+	col        *collector
+	once       sync.Once
+	peerClosed atomic.Bool
+}
+
+func (c *tracedConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if err != nil && !errors.Is(err, net.ErrClosed) {
+		c.peerClosed.Store(true)
+	}
+
+	return n, err
 }
 
 func (c *tracedConn) Close() error {
@@ -320,12 +337,28 @@ func newClient(cfg config, col *collector) *http.Client {
 	return &http.Client{Transport: transport, Timeout: cfg.timeout}
 }
 
-// connAddrs remembers the transport's local address per held connection so
-// a transparent reconnect can name the flow that died: the previous local
-// port is the join key into the node-side packet capture.
+// connAddrs remembers the transport's connection per held client so a
+// replacement can be attributed: the old local port joins the node-side
+// packet capture, and the old conn's peerClosed flag says whether the
+// server ended it (a real disconnect) or this process discarded it
+// (transport churn).
 type connAddrs struct {
-	prev string
-	cur  string
+	prev     string
+	cur      string
+	prevConn *tracedConn
+	curConn  *tracedConn
+}
+
+// prevPeerClosed reports whether the replaced connection saw a
+// peer-initiated close, and whether that is known at all (TLS wrapping
+// hides the traced conn; unknown classifies as a disconnect so the gate
+// never under-counts).
+func (a *connAddrs) prevPeerClosed() (peer bool, known bool) {
+	if a.prevConn == nil {
+		return false, false
+	}
+
+	return a.prevConn.peerClosed.Load(), true
 }
 
 // doRequest issues one GET and reports whether the transport had to open a
@@ -334,15 +367,17 @@ func doRequest(ctx context.Context, client *http.Client, cfg config, col *collec
 	trace := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
 			local := ""
+			var tc *tracedConn
 			if info.Conn != nil {
 				local = info.Conn.LocalAddr().String()
+				tc, _ = info.Conn.(*tracedConn)
 			}
 
 			if !info.Reused {
 				newConn = true
-				addrs.prev = addrs.cur
+				addrs.prev, addrs.prevConn = addrs.cur, addrs.curConn
 			}
-			addrs.cur = local
+			addrs.cur, addrs.curConn = local, tc
 		},
 		PutIdleConn: func(err error) {
 			// A pool rejection closes the connection now and forces a
@@ -469,14 +504,41 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 			for {
 				select {
 				case <-ctx.Done():
+					// The run is over: disarm the close tracer before the
+					// deferred teardown closes ten thousand connections.
+					holdActive.Store(false)
+
 					return
 
 				case <-ticker.C:
 					wasDead := tracker.dead
 					newConn, err := doRequest(ctx, client, cfg, col, &addrs)
 					if ctx.Err() != nil {
+						holdActive.Store(false)
+
 						return
 					}
+
+					// A silent local discard (the transport dropped a healthy
+					// connection the peer never closed) is client-side churn,
+					// not a proxy-generated disconnect: the peer-closed flag
+					// on the replaced conn is the ground truth.
+					if newConn && err == nil {
+						if peer, known := addrs.prevPeerClosed(); known && !peer {
+							col.transportChurn.Add(1)
+							tracker.dead = false
+							fmt.Fprintf(
+								os.Stderr,
+								"loadgen: transport churn at t=%.1fs: %s -> %s (peer never closed)\n",
+								time.Since(col.start).Seconds(),
+								addrs.prev,
+								addrs.cur,
+							)
+
+							continue
+						}
+					}
+
 					// A reconnect or a failed request on an established
 					// connection means the proxy dropped us: exactly what
 					// docs/spec/performance.md forbids during reloads.
@@ -486,7 +548,7 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 						col.recordReconnect(addrs.prev, addrs.cur)
 						fmt.Fprintf(
 							os.Stderr,
-							"loadgen: transparent reconnect at t=%.1fs: %s -> %s\n",
+							"loadgen: transparent reconnect at t=%.1fs: %s -> %s (peer closed)\n",
 							time.Since(col.start).Seconds(),
 							addrs.prev,
 							addrs.cur,
@@ -519,6 +581,8 @@ func runLoad(ctx context.Context, cfg config, col *collector) {
 			for ctx.Err() == nil {
 				newConn, err := doRequest(ctx, client, cfg, col, &addrs)
 				if ctx.Err() != nil {
+					holdActive.Store(false)
+
 					return
 				}
 
@@ -534,6 +598,17 @@ func runLoad(ctx context.Context, cfg config, col *collector) {
 
 					first = false
 					continue
+				}
+
+				// Same churn classification as hold mode: local discards of
+				// peer-healthy connections are not proxy disconnects.
+				if newConn && err == nil {
+					if peer, known := addrs.prevPeerClosed(); known && !peer {
+						col.transportChurn.Add(1)
+						tracker.dead = false
+
+						continue
+					}
 				}
 
 				tracker.observe(col, newConn, err)

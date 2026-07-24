@@ -90,7 +90,7 @@ def wait(proc: subprocess.Popen, timeout: int) -> dict:
     for line in stderr.splitlines():
         if any(
             marker in line
-            for marker in ("close-demanding", "body read failed", "transparent reconnect", "pool rejected")
+            for marker in ("close-demanding", "body read failed", "transparent reconnect", "transport churn", "pool rejected")
         ):
             log.warning("%s", line)
 
