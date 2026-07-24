@@ -34,6 +34,11 @@ type world struct {
 	generatedCMs     []corev1.ConfigMap
 	generatedSecrets []corev1.Secret
 
+	// extensionCM fetches (and caches for this sync) the extension
+	// ConfigMaps referenced by route ExtensionRef filters
+	// (docs/spec/extensions.md), in the route's namespace.
+	extensionCM func(namespace, name string) (*corev1.ConfigMap, error)
+
 	acks          AckState
 	bundleVersion string
 }

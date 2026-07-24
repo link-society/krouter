@@ -933,7 +933,18 @@ func (r *Engine) compileGRPCRule(
 		compiledRule.Matches = append(compiledRule.Matches, entry)
 	}
 
+	var extensionRefs []gatewayv1.LocalObjectReference
+
 	for _, filter := range rule.Filters {
+		if filter.Type == gatewayv1.GRPCRouteFilterExtensionRef {
+			if filter.ExtensionRef == nil {
+				return compiled.Rule{}, fmt.Errorf("missing extensionRef")
+			}
+
+			extensionRefs = append(extensionRefs, *filter.ExtensionRef)
+			continue
+		}
+
 		entry, keep, err := r.compileGRPCFilter(w, route.Namespace, filter, outcome)
 		if err != nil {
 			// Unsupported filters MUST reject the route, never be silently
@@ -945,6 +956,14 @@ func (r *Engine) compileGRPCRule(
 			compiledRule.Filters = append(compiledRule.Filters, entry)
 		}
 	}
+
+	ext, err := r.compileExtensions(w, route.Namespace, extensionRefs, outcome)
+	if err != nil {
+		return compiled.Rule{}, err
+	}
+
+	compiledRule.RateLimit = ext.rateLimit
+	compiledRule.ExtensionsInvalid = ext.invalid
 
 	for _, backendRef := range rule.BackendRefs {
 		backend := r.compileBackend(w, route.Namespace, "GRPCRoute", backendRef.BackendRef, outcome)
@@ -1095,7 +1114,18 @@ func (r *Engine) compileRoute(
 			compiledRule.Matches = append(compiledRule.Matches, entry)
 		}
 
+		var extensionRefs []gatewayv1.LocalObjectReference
+
 		for _, filter := range rule.Filters {
+			if filter.Type == gatewayv1.HTTPRouteFilterExtensionRef {
+				if filter.ExtensionRef == nil {
+					return nil
+				}
+
+				extensionRefs = append(extensionRefs, *filter.ExtensionRef)
+				continue
+			}
+
 			entry, keep, err := r.compileHTTPFilter(w, route.Namespace, "HTTPRoute", rule, filter, outcome)
 			if err != nil {
 				return nil
@@ -1105,6 +1135,14 @@ func (r *Engine) compileRoute(
 				compiledRule.Filters = append(compiledRule.Filters, entry)
 			}
 		}
+
+		ext, err := r.compileExtensions(w, route.Namespace, extensionRefs, outcome)
+		if err != nil {
+			return nil
+		}
+
+		compiledRule.RateLimit = ext.rateLimit
+		compiledRule.ExtensionsInvalid = ext.invalid
 
 		if err := compileTimeouts(&compiledRule, rule.Timeouts); err != nil {
 			return nil

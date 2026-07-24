@@ -118,6 +118,12 @@ type Rule struct {
 	ExtensionsInvalid bool `json:"extensionsInvalid,omitempty"`
 }
 
+// Extension ConfigMap keys (docs/spec/extensions.md).
+const (
+	RateLimitKey = "ratelimit.hcl"
+	WAFKey       = "waf.hcl"
+)
+
 // RateLimit is the merged rate limiting configuration of one rule
 // (docs/spec/extensions.md Rate limiting): a token bucket of capacity
 // Burst refilled at Requests per window, bucketed by Key, answering

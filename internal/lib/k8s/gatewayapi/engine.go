@@ -78,6 +78,30 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		acks:       acks,
 	}
 
+	extensionCache := map[string]*corev1.ConfigMap{}
+	extensionErrs := map[string]error{}
+	w.extensionCM = func(namespace, name string) (*corev1.ConfigMap, error) {
+		key := nsName(namespace, name)
+
+		if cm, ok := extensionCache[key]; ok {
+			return cm, nil
+		}
+
+		if err, ok := extensionErrs[key]; ok {
+			return nil, err
+		}
+
+		cm, err := r.client.CoreV1().ConfigMaps(namespace).
+			Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			extensionErrs[key] = err
+			return nil, err
+		}
+
+		extensionCache[key] = cm
+		return cm, nil
+	}
+
 	classList, err := r.gwClient.GatewayV1().GatewayClasses().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
