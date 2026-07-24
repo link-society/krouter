@@ -15,6 +15,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/link-society/krouter/internal/extensions/ratelimiting"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 )
 
@@ -131,11 +132,18 @@ func BuildGatewayTable(
 
 		for _, rule := range route.Rules {
 			entry := &RuleTable{
-				matches:        rule.Matches,
-				filters:        rule.Filters,
-				grpc:           route.GRPC,
-				requestTimeout: time.Duration(rule.RequestTimeoutMillis) * time.Millisecond,
-				backendTimeout: time.Duration(rule.BackendTimeoutMillis) * time.Millisecond,
+				matches:           rule.Matches,
+				filters:           rule.Filters,
+				grpc:              route.GRPC,
+				requestTimeout:    time.Duration(rule.RequestTimeoutMillis) * time.Millisecond,
+				backendTimeout:    time.Duration(rule.BackendTimeoutMillis) * time.Millisecond,
+				extensionsInvalid: rule.ExtensionsInvalid,
+			}
+
+			// Limiter state is local to this table: buckets reset on swap,
+			// like round-robin counters (docs/spec/extensions.md).
+			if rule.RateLimit != nil {
+				entry.limiter = ratelimiting.NewLimiter(rule.RateLimit)
 			}
 
 			for _, filter := range rule.Filters {

@@ -140,15 +140,21 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 		return
 	}
 
-	status := 0
-	if cors := rule.CORS(); cors != nil && isCORSPreflight(r) {
-		// Preflight requests are answered at the gateway
-		// (docs/spec/traffic.md Routing and filters).
-		status = serveCORSPreflight(w, r, cors)
-	} else if redirect, ok := redirectFilter(rule); ok {
-		status = serveRedirect(w, r, redirect, withTLS)
-	} else {
-		status = h.forward(w, r, rule, withTLS)
+	// Extensions run first (docs/spec/extensions.md Request path
+	// integration): a rejected request is never mirrored, redirected,
+	// answered with CORS headers, or forwarded.
+	status, extension := serveExtensions(w, r, rule)
+
+	if status == 0 {
+		if cors := rule.CORS(); cors != nil && isCORSPreflight(r) {
+			// Preflight requests are answered at the gateway
+			// (docs/spec/traffic.md Routing and filters).
+			status = serveCORSPreflight(w, r, cors)
+		} else if redirect, ok := redirectFilter(rule); ok {
+			status = serveRedirect(w, r, redirect, withTLS)
+		} else {
+			status = h.forward(w, r, rule, withTLS)
+		}
 	}
 
 	requestsTotal.WithLabelValues(fmt.Sprintf("%dxx", status/100)).Inc()
@@ -164,6 +170,11 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 		"duration", time.Since(start),
 		"proto", r.Proto,
 		"client", r.RemoteAddr,
+	}
+
+	if extension != "" {
+		// The rejecting extension (docs/spec/extensions.md Observability).
+		attrs = append(attrs, "extension", extension)
 	}
 
 	if rule.GRPC() {
