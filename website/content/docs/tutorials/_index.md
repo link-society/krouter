@@ -1,6 +1,6 @@
 ---
 title: "Tutorials"
-description: "Hands-on walkthroughs, from your first route to full mutual TLS (each one builds on the previous)."
+description: "Hands-on walkthroughs, from your first route to mutual TLS, shared gateways and a WAF (each one builds on the previous)."
 ---
 
 Each tutorial is self-contained and scoped to one use case. They assume a

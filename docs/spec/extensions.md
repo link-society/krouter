@@ -133,9 +133,20 @@ Semantics:
 
 - `directives` is a Coraza (SecLang) ruleset. The OWASP Core Rule Set and
   the Coraza recommended configuration are embedded in the krouter binary
-  and reachable only through the `@`-includes shown above. `Include` of
-  filesystem paths MUST be rejected at compile time: extension ConfigMaps
-  MUST NOT read the pod filesystem.
+  and reachable through the `@`-includes shown above. Any other `Include`
+  path resolves against the pod filesystem, so operators MAY bring their
+  own rule files by extending the container image or mounting volumes;
+  both are deployment-level changes (Dockerfile, Kustomize), not Gateway
+  API configuration. Included files MUST be present on the control-plane
+  pod (which validates the program) and on every data-plane pod (which
+  enforces it); running both from one extended image satisfies this by
+  construction.
+- Rule files are read when an engine builds, not watched: editing a
+  mounted file in place does NOT produce a new configuration generation.
+  Rolling the pods (or changing the ConfigMap directives) applies new
+  file contents. A file missing on a data-plane pod fails that pod's
+  engine build and the affected rule fails closed, per the
+  `InvalidExtensionRef` request handling.
 - The `waf.hcl` documents reaching a rule concatenate their `directives`
   in filter list order into one SecLang program: later fragments MAY add
   rules and exclusions or override engine settings, per SecLang

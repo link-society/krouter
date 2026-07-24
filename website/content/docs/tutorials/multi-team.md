@@ -118,7 +118,4 @@ per entry on the ListenerSet, and counts accepted sets in the Gateway's
 `attachedListenerSets`. Routes may target the set directly with a
 `parentRefs` entry of `kind: ListenerSet` naming `team-a-listeners`.
 
-That's the full tour, from one route to a multi-tenant edge. For the
-guarantees behind all of it, read the
-[conformance page](/docs/conformance/) and the
-[test report](/report/report.html).
+**Next:** [put a web application firewall in front](/docs/tutorials/waf/).

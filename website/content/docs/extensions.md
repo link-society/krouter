@@ -96,16 +96,21 @@ counters on a table swap.
 
 `waf.hcl` carries a [Coraza](https://coraza.io) (SecLang) ruleset. The
 [OWASP Core Rule Set](https://coreruleset.org) and the Coraza recommended
-configuration are embedded in the krouter binary and reachable only
-through the `@`-includes shown above; `Include` of filesystem paths is
-rejected, so an extension ConfigMap can never read the pod filesystem.
+configuration are embedded in the krouter binary and reachable through
+the `@`-includes shown above; any other `Include` path reads rule files
+from the pod filesystem, provided at deployment time by extending the
+image or mounting volumes (see
+[the WAF tutorial](/docs/tutorials/waf/) for both recipes).
 
 - The request phases (request headers, then request body) are inspected
   before any byte reaches a backend. On HTTPRoute rules the body is
   buffered and inspected up to the engine's limits (`SecRequestBodyLimit`
   and related directives), then replayed to the backend unchanged. On
-  GRPCRoute rules only the request-header phase runs, since message
-  payloads are streams.
+  GRPCRoute rules the request message is buffered and inspected the same
+  way, which suits unary calls; for streaming calls the buffering adds
+  latency, so scope the WAF to unary services. The stock CRS also rejects
+  the `application/grpc` content type at the header phase (rule 920420)
+  unless a later fragment allows it.
 - A matching deny rule interrupts the request: the client receives the
   interruption's status (`403` when the ruleset sets none) and the backend
   never sees the request.
