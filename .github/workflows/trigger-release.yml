@@ -39,6 +39,11 @@ jobs:
           git config --global user.email "noreply@link-society.com"
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
 
+      - name: setup@python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
       # SECURITY.md carries the supported-versions table; it is regenerated
       # for every release from the tag history plus the new tag.
       - name: tag@scm
