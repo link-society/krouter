@@ -201,7 +201,7 @@ itself, not with Gateway API resources. Two recipes:
 contains only the binary, so adding rules is one COPY layer:
 
 ```dockerfile
-FROM ghcr.io/link-society/krouter:dev
+FROM ghcr.io/link-society/krouter:latest
 COPY rules/ /etc/krouter/rules/
 ```
 
