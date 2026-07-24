@@ -21,7 +21,7 @@ SECURITY_POLICY_HEADER = f"""
 
 ## Reporting a Vulnerability
 
-Please open a `Security Report` on the
+Please open a `Security Bug Report` on the
 [bug tracker]({REPOSITORY}/issues/new/choose).
 
 ## Supported Versions

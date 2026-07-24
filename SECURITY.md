@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Please open a `Security Report` on the
+Please open a `Security Bug Report` on the
 [bug tracker](https://github.com/link-society/krouter/issues/new/choose).
 
 ## Supported Versions

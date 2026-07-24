@@ -1,6 +1,6 @@
-name: Bug Report
-description: File a bug report.
-title: ":bug: "
+name: Security Bug Report
+description: File a bug report related to security.
+title: ":lock: "
 labels:
   - triage
 body:
@@ -42,6 +42,12 @@ body:
       placeholder: Describe the correct, expected, behavior
     validations:
       required: true
+  - type: input
+    id: cve
+    attributes:
+      label: CVE
+      description: If this bug is related to a CVE, please provide the CVE number.
+      placeholder: CVE-2021-12345
   - type: textarea
     id: logs
     attributes:
