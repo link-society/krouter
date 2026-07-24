@@ -54,6 +54,13 @@ tasks:
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance cp tests/results/conformance/conformance.test conformance-runner:/work/conformance.test
       - defer: kubectl --context {{.KIND_CONTEXT}} delete -f tests/config/conformance/runner.yaml --ignore-not-found
       - defer: kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance cp conformance-runner:/work/report.yaml tests/results/conformance/report.yaml
+      # Control-plane logs cover the whole conformance window: on stale-route
+      # signatures (negative assertions receiving 200s) the reconciler's
+      # step errors and sync latencies are the primary evidence.
+      - defer: >-
+          kubectl --context {{.KIND_CONTEXT}} -n krouter-system logs deployment/krouter-controlplane
+          --since=45m --timestamps
+          > tests/results/conformance/controlplane.log 2>&1 || true
       # The raw `go test -v` stream is kept so tests:report can convert it
       # to JUnit with test2json.
       - >-
