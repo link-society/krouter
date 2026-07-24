@@ -8,39 +8,47 @@ tasks:
       - task: unit
       - task: e2e
 
-  install-deps:
+  deps:install:
     desc: Install the Python test dependencies with PDM (tests/pyproject.toml)
+    internal: true
     cmds:
       - pdm install --quiet --project tests
+
+  vet:
+    desc: Vet the Go workspace
+    cmds:
+      - go vet ./...
 
   unit:
     desc: Run Go unit tests (pure logic lives next to the packages, see tests/README.md)
     cmds:
-      - go vet ./...
+      - task: vet
       - go test -race -count=1 ./...
+
+  unit:junit:
+    desc: Run the unit suite writing a JUnit report (tests/results/unit)
+    cmds:
+      - mkdir -p tests/results/unit
+      - go run gotest.tools/gotestsum@{{.GOTESTSUM_VERSION}} --junitfile tests/results/unit/junit.xml -- -race -count=1 ./...
 
   e2e:
     desc: Run the pytest end-to-end suite against the kind cluster (expects `task k8s:up k8s:deploy`)
-    deps: [install-deps]
+    deps: ['deps:install']
     cmds:
       - pdm run -p tests pytest tests/specs/e2e {{.CLI_ARGS}}
 
+  e2e:junit:
+    desc: Run the e2e suite writing a JUnit report (tests/results/e2e)
+    cmds:
+      - mkdir -p tests/results/e2e
+      - task: e2e
+        vars:
+          CLI_ARGS: --junitxml=tests/results/e2e/junit.xml
+
   conformance:
     desc: Run the Gateway API Core conformance profiles (docs/spec/overview.md, docs/spec/acceptance.md criteria 1, 14, 15)
-    vars:
-      NODE_ARCH:
-        sh: kubectl --context {{.KIND_CONTEXT}} get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}'
     cmds:
-      - mkdir -p tests/results/conformance
-      - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/conformance/gatewayclass.yaml
-      # The conformance suite dials the addresses published on Gateway
-      # status, which are cluster-internal, so the compiled test binary runs
-      # inside a pod (it picks up the in-cluster config and its manifests are
-      # embedded in the binary).
-      - >-
-        cd tests/specs/conformance &&
-        CGO_ENABLED=0 GOOS=linux GOARCH={{.NODE_ARCH}}
-        go test -c -o ../../results/conformance/conformance.test .
+      - task: conformance:compile
       - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/conformance/runner.yaml
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance wait --for=condition=Ready --timeout=120s pod/conformance-runner
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-conformance cp tests/results/conformance/conformance.test conformance-runner:/work/conformance.test
@@ -62,23 +70,74 @@ tasks:
         {{.CLI_ARGS}}
         | tee tests/results/conformance/output.log
 
+  conformance:compile:
+    desc: Compile the conformance test binary for the cluster architecture
+    internal: true
+    vars:
+      NODE_ARCH:
+        sh: kubectl --context {{.KIND_CONTEXT}} get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}'
+    cmds:
+      - mkdir -p tests/results/conformance
+      - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/conformance/gatewayclass.yaml
+      # The conformance suite dials the addresses published on Gateway
+      # status, which are cluster-internal, so the compiled test binary runs
+      # inside a pod (it picks up the in-cluster config and its manifests are
+      # embedded in the binary).
+      - >-
+        cd tests/specs/conformance &&
+        CGO_ENABLED=0 GOOS=linux GOARCH={{.NODE_ARCH}}
+        go test -c -o ../../results/conformance/conformance.test .
+
   performance:
     desc: Run the 10,000 concurrent-connection release gate (docs/spec/performance.md, docs/spec/acceptance.md criterion 10)
-    deps: [install-deps]
+    deps: ['deps:install']
     cmds:
       - pdm run -p tests pytest tests/specs/performance -m performance {{.CLI_ARGS}}
 
+  performance:junit:
+    desc: Run the performance suite writing a JUnit report (tests/results/performance)
+    cmds:
+      - mkdir -p tests/results/performance
+      - task: performance
+        vars:
+          CLI_ARGS: --junitxml=tests/results/performance/junit.xml
+
+  conformance:junit:
+    desc: Convert the captured conformance `go test -v` stream to JUnit (tests/results/conformance)
+    cmds:
+      - go tool test2json -p conformance < tests/results/conformance/output.log > tests/results/conformance/events.json
+      - go run gotest.tools/gotestsum@{{.GOTESTSUM_VERSION}} --junitfile tests/results/conformance/junit.xml --raw-command -- cat tests/results/conformance/events.json
+
+  report:build:
+    desc: Aggregate the JUnit results into the combined HTML report (tests/results/report)
+    deps: ['deps:install']
+    cmds:
+      - pdm run -p tests python tests/src/report/build.py
+
   waf:
     desc: Evaluate the ExtensionRef WAF with gotestwaf against the standing CRS target (docs/spec/extensions.md, docs/spec/acceptance.md criterion 25)
-    deps: [install-deps, ':mocks:load']
-    vars:
-      WAF_MIN_SCORE: '{{.WAF_MIN_SCORE | default "50"}}'
+    deps: ['deps:install', ':mocks:load']
+    cmds:
+      - task: waf:deploy
+      - task: waf:probe
+      - task: waf:run
+        vars:
+          CLI_ARGS: '{{.CLI_ARGS}}'
+      - task: waf:gate
+
+  waf:deploy:
+    desc: Apply the standing WAF target and wait for it to come up
+    internal: true
     cmds:
       - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/waf/manifest.yml
       - kubectl --context {{.KIND_CONTEXT}} -n waf-target rollout status deployment/httpbin --timeout=180s
       - kubectl --context {{.KIND_CONTEXT}} -n waf-target rollout status deployment/grpcbin --timeout=180s
       - kubectl --context {{.KIND_CONTEXT}} -n waf-target wait --for=condition=Programmed --timeout=180s gateway/waf-target
-      - mkdir -p tests/results/waf
+
+  waf:probe:
+    desc: Wait until the gRPC arm answers, gotestwaf pre-checks it only once
+    internal: true
+    cmds:
       # gotestwaf runs its gRPC pre-check once at startup; wait until the
       # GRPCRoute is programmed and krouter answers the h2c endpoint with an
       # application/grpc response, otherwise the gRPC test set is skipped.
@@ -89,6 +148,12 @@ tasks:
         | grep -qi '^content-type: application/grpc' && break;
         echo "waiting for gRPC endpoint ($i)"; sleep 2;
         done
+
+  waf:run:
+    desc: Run gotestwaf against the standing target
+    internal: true
+    cmds:
+      - mkdir -p tests/results/waf
       # The kind cluster publishes NodePort 30104 on 127.0.0.1; the
       # container reaches it through the host network. krouter's HTTP
       # listener serves h2c, so the gRPC test set targets the same port.
@@ -104,6 +169,13 @@ tasks:
         --reportFormat=json,html
         --reportName=waf-evaluation
         {{.CLI_ARGS}}
+
+  waf:gate:
+    desc: Enforce the minimum gotestwaf score and write the JUnit verdict
+    internal: true
+    vars:
+      WAF_MIN_SCORE: '{{.WAF_MIN_SCORE | default "50"}}'
+    cmds:
       - pdm run -p tests python tests/src/report/wafgate.py tests/results/waf/waf-evaluation.json {{.WAF_MIN_SCORE}}
 
   all:
@@ -116,28 +188,25 @@ tasks:
 
   report:
     desc: Run every suite and produce a combined JUnit + HTML report (tests/results/report)
-    deps: [install-deps]
+    deps: ['deps:install']
     cmds:
       - mkdir -p tests/results/unit tests/results/e2e tests/results/conformance tests/results/performance tests/results/report
-      - go vet ./...
+      - task: vet
       # Suites keep going on failure: the final report step recomputes the
       # overall verdict from the JUnit files and sets the exit code.
-      - cmd: go run gotest.tools/gotestsum@{{.GOTESTSUM_VERSION}} --junitfile tests/results/unit/junit.xml -- -race -count=1 ./...
+      - cmd: task tests:unit:junit
         ignore_error: true
-      - cmd: task tests:e2e -- --junitxml=tests/results/e2e/junit.xml
+      - cmd: task tests:e2e:junit
         ignore_error: true
       - cmd: task tests:conformance
         ignore_error: true
-      - cmd: task tests:performance -- --junitxml=tests/results/performance/junit.xml
+      - cmd: task tests:performance:junit
         ignore_error: true
       - cmd: task tests:waf
         ignore_error: true
-      # Convert the captured conformance `go test -v` stream to JUnit.
-      - cmd: go tool test2json -p conformance < tests/results/conformance/output.log > tests/results/conformance/events.json
+      - cmd: task tests:conformance:junit
         ignore_error: true
-      - cmd: go run gotest.tools/gotestsum@{{.GOTESTSUM_VERSION}} --junitfile tests/results/conformance/junit.xml --raw-command -- cat tests/results/conformance/events.json
-        ignore_error: true
-      - pdm run -p tests python tests/src/report/build.py
+      - task: report:build
 
   bench:
     desc: 'Benchmark one implementation (usage: task tests:bench -- krouter|nginx|traefik)'

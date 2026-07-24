@@ -34,7 +34,7 @@ def cluster():
     if crd is None:
         pytest.fail(
             "Gateway API CRDs are not installed "
-            "(run `task k8s:install-gateway-api`)"
+            "(run `task k8s:crds:install`)"
         )
 
     try:

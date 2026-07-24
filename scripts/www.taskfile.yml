@@ -15,6 +15,16 @@ tasks:
       # WAF suite ran (docs/spec/extensions.md Verification).
       - test ! -f tests/results/report/gotestwaf.html || cp tests/results/report/gotestwaf.html website/static/report/gotestwaf.html
 
+  report:placeholder:
+    desc: Create a placeholder test report when a pipeline built no full one (CI)
+    status:
+      - test -f tests/results/report/report.html
+    cmds:
+      - mkdir -p tests/results/report
+      - >-
+        echo '<!doctype html><title>krouter test report</title><p>No test report was produced for this build.</p>'
+        > tests/results/report/report.html
+
   build:
     desc: Build the website into website/public (includes the test report)
     deps: [report]

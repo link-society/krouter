@@ -12,9 +12,9 @@ tasks:
         --name {{.KIND_CLUSTER}}
         --config tests/config/kind/cluster.yaml
         {{if .KIND_NODE_IMAGE}}--image {{.KIND_NODE_IMAGE}}{{end}}
-      - task: install-gateway-api
+      - task: crds:install
 
-  install-gateway-api:
+  crds:install:
     desc: Install the Gateway API Experimental channel CRDs — the Standard set plus TCPRoute and TLSRoute (spec requires them pre-installed, docs/spec/overview.md, docs/spec/deployment.md)
     cmds:
       # Server-side apply: the experimental CRDs exceed the client-side
@@ -22,9 +22,14 @@ tasks:
       - kubectl --context {{.KIND_CONTEXT}} apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/experimental-install.yaml
       - kubectl --context {{.KIND_CONTEXT}} wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io crd/referencegrants.gateway.networking.k8s.io crd/tcproutes.gateway.networking.k8s.io crd/tlsroutes.gateway.networking.k8s.io
 
-  load-image:
+  image:update:
     desc: Build the krouter image and load it into the kind cluster
     deps: [':docker:build']
+    cmds:
+      - task: image:load
+
+  image:load:
+    desc: Load the already-built krouter image into the kind cluster (no rebuild)
     cmds:
       - kind load docker-image {{.IMAGE}} --name {{.KIND_CLUSTER}}
 
@@ -33,13 +38,18 @@ tasks:
     cmds:
       - kind delete cluster --name {{.KIND_CLUSTER}}
 
-  deploy:
-    desc: Deploy krouter (static manifest, docs/spec/deployment.md) into the kind cluster
-    deps: [load-image]
+  apply:
+    desc: Apply the krouter manifest and wait for both planes to roll out
     cmds:
       - kubectl --context {{.KIND_CONTEXT}} apply -f k8s/krouter.yaml
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-system rollout status deployment/krouter-controlplane --timeout=180s
       - kubectl --context {{.KIND_CONTEXT}} -n krouter-system rollout status daemonset/krouter-dataplane --timeout=180s
+
+  deploy:
+    desc: Deploy krouter (static manifest, docs/spec/deployment.md) into the kind cluster
+    deps: ['image:update']
+    cmds:
+      - task: apply
 
   restart:
     desc: Restart the krouter control plane and data plane (pick up a freshly loaded image)
