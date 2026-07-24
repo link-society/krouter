@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/link-society/krouter/internal/extensions/ratelimiting"
+	"github.com/link-society/krouter/internal/extensions/waf"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 )
 
@@ -144,6 +145,18 @@ func BuildGatewayTable(
 			// like round-robin counters (docs/spec/extensions.md).
 			if rule.RateLimit != nil {
 				entry.limiter = ratelimiting.NewLimiter(rule.RateLimit)
+			}
+
+			// The control plane already validated the concatenated program;
+			// a build failure here fails the rule closed
+			// (docs/spec/extensions.md Resolution and status).
+			if rule.WAF != "" {
+				engine, err := waf.NewEngine(rule.WAF)
+				if err != nil {
+					entry.extensionsInvalid = true
+				} else {
+					entry.wafEngine = engine
+				}
 			}
 
 			for _, filter := range rule.Filters {

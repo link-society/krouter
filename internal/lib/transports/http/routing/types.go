@@ -19,6 +19,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 
 	"github.com/link-society/krouter/internal/extensions/ratelimiting"
+	"github.com/link-society/krouter/internal/extensions/waf"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 	"github.com/link-society/krouter/internal/lib/snapshot"
 )
@@ -146,15 +147,21 @@ type RuleTable struct {
 	counter        atomic.Int64
 
 	// limiter enforces the rule's merged rate limiting configuration;
+	// wafEngine enforces the rule's concatenated WAF program;
 	// extensionsInvalid marks a broken ExtensionRef target: matching
 	// requests are answered 500 (docs/spec/extensions.md).
 	limiter           *ratelimiting.Limiter
+	wafEngine         *waf.Engine
 	extensionsInvalid bool
 }
 
 // RateLimiter returns the rule's rate limiter, or nil
 // (docs/spec/extensions.md Rate limiting).
 func (r *RuleTable) RateLimiter() *ratelimiting.Limiter { return r.limiter }
+
+// WAF returns the rule's web application firewall engine, or nil
+// (docs/spec/extensions.md Web application firewall).
+func (r *RuleTable) WAF() *waf.Engine { return r.wafEngine }
 
 // ExtensionsInvalid reports a broken ExtensionRef target: the rule fails
 // closed (docs/spec/extensions.md Resolution and status).

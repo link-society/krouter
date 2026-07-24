@@ -143,7 +143,7 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	// Extensions run first (docs/spec/extensions.md Request path
 	// integration): a rejected request is never mirrored, redirected,
 	// answered with CORS headers, or forwarded.
-	status, extension := serveExtensions(w, r, rule)
+	status, extension, wafRule := serveExtensions(w, r, rule)
 
 	if status == 0 {
 		if cors := rule.CORS(); cors != nil && isCORSPreflight(r) {
@@ -175,6 +175,11 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	if extension != "" {
 		// The rejecting extension (docs/spec/extensions.md Observability).
 		attrs = append(attrs, "extension", extension)
+	}
+
+	if wafRule != 0 {
+		// The interrupting WAF rule (docs/spec/extensions.md Observability).
+		attrs = append(attrs, "waf_rule", wafRule)
 	}
 
 	if rule.GRPC() {
