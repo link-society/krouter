@@ -87,6 +87,10 @@ def wait(proc: subprocess.Popen, timeout: int) -> dict:
             f"loadgen exited with {proc.returncode}\nstderr: {stderr[-2000:]}"
         )
 
+    for line in stderr.splitlines():
+        if "close-demanding" in line:
+            log.warning("%s", line)
+
     try:
         return json.loads(stdout)
 

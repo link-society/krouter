@@ -82,6 +82,7 @@ type report struct {
 	RequestErrors   int64    `json:"request_errors"`
 	Non2xx          int64    `json:"non_2xx"`
 	Disconnects     int64    `json:"disconnects"`
+	CloseDemanded   int64    `json:"close_demanded"`
 	BytesIn         int64    `json:"bytes_in"`
 	RequestsPerSec  float64  `json:"requests_per_sec"`
 	Latency         latency  `json:"latency"`
@@ -95,6 +96,7 @@ type collector struct {
 	requestErrors atomic.Int64
 	non2xx        atomic.Int64
 	disconnects   atomic.Int64
+	closeDemanded atomic.Int64
 	bytesIn       atomic.Int64
 
 	start time.Time
@@ -186,6 +188,7 @@ func (c *collector) report(cfg config, elapsed time.Duration) report {
 		RequestErrors:   c.requestErrors.Load(),
 		Non2xx:          c.non2xx.Load(),
 		Disconnects:     c.disconnects.Load(),
+		CloseDemanded:   c.closeDemanded.Load(),
 		BytesIn:         c.bytesIn.Load(),
 		RequestsPerSec:  float64(c.requests.Load()) / elapsed.Seconds(),
 		Latency: latency{
@@ -279,6 +282,25 @@ func doRequest(ctx context.Context, client *http.Client, cfg config, col *collec
 		}
 		return newConn, err
 	}
+
+	// A response can lawfully force the connection closed: an explicit
+	// Connection: close, or an EOF-framed body (neither Content-Length nor
+	// chunked encoding), which HTTP/1.1 can only delimit by teardown. The
+	// transport reopens on the next request; telling this apart from a
+	// proxy-initiated drop is what attributes the disconnect.
+	if resp.Close || (resp.ContentLength < 0 && len(resp.TransferEncoding) == 0) {
+		col.closeDemanded.Add(1)
+		fmt.Fprintf(
+			os.Stderr,
+			"loadgen: close-demanding response at t=%.1fs: status=%d close=%v content_length=%d transfer_encoding=%v\n",
+			time.Since(col.start).Seconds(),
+			resp.StatusCode,
+			resp.Close,
+			resp.ContentLength,
+			resp.TransferEncoding,
+		)
+	}
+
 	n, _ := io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 

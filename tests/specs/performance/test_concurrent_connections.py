@@ -150,11 +150,13 @@ def test_10k_concurrent_connections_survive_reload(stack):
         tcpdump.terminate()
 
     log.info(
-        "loadgen report: established=%s requests=%s errors=%s disconnects=%s p99=%.1fms",
+        "loadgen report: established=%s requests=%s errors=%s disconnects=%s "
+        "close_demanded=%s p99=%.1fms",
         result["established"],
         result["requests"],
         result["request_errors"],
         result["disconnects"],
+        result["close_demanded"],
         result["latency"]["p99_ms"],
     )
 
