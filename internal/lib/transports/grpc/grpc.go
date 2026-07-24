@@ -16,9 +16,11 @@ import (
 
 // Status codes from the gRPC specification.
 const (
-	StatusUnimplemented = "12"
-	StatusInternal      = "13"
-	StatusUnavailable   = "14"
+	StatusPermissionDenied  = "7"
+	StatusResourceExhausted = "8"
+	StatusUnimplemented     = "12"
+	StatusInternal          = "13"
+	StatusUnavailable       = "14"
 )
 
 // IsRequest reports whether the request is a gRPC request.

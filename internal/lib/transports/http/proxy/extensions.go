@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/link-society/krouter/internal/lib/transports/grpc"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
 
@@ -42,12 +43,15 @@ func serveExtensions(
 	r *http.Request,
 	rule *routing.RuleTable,
 ) (int, string, int) {
+	grpcRule := rule.GRPC()
+
 	if rule.ExtensionsInvalid() {
 		// An unresolvable filter is never skipped
 		// (docs/spec/extensions.md Resolution and status).
-		http.Error(w, "invalid route extension", http.StatusInternalServerError)
+		status := deny(w, grpcRule, http.StatusInternalServerError,
+			grpc.StatusInternal, "invalid route extension")
 
-		return http.StatusInternalServerError, "extensionref", 0
+		return status, "extensionref", 0
 	}
 
 	if limiter := rule.RateLimiter(); limiter != nil {
@@ -60,9 +64,9 @@ func serveExtensions(
 				seconds = 1
 			}
 
-			status := int(limiter.Status())
 			w.Header().Set("Retry-After", strconv.Itoa(seconds))
-			http.Error(w, "rate limited", status)
+			status := deny(w, grpcRule, int(limiter.Status()),
+				grpc.StatusResourceExhausted, "rate limited")
 
 			return status, "ratelimit", 0
 		}
@@ -75,27 +79,46 @@ func serveExtensions(
 		// inspection: only the request-header phase is enforced
 		// (docs/spec/extensions.md Web application firewall, WebSocket and
 		// upgrade requests).
-		headersOnly := rule.GRPC() || isUpgrade(r)
+		headersOnly := grpcRule || isUpgrade(r)
 
 		denial, err := engine.Evaluate(r, headersOnly)
 		if err != nil {
 			wafDecisions.WithLabelValues("error").Inc()
-			http.Error(w, "web application firewall error", http.StatusInternalServerError)
+			status := deny(w, grpcRule, http.StatusInternalServerError,
+				grpc.StatusInternal, "web application firewall error")
 
-			return http.StatusInternalServerError, "waf", 0
+			return status, "waf", 0
 		}
 
 		if denial != nil {
 			wafDecisions.WithLabelValues("denied").Inc()
-			http.Error(w, "forbidden", denial.Status)
+			status := deny(w, grpcRule, denial.Status,
+				grpc.StatusPermissionDenied, "forbidden")
 
-			return denial.Status, "waf", denial.RuleID
+			return status, "waf", denial.RuleID
 		}
 
 		wafDecisions.WithLabelValues("allowed").Inc()
 	}
 
 	return 0, "", 0
+}
+
+// deny writes an extension rejection in the transport-appropriate form and
+// returns the status to record: a gRPC rule receives a trailers-only status
+// response (HTTP 200 carrying the gRPC code, matching the other gRPC
+// rejection paths), everything else a plain HTTP error
+// (docs/spec/extensions.md Request path integration).
+func deny(w http.ResponseWriter, grpcRule bool, httpStatus int, grpcCode, message string) int {
+	if grpcRule {
+		grpc.WriteStatus(w, grpcCode, message)
+
+		return http.StatusOK
+	}
+
+	http.Error(w, message, httpStatus)
+
+	return httpStatus
 }
 
 // isUpgrade reports whether the request asks to switch protocols (e.g. a
