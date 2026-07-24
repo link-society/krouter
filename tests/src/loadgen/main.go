@@ -183,6 +183,30 @@ func (c *collector) report(cfg config, elapsed time.Duration) report {
 	}
 }
 
+// disconnectTracker folds the failure of a request and the reconnect that
+// necessarily follows it into a single disconnect event, so one dropped
+// connection counts once. Consecutive failures likewise collapse: the
+// connection died once, however long it takes to come back.
+type disconnectTracker struct {
+	dead bool
+}
+
+func (t *disconnectTracker) observe(col *collector, newConn bool, err error) {
+	if err != nil {
+		if !t.dead {
+			col.disconnects.Add(1)
+		}
+		t.dead = true
+
+		return
+	}
+
+	if newConn && !t.dead {
+		col.disconnects.Add(1)
+	}
+	t.dead = false
+}
+
 // newClient builds an HTTP client owning exactly one TCP connection, so that
 // N clients == N downstream connections and transparent reconnects are
 // observable per connection.
@@ -228,9 +252,13 @@ func doRequest(ctx context.Context, client *http.Client, cfg config, col *collec
 	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		col.requests.Add(1)
-		col.requestErrors.Add(1)
-		col.record(0, true)
+		// The end-of-run cancellation aborts whatever requests are in
+		// flight; they say nothing about the proxy and are not counted.
+		if ctx.Err() == nil {
+			col.requests.Add(1)
+			col.requestErrors.Add(1)
+			col.record(0, true)
+		}
 		return newConn, err
 	}
 	n, _ := io.Copy(io.Discard, resp.Body)
@@ -271,6 +299,8 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 			ticker := time.NewTicker(cfg.interval)
 			defer ticker.Stop()
 
+			var tracker disconnectTracker
+
 			for {
 				select {
 				case <-ctx.Done():
@@ -284,9 +314,7 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 					// A reconnect or a failed request on an established
 					// connection means the proxy dropped us: exactly what
 					// docs/spec/performance.md forbids during reloads.
-					if newConn || err != nil {
-						col.disconnects.Add(1)
-					}
+					tracker.observe(col, newConn, err)
 				}
 			}
 		})
@@ -303,6 +331,8 @@ func runLoad(ctx context.Context, cfg config, col *collector) {
 			defer client.CloseIdleConnections()
 
 			first := true
+			var tracker disconnectTracker
+
 			for ctx.Err() == nil {
 				newConn, err := doRequest(ctx, client, cfg, col)
 				if ctx.Err() != nil {
@@ -312,6 +342,9 @@ func runLoad(ctx context.Context, cfg config, col *collector) {
 				if first {
 					if err != nil {
 						col.connectErrors.Add(1)
+						// Never established: the retry that follows is not a
+						// proxy-generated disconnect.
+						tracker.dead = true
 					} else {
 						col.established.Add(1)
 					}
@@ -320,9 +353,7 @@ func runLoad(ctx context.Context, cfg config, col *collector) {
 					continue
 				}
 
-				if newConn || err != nil {
-					col.disconnects.Add(1)
-				}
+				tracker.observe(col, newConn, err)
 			}
 		})
 	}

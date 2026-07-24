@@ -26,6 +26,13 @@ CONNECTIONS = 10_000
 HOLD_DURATION_S = 180
 RELOAD_AT_S = 60  # reload mid-hold (docs/spec/performance.md: preserved across reloads)
 
+# One request per connection per interval keeps every connection observably
+# alive (several requests before and after the reload) while bounding the
+# aggregate rate at ~333 req/s: the gate is about held connections, and the
+# 4-vCPU CI runner saturates near 1,000 req/s, turning scheduler latency
+# into spurious timeouts.
+REQUEST_INTERVAL_S = 30
+
 
 def _route(ns: str, marker: str) -> dict:
     """
@@ -100,7 +107,7 @@ def test_10k_concurrent_connections_survive_reload(stack):
         host=HOSTNAME,
         connections=CONNECTIONS,
         duration=f"{HOLD_DURATION_S}s",
-        interval="10s",
+        interval=f"{REQUEST_INTERVAL_S}s",
         ramp=500,
     )
 
