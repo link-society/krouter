@@ -88,7 +88,10 @@ def wait(proc: subprocess.Popen, timeout: int) -> dict:
         )
 
     for line in stderr.splitlines():
-        if "close-demanding" in line:
+        if any(
+            marker in line
+            for marker in ("close-demanding", "body read failed", "transparent reconnect")
+        ):
             log.warning("%s", line)
 
     try:

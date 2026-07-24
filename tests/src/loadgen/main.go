@@ -250,14 +250,29 @@ func newClient(cfg config) *http.Client {
 	return &http.Client{Transport: transport, Timeout: cfg.timeout}
 }
 
+// connAddrs remembers the transport's local address per held connection so
+// a transparent reconnect can name the flow that died: the previous local
+// port is the join key into the node-side packet capture.
+type connAddrs struct {
+	prev string
+	cur  string
+}
+
 // doRequest issues one GET and reports whether the transport had to open a
 // new TCP connection to serve it.
-func doRequest(ctx context.Context, client *http.Client, cfg config, col *collector) (newConn bool, err error) {
+func doRequest(ctx context.Context, client *http.Client, cfg config, col *collector, addrs *connAddrs) (newConn bool, err error) {
 	trace := &httptrace.ClientTrace{
 		GotConn: func(info httptrace.GotConnInfo) {
+			local := ""
+			if info.Conn != nil {
+				local = info.Conn.LocalAddr().String()
+			}
+
 			if !info.Reused {
 				newConn = true
+				addrs.prev = addrs.cur
 			}
+			addrs.cur = local
 		},
 	}
 
@@ -301,8 +316,28 @@ func doRequest(ctx context.Context, client *http.Client, cfg config, col *collec
 		)
 	}
 
-	n, _ := io.Copy(io.Discard, resp.Body)
+	n, readErr := io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
+
+	// A failed body read is a failed request: swallowing it records a
+	// phantom success while Body.Close tears the connection down (the
+	// client-first FIN in the packet captures) and the next request
+	// silently reopens. Surface it, with the transport's own reason.
+	if readErr != nil {
+		if ctx.Err() == nil {
+			col.requests.Add(1)
+			col.requestErrors.Add(1)
+			col.record(time.Since(start), true)
+			fmt.Fprintf(
+				os.Stderr,
+				"loadgen: body read failed at t=%.1fs after %s: %v\n",
+				time.Since(col.start).Seconds(),
+				time.Since(start),
+				readErr,
+			)
+		}
+		return newConn, fmt.Errorf("reading response body: %w", readErr)
+	}
 
 	col.bytesIn.Add(n)
 	col.requests.Add(1)
@@ -327,8 +362,10 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 			client := newClient(cfg)
 			defer client.CloseIdleConnections()
 
+			var addrs connAddrs
+
 			sem <- struct{}{}
-			_, err := doRequest(ctx, client, cfg, col)
+			_, err := doRequest(ctx, client, cfg, col, &addrs)
 			<-sem
 			if err != nil {
 				col.connectErrors.Add(1)
@@ -347,7 +384,8 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 					return
 
 				case <-ticker.C:
-					newConn, err := doRequest(ctx, client, cfg, col)
+					wasDead := tracker.dead
+					newConn, err := doRequest(ctx, client, cfg, col, &addrs)
 					if ctx.Err() != nil {
 						return
 					}
@@ -355,6 +393,16 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 					// connection means the proxy dropped us: exactly what
 					// docs/spec/performance.md forbids during reloads.
 					tracker.observe(col, newConn, err)
+
+					if newConn && err == nil && !wasDead {
+						fmt.Fprintf(
+							os.Stderr,
+							"loadgen: transparent reconnect at t=%.1fs: %s -> %s\n",
+							time.Since(col.start).Seconds(),
+							addrs.prev,
+							addrs.cur,
+						)
+					}
 				}
 			}
 		})
@@ -370,11 +418,13 @@ func runLoad(ctx context.Context, cfg config, col *collector) {
 			client := newClient(cfg)
 			defer client.CloseIdleConnections()
 
+			var addrs connAddrs
+
 			first := true
 			var tracker disconnectTracker
 
 			for ctx.Err() == nil {
-				newConn, err := doRequest(ctx, client, cfg, col)
+				newConn, err := doRequest(ctx, client, cfg, col, &addrs)
 				if ctx.Err() != nil {
 					return
 				}
