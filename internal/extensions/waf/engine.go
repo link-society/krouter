@@ -46,10 +46,10 @@ type Denial struct {
 }
 
 // Evaluate runs the request phases (docs/spec/extensions.md): the header
-// phase always, the body phase only when headersOnly is false (gRPC
-// rules and upgrade requests forward payloads without inspection). The
-// inspected body bytes are replayed onto r.Body so the backend receives
-// the request unchanged.
+// phase always, the body phase only when headersOnly is false (upgrade
+// handshakes forward the tunnel without inspection). The inspected body
+// bytes are replayed onto r.Body so the backend receives the request
+// unchanged.
 func (e *Engine) Evaluate(r *http.Request, headersOnly bool) (*Denial, error) {
 	tx := e.waf.NewTransaction()
 	defer func() {

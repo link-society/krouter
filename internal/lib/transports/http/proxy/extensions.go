@@ -75,11 +75,12 @@ func serveExtensions(
 	}
 
 	if engine := rule.WAF(); engine != nil {
-		// gRPC rules and upgrade handshakes forward payloads without body
-		// inspection: only the request-header phase is enforced
-		// (docs/spec/extensions.md Web application firewall, WebSocket and
-		// upgrade requests).
-		headersOnly := grpcRule || isUpgrade(r)
+		// Upgrade handshakes forward the tunnel without body inspection:
+		// only the request-header phase is enforced (docs/spec/extensions.md
+		// WebSocket and upgrade requests). gRPC request bodies are buffered
+		// and inspected like HTTP bodies, bounded by the engine's body limit
+		// so a long-lived stream is forwarded once the limit is reached.
+		headersOnly := isUpgrade(r)
 
 		denial, err := engine.Evaluate(r, headersOnly)
 		if err != nil {
