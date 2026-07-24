@@ -104,6 +104,26 @@ def test_10k_concurrent_connections_survive_reload(stack):
 
     restarts_before = kubectl.pod_restart_counts(kubectl.dataplane_pods())
 
+    # Record connection teardown packets on the node for the whole hold:
+    # whoever sends the first FIN/RST, and when, names the reaper that the
+    # counters kept exonerating. Header-only capture from a netshoot
+    # container sharing the node's netns (kindest/node has no tcpdump),
+    # bounded by the run duration.
+    tcpdump = subprocess.Popen(
+        [
+            "docker", "run", "--rm",
+            "--network", f"container:{worker}",
+            "nicolaka/netshoot:v0.14",
+            "timeout", str(HOLD_DURATION_S + 60),
+            "tcpdump", "-n", "-tttt", "--immediate-mode",
+            "-i", "any",
+            f"port {ports.PERFORMANCE} and tcp[tcpflags] & (tcp-fin|tcp-rst) != 0",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
     proc = loadgen.start(
         mode="hold",
         url=url,
@@ -127,6 +147,7 @@ def test_10k_concurrent_connections_survive_reload(stack):
 
     finally:
         timer.cancel()
+        tcpdump.terminate()
 
     log.info(
         "loadgen report: established=%s requests=%s errors=%s disconnects=%s p99=%.1fms",
@@ -168,6 +189,22 @@ def test_10k_concurrent_connections_survive_reload(stack):
                 probe.stdout.strip(),
                 probe.stderr.strip(),
             )
+
+        # Teardown packets seen on the node during the hold: the source of
+        # the first FIN/RST per flow is the party that closed it.
+        try:
+            capture, capture_err = tcpdump.communicate(timeout=30)
+
+        except subprocess.TimeoutExpired:
+            tcpdump.kill()
+            capture, capture_err = tcpdump.communicate()
+        log.warning(
+            "tcpdump FIN/RST on %s (%d lines, first 120):\n%s\n%s",
+            worker,
+            len(capture.splitlines()),
+            "\n".join(capture.splitlines()[:120]),
+            capture_err.strip(),
+        )
 
         for pod in kubectl.dataplane_pods():
             name = pod["metadata"]["name"]
