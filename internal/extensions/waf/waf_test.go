@@ -5,6 +5,8 @@ import (
 
 	"io"
 
+	"os"
+	"path/filepath"
 	"strings"
 
 	"net/http"
@@ -39,9 +41,6 @@ func TestParseRejectsInvalidDocuments(t *testing.T) {
 		"missing block":       "version = 1\n",
 		"empty directives":    "version = 1\n\nwaf {\n  directives = \"  \"\n}\n",
 		"unknown field":       "version = 1\n\nwaf {\n  directives = \"x\"\n  bogus = 1\n}\n",
-		// Extension ConfigMaps MUST NOT read the pod filesystem
-		// (docs/spec/extensions.md).
-		"filesystem include": "version = 1\n\nwaf {\n  directives = \"Include /etc/rules.conf\"\n}\n",
 	}
 
 	for name, src := range cases {
@@ -223,5 +222,48 @@ SecRuleEngine On
 func TestNewEngineRejectsInvalidDirectives(t *testing.T) {
 	if _, err := NewEngine("SecBogusDirective definitely-not-seclang"); err == nil {
 		t.Error("invalid directives must fail the engine build")
+	}
+}
+
+func TestEngineIncludesFilesystemRules(t *testing.T) {
+	// Operator-provided rule files reach the engine through image
+	// extension or volume mounts and are included by absolute path or
+	// glob (docs/spec/extensions.md Web application firewall).
+	dir := t.TempDir()
+
+	rule := `SecRule REQUEST_HEADERS:X-Attack "@streq yes" "id:911010,phase:1,deny,status:403"` + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "custom.conf"), []byte(rule), 0o600); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for name, include := range map[string]string{
+		"absolute path": filepath.Join(dir, "custom.conf"),
+		"glob":          filepath.Join(dir, "*.conf"),
+	} {
+		engine, err := NewEngine("SecRuleEngine On\nInclude " + include)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", name, err)
+		}
+
+		hostile := httptest.NewRequest(http.MethodGet, "/", nil)
+		hostile.Header.Set("X-Attack", "yes")
+
+		denial, err := engine.Evaluate(hostile, false)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", name, err)
+		}
+
+		if denial == nil || denial.RuleID != 911010 {
+			t.Errorf("%s: expected the included rule to deny, got %+v", name, denial)
+		}
+	}
+}
+
+func TestNewEngineRejectsMissingIncludeFiles(t *testing.T) {
+	// A missing file surfaces at engine build, so the control plane
+	// reports InvalidExtensionRef instead of enforcing a partial program.
+	include := filepath.Join(t.TempDir(), "absent.conf")
+	if _, err := NewEngine("Include " + include); err == nil {
+		t.Error("a missing include file must fail the engine build")
 	}
 }

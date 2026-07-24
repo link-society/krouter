@@ -5,6 +5,11 @@ import (
 
 	"bytes"
 	"io"
+	"io/fs"
+
+	"os"
+	"path/filepath"
+	"strings"
 
 	"net"
 	"net/http"
@@ -23,12 +28,14 @@ type Engine struct {
 }
 
 // NewEngine builds the Coraza engine from a concatenated SecLang program.
-// The embedded Core Rule Set and recommended configuration resolve the
-// `@`-includes; nothing is read from the filesystem.
+// `@`-includes resolve against the embedded Core Rule Set; any other
+// `Include` path resolves against the pod filesystem, so operators can
+// bring rule files through image extension or volume mounts
+// (docs/spec/extensions.md Web application firewall).
 func NewEngine(directives string) (*Engine, error) {
 	waf, err := coraza.NewWAF(
 		coraza.NewWAFConfig().
-			WithRootFS(coreruleset.FS).
+			WithRootFS(rulesFS{}).
 			WithDirectives(directives),
 	)
 	if err != nil {
@@ -36,6 +43,36 @@ func NewEngine(directives string) (*Engine, error) {
 	}
 
 	return &Engine{waf: waf}, nil
+}
+
+// rulesFS resolves `Include` paths: the `@`-prefixed names come from the
+// embedded Core Rule Set, everything else from the pod filesystem. Like
+// Coraza's own OS-backed root, it deliberately deviates from strict io/fs
+// path semantics to accept absolute paths.
+type rulesFS struct{}
+
+func (rulesFS) Open(name string) (fs.File, error) {
+	if strings.HasPrefix(name, "@") {
+		return coreruleset.FS.Open(name)
+	}
+
+	return os.Open(name)
+}
+
+func (rulesFS) ReadFile(name string) ([]byte, error) {
+	if strings.HasPrefix(name, "@") {
+		return fs.ReadFile(coreruleset.FS, name)
+	}
+
+	return os.ReadFile(name)
+}
+
+func (rulesFS) Glob(pattern string) ([]string, error) {
+	if strings.HasPrefix(pattern, "@") {
+		return fs.Glob(coreruleset.FS, pattern)
+	}
+
+	return filepath.Glob(pattern)
 }
 
 // Denial is one interruption produced by the request phases: the client
