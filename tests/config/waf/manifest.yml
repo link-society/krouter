@@ -3,8 +3,9 @@
 # Verification, docs/spec/acceptance.md criterion 25).
 #
 # One Gateway with a single HTTP listener protects two backends behind the
-# same CRS-backed WAF ConfigMap: an HTTPRoute to the httpbin mock and a
-# GRPCRoute to the grpcbin mock (`task mocks:load`). krouter's HTTP
+# same CRS-backed WAF ConfigMap: an HTTPRoute to the httpbin mock (which
+# also serves gotestwaf's GraphQL arm via a /graphql -> /anything rewrite)
+# and a GRPCRoute to the grpcbin mock (`task mocks:load`). krouter's HTTP
 # listener serves h2c, so gotestwaf reaches both over NodePort 30104,
 # published on 127.0.0.1 by the kind cluster (tests/config/kind/cluster.yaml).
 #
@@ -87,6 +88,25 @@ spec:
   parentRefs:
     - name: waf-target
   rules:
+    # gotestwaf probes /graphql?query={__typename} and then sends its
+    # GraphQL attack set there. httpbin serves a minimal introspection stub
+    # ({"data": {"__typename": "Query"}}) so the availability check passes
+    # and the payloads are scored by the same CRS WAF. This also works
+    # around a gotestwaf bug where the GraphQL pre-check flag overwrites the
+    # gRPC one in the HTML report chart.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /graphql
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: ""
+            kind: ConfigMap
+            name: waf-crs
+      backendRefs:
+        - name: httpbin
+          port: 8080
     - filters:
         - type: ExtensionRef
           extensionRef:

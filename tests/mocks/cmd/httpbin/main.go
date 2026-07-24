@@ -11,6 +11,7 @@
 //	ANY  /status/{code}     respond with the given status code
 //	ANY  /delay/{seconds}   sleep, then respond like /anything
 //	ANY  /anything[/...]    echo method, path, query, headers and body
+//	ANY  /graphql           minimal GraphQL introspection stub
 package main
 
 import (
@@ -58,6 +59,7 @@ func main() {
 	mux.HandleFunc("/delay/{seconds}", delay(hostname))
 	mux.HandleFunc("/anything", anything(hostname))
 	mux.HandleFunc("/anything/{rest...}", anything(hostname))
+	mux.HandleFunc("/graphql", graphql)
 
 	log.Printf("httpbin %s listening on :%s", hostname, port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
@@ -72,7 +74,19 @@ func index(w http.ResponseWriter, r *http.Request) {
 			"/status/{code}",
 			"/delay/{seconds}",
 			"/anything[/...]",
+			"/graphql",
 		},
+	})
+}
+
+// graphql answers introspection probes with the canonical
+// {"data": {"__typename": "Query"}} shape that GraphQL scanners look for,
+// so tools like gotestwaf detect a live GraphQL endpoint. Any WAF filter on
+// the route still runs before the request reaches this stub, so attack
+// payloads are evaluated regardless of the static answer.
+func graphql(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"data": map[string]any{"__typename": "Query"},
 	})
 }
 
