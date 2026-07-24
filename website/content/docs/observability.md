@@ -1,7 +1,7 @@
 ---
 title: "Observability"
 description: "The live dashboard, Prometheus metrics, access logs, and failure behavior."
-weight: 4
+weight: 5
 ---
 
 ## Live dashboard
@@ -23,7 +23,10 @@ Service behind a Gateway like any other backend.
 
 Both planes expose Prometheus metrics on their management port (`:9090`,
 path `/metrics`): request totals by class, active connections per
-transport, reload counters, and per-flow UDP/TCP/TLS gauges. Scrape them
+transport, reload counters, and per-flow UDP/TCP/TLS gauges. Route rules
+carrying [extensions](/docs/extensions/) add rate-limiting and WAF decision
+counters (`krouter_dataplane_ratelimit_decisions_total` and
+`krouter_dataplane_waf_decisions_total`, labelled by result). Scrape them
 with your Prometheus installation as described in the
 [Kubernetes monitoring docs](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-usage-monitoring/).
 
@@ -34,7 +37,10 @@ The same port serves `/livez` and `/readyz`, wired into the manifest's
 
 krouter writes structured JSON logs to stdout, one access-log event per
 request (HTTP/gRPC) or per connection/flow (TCP, TLS, UDP), including the
-matched gateway, route, backend, timing and status. Collect them with any
+matched gateway, route, backend, timing and status. A request rejected by
+an [extension](/docs/extensions/) additionally records the rejecting
+extension and, for WAF denials, the interrupting rule identifier. Collect
+them with any
 [cluster-level logging](https://kubernetes.io/docs/concepts/cluster-administration/logging/)
 pipeline. The log level is set with the `KROUTER_LOG_LEVEL` environment
 variable.

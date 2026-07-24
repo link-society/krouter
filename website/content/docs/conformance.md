@@ -1,7 +1,7 @@
 ---
 title: "Conformance & testing"
 description: "How krouter is verified: official conformance, e2e, performance gates, and the published report."
-weight: 5
+weight: 6
 ---
 
 krouter treats the official

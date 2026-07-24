@@ -43,6 +43,8 @@ configuration keeps serving.
   listeners and TLS material.
 - [Routing](/docs/routing/): route kinds, matching, filters and
   cross-namespace policies.
+- [Extensions](/docs/extensions/): per-rule rate limiting and Coraza WAF
+  from plain ConfigMaps.
 - [Observability](/docs/observability/): dashboard, metrics and logs.
 - [Conformance & testing](/docs/conformance/): how krouter is verified,
   including the full [test report](/report/report.html).
