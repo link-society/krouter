@@ -26,6 +26,6 @@ disableKinds = ["taxonomy", "term", "rss"]
     url = "/docs/tutorials/"
     weight = 20
   [[menus.main]]
-    name = "Test report"
-    url = "/report/report.html"
+    name = "Conformance"
+    url = "/docs/conformance/"
     weight = 30

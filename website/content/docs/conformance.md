@@ -14,9 +14,12 @@ an over-claimed feature would fail its own tests.
 
 ## The report
 
-Every build runs four suites and publishes a single self-contained report:
+Every build runs five suites and publishes a single self-contained report:
 
-<p><a class="button is-link" href="/report/report.html">Open the latest test report</a></p>
+<p>
+  <a class="button is-link" href="/report/report.html">Open the latest test report</a>
+  <a class="button is-link is-light" href="/report/gotestwaf.html">Open the gotestwaf WAF evaluation</a>
+</p>
 
 | Suite | What it proves |
 |---|---|
@@ -24,6 +27,7 @@ Every build runs four suites and publishes a single self-contained report:
 | End-to-end | A real installation driven only through the Kubernetes API: atomic reloads, readiness handling, cross-namespace policies, all five protocols |
 | Conformance | The official Gateway API suite, executed in-cluster |
 | Performance | 10,000 concurrent connections held across a configuration reload with zero disconnects |
+| Security (WAF) | The Coraza + OWASP CRS extension scored by [gotestwaf](https://github.com/wallarm/gotestwaf) over HTTP and gRPC (REST, SOAP, and the OWASP attack classes) |
 
 ## Running it yourself
 
@@ -39,7 +43,9 @@ task tests:report    # run all suites and build the HTML/JUnit report
 The report lands in `tests/results/report/report.html`, and the raw
 conformance report (the upstream YAML format used for
 [conformance submissions](https://gateway-api.sigs.k8s.io/implementations/))
-in `tests/results/conformance/report.yaml`.
+in `tests/results/conformance/report.yaml`. The full gotestwaf evaluation
+is written to `tests/results/waf/waf-evaluation.html` and bundled next to
+the report as `gotestwaf.html`.
 
 ## What is intentionally out of scope
 

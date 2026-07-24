@@ -155,8 +155,16 @@ Semantics:
   set one) and the backend never sees the request.
 - Response phases are NOT inspected: response header and body inspection
   is deferred work, preserving response streaming.
-- On GRPCRoute rules only the request-header phase is enforced: message
-  payloads are streams and are forwarded without inspection.
+- On GRPCRoute rules the request-header phase is enforced and the request
+  message is buffered and inspected up to the engine's body limits, the
+  same explicit exception to the no-buffering default that HTTPRoute
+  bodies use. This suits unary calls (the client half-closes, so the
+  buffered message ends promptly); for client-streaming or bidirectional
+  calls the buffering can add latency, so operators SHOULD scope the WAF
+  ExtensionRef to unary services. The default CRS also rejects the
+  `application/grpc` content type at the request-header phase (rule
+  920420), so a stock ruleset denies gRPC traffic before the message is
+  read unless the allowed-content-type list is tuned.
 
 ## WebSocket and upgrade requests
 
