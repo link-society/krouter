@@ -90,9 +90,13 @@ def wait(proc: subprocess.Popen, timeout: int) -> dict:
     for line in stderr.splitlines():
         if any(
             marker in line
-            for marker in ("close-demanding", "body read failed", "transparent reconnect")
+            for marker in ("close-demanding", "body read failed", "transparent reconnect", "pool rejected")
         ):
             log.warning("%s", line)
+
+    # Close stacks span many lines; ship the raw stream once when present.
+    if "closed at t=" in stderr:
+        log.warning("loadgen close stacks:\n%s", stderr[-20000:])
 
     try:
         return json.loads(stdout)

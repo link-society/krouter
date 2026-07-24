@@ -36,9 +36,11 @@ import (
 	"io"
 
 	"crypto/tls"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -250,16 +252,62 @@ func (t *disconnectTracker) observe(col *collector, newConn bool, err error) {
 	t.dead = false
 }
 
+// holdActive gates the close-stack tracing: the mass teardown at the end
+// of the run is expected and must not print ten thousand stacks.
+var holdActive atomic.Bool
+
+// stackBudget caps how many close stacks get printed even while the hold
+// is active, in case a systemic event closes many connections at once.
+var stackBudget atomic.Int64
+
+// tracedConn prints the goroutine stack of whoever closes it while the
+// hold is active: the packet captures proved the loadgen process itself
+// FINs healthy pooled connections moments after a successful exchange,
+// and only the closing code path can say why.
+type tracedConn struct {
+	net.Conn
+	col  *collector
+	once sync.Once
+}
+
+func (c *tracedConn) Close() error {
+	c.once.Do(func() {
+		if !holdActive.Load() || stackBudget.Add(-1) < 0 {
+			return
+		}
+
+		buf := make([]byte, 8192)
+		n := runtime.Stack(buf, false)
+		fmt.Fprintf(
+			os.Stderr,
+			"loadgen: conn %s closed at t=%.1fs by:\n%s\n",
+			c.Conn.LocalAddr(),
+			time.Since(c.col.start).Seconds(),
+			buf[:n],
+		)
+	})
+
+	return c.Conn.Close()
+}
+
 // newClient builds an HTTP client owning exactly one TCP connection, so that
 // N clients == N downstream connections and transparent reconnects are
 // observable per connection.
-func newClient(cfg config) *http.Client {
+func newClient(cfg config, col *collector) *http.Client {
 	transport := &http.Transport{
 		MaxConnsPerHost:     1,
 		MaxIdleConns:        1,
 		MaxIdleConnsPerHost: 1,
 		IdleConnTimeout:     0, // never expire idle connections locally
 		DisableCompression:  true,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := (&net.Dialer{}).DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+
+			return &tracedConn{Conn: conn, col: col}, nil
+		},
 	}
 
 	if cfg.insecure {
@@ -389,13 +437,17 @@ func doRequest(ctx context.Context, client *http.Client, cfg config, col *collec
 }
 
 func runHold(ctx context.Context, cfg config, col *collector) {
+	holdActive.Store(true)
+	stackBudget.Store(20)
+	context.AfterFunc(ctx, func() { holdActive.Store(false) })
+
 	var wg sync.WaitGroup
 	// Ramp connections in batches to avoid a SYN stampede.
 	sem := make(chan struct{}, cfg.rampWorkers)
 
 	for i := 0; i < cfg.connections; i++ {
 		wg.Go(func() {
-			client := newClient(cfg)
+			client := newClient(cfg, col)
 			defer client.CloseIdleConnections()
 
 			var addrs connAddrs
@@ -449,10 +501,14 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 }
 
 func runLoad(ctx context.Context, cfg config, col *collector) {
+	holdActive.Store(true)
+	stackBudget.Store(20)
+	context.AfterFunc(ctx, func() { holdActive.Store(false) })
+
 	var wg sync.WaitGroup
 	for i := 0; i < cfg.connections; i++ {
 		wg.Go(func() {
-			client := newClient(cfg)
+			client := newClient(cfg, col)
 			defer client.CloseIdleConnections()
 
 			var addrs connAddrs
