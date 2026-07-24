@@ -13,6 +13,7 @@ on a single data-plane pod (externalTrafficPolicy: Local).
 import json
 import logging
 import re
+import subprocess
 import threading
 import time
 
@@ -146,6 +147,27 @@ def test_10k_concurrent_connections_survive_reload(stack):
             RELOAD_AT_S,
             json.dumps(drops),
         )
+
+        # Conntrack evidence, straight from the target node: liberal window
+        # tracking must be active (tests/config/kind/cluster.yaml) and the
+        # stats counters say whether packets were marked invalid or lost
+        # races (nonzero invalid/insert_failed/drop indicts conntrack).
+        for cmd in (
+            "sysctl net.netfilter.nf_conntrack_tcp_be_liberal net.netfilter.nf_conntrack_count net.netfilter.nf_conntrack_max",
+            "conntrack -S",
+        ):
+            probe = subprocess.run(
+                ["docker", "exec", worker, "sh", "-c", cmd],
+                capture_output=True,
+                text=True,
+            )
+            log.warning(
+                "%s @ %s:\n%s%s",
+                cmd,
+                worker,
+                probe.stdout.strip(),
+                probe.stderr.strip(),
+            )
 
         for pod in kubectl.dataplane_pods():
             name = pod["metadata"]["name"]
