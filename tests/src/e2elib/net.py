@@ -67,6 +67,7 @@ def wait_http_ok(
     scheme: str = "http",
     timeout: float = 120,
     worker: int = 1,
+    headers: dict[str, str] | None = None,
 ) -> httpx.Response:
     """
     Wait until the Gateway serves 200 for the request (traffic readiness).
@@ -74,7 +75,14 @@ def wait_http_ok(
 
     def check():
         try:
-            resp = request(node_port, path=path, host=host, scheme=scheme, worker=worker)
+            resp = request(
+                node_port,
+                path=path,
+                host=host,
+                scheme=scheme,
+                worker=worker,
+                headers=headers,
+            )
 
         except (httpx.HTTPError, OSError):
             return None
@@ -612,6 +620,7 @@ def ws_connect(
     server_hostname: str | None = None,
     worker: int = 1,
     timeout: float = 10,
+    headers: dict[str, str] | None = None,
 ):
     """
     Open one WebSocket connection through a published NodePort
@@ -628,6 +637,9 @@ def ws_connect(
     url = f"{scheme}://{config.TEST_HOST}:{ports.host_port(node_port, worker)}{path}"
 
     kwargs: dict = {"open_timeout": timeout, "close_timeout": timeout}
+
+    if headers:
+        kwargs["additional_headers"] = headers
 
     if scheme == "wss":
         ctx = ssl.create_default_context()

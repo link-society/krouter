@@ -347,7 +347,8 @@ def test_configmap_edit_reloads(stack):
 def test_websocket_handshake_limited(stack):
     """
     Rate limiting rejects WebSocket handshakes before any upgrade
-    (docs/spec/extensions.md WebSocket and upgrade requests).
+    (docs/spec/extensions.md WebSocket and upgrade requests). The bucket
+    key is a header so readiness polls cannot drain the tested bucket.
     """
 
     from websockets.exceptions import InvalidStatus
@@ -357,7 +358,8 @@ def test_websocket_handshake_limited(stack):
         gw.extension_configmap(
             "rl-ws",
             ns,
-            ratelimit=ratelimit_hcl(requests=2, window="1h"),
+            ratelimit=ratelimit_hcl(
+                requests=1, window="1h", key="header:X-Ws-Client"),
         ),
         route_with_extensions(
             "ws-route", ns, "/ws", ["rl-ws"],
@@ -365,17 +367,31 @@ def test_websocket_handshake_limited(stack):
     ])
     kubectl.wait_route_parent_condition("ws-route", ns, "Accepted", timeout=60)
     kubectl.wait_route_parent_condition("ws-route", ns, "ResolvedRefs", timeout=60)
-    net.wait_http_ok(ports.EXTENSIONS_RATELIMIT, path="/ws/healthz")
+    net.wait_http_ok(ports.EXTENSIONS_RATELIMIT, path="/ws/healthz",
+                     headers={"X-Ws-Client": "warmup"})
 
-    # One token left after the readiness probe: the first tunnel opens...
-    with net.ws_connect(ports.EXTENSIONS_RATELIMIT, path="/ws") as conn:
+    # The client's one token opens the first tunnel...
+    with net.ws_connect(
+        ports.EXTENSIONS_RATELIMIT, path="/ws",
+        headers={"X-Ws-Client": "one"},
+    ) as conn:
         assert conn.recv(timeout=10).startswith("wsbin ")
 
-        # ...and the next handshake is limited before any upgrade.
+        # ...and its next handshake is limited before any upgrade.
         with pytest.raises(InvalidStatus) as exc:
-            net.ws_connect(ports.EXTENSIONS_RATELIMIT, path="/ws")
+            net.ws_connect(
+                ports.EXTENSIONS_RATELIMIT, path="/ws",
+                headers={"X-Ws-Client": "one"},
+            )
 
         assert exc.value.response.status_code == 429
 
         # The established tunnel is unaffected.
         assert net.ws_echo_roundtrip(conn, "still-open") == "still-open"
+
+    # A different client holds a fresh bucket.
+    with net.ws_connect(
+        ports.EXTENSIONS_RATELIMIT, path="/ws",
+        headers={"X-Ws-Client": "two"},
+    ) as conn:
+        assert conn.recv(timeout=10).startswith("wsbin ")

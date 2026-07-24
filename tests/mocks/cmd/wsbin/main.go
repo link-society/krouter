@@ -3,13 +3,16 @@
 // first receives one text message holding the pod identity, then every
 // received message is echoed back unchanged until the peer closes.
 //
-// GET /healthz answers 200 without upgrading, for readiness probes.
+// GET on any path ending in /healthz answers 200 without upgrading, for
+// readiness probes and gateway routes matching a path prefix.
 package main
 
 import (
 	"log"
 
 	"os"
+
+	"strings"
 
 	"net/http"
 
@@ -29,11 +32,14 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Routes forward prefixed paths verbatim: /ws/healthz must answer
+		// like /healthz.
+		if strings.HasSuffix(r.URL.Path, "/healthz") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 			// Origin enforcement is not under test.
 			InsecureSkipVerify: true,
