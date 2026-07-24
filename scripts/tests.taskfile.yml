@@ -76,15 +76,28 @@ tasks:
     cmds:
       - kubectl --context {{.KIND_CONTEXT}} apply -f tests/config/waf/manifest.yml
       - kubectl --context {{.KIND_CONTEXT}} -n waf-target rollout status deployment/httpbin --timeout=180s
+      - kubectl --context {{.KIND_CONTEXT}} -n waf-target rollout status deployment/grpcbin --timeout=180s
       - kubectl --context {{.KIND_CONTEXT}} -n waf-target wait --for=condition=Programmed --timeout=180s gateway/waf-target
       - mkdir -p tests/results/waf
+      # gotestwaf runs its gRPC pre-check once at startup; wait until the
+      # GRPCRoute is programmed and krouter answers the h2c endpoint with an
+      # application/grpc response, otherwise the gRPC test set is skipped.
+      - >-
+        for i in $(seq 1 30); do
+        curl -sf -o /dev/null -D - --http2-prior-knowledge -X POST
+        -H 'content-type: application/grpc' http://127.0.0.1:30104/ 2>/dev/null
+        | grep -qi '^content-type: application/grpc' && break;
+        echo "waiting for gRPC endpoint ($i)"; sleep 2;
+        done
       # The kind cluster publishes NodePort 30104 on 127.0.0.1; the
-      # container reaches it through the host network.
+      # container reaches it through the host network. krouter's HTTP
+      # listener serves h2c, so the gRPC test set targets the same port.
       - >-
         docker run --rm --network host
         -v {{.ROOT_DIR}}/tests/results/waf:/app/reports
         wallarm/gotestwaf
         --url=http://127.0.0.1:30104
+        --grpcPort=30104
         --wafName=krouter
         --noEmailReport
         --skipWAFIdentification

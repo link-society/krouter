@@ -61,6 +61,27 @@ waf {
 }
 """
 
+# gRPC engine: header-phase enforcement plus request-message inspection.
+# The application/grpc content type has no native body processor, so the
+# buffered message is forced into REQUEST_BODY and scanned in the body
+# phase (docs/spec/extensions.md Web application firewall).
+GRPC_RULE_HCL = """\
+version = 1
+
+waf {
+  directives = <<-EOT
+    SecRuleEngine On
+    SecRequestBodyAccess On
+    SecRule REQUEST_HEADERS:X-Attack "@streq yes" \\
+      "id:911004,phase:1,deny,status:403,msg:'hostile header'"
+    SecRule REQUEST_HEADERS:Content-Type "@rx ^application/grpc" \\
+      "id:911005,phase:1,pass,nolog,ctl:forceRequestBodyVariable=On"
+    SecRule REQUEST_BODY "@contains <script" \\
+      "id:911006,phase:2,deny,status:403,msg:'hostile gRPC message'"
+  EOT
+}
+"""
+
 BROKEN_HCL = """\
 version = 1
 
@@ -196,15 +217,17 @@ def test_fragments_layer_in_filter_order(stack):
         ports.EXTENSIONS_WAF, path="/layered").status_code == 200
 
 
-def test_grpc_headers_inspected(stack):
+def test_grpc_body_inspected(stack):
     """
-    On gRPC routes the request-header phase is enforced; message payloads
-    are not inspected (docs/spec/extensions.md).
+    On gRPC routes the request-header phase is enforced and the buffered
+    request message is inspected in the body phase: an attack token
+    carried in the message is denied while clean calls are served
+    (docs/spec/extensions.md Web application firewall).
     """
 
     ns = stack
     kubectl.apply([
-        gw.extension_configmap("waf-grpc", ns, waf=HEADER_RULE_HCL),
+        gw.extension_configmap("waf-grpc", ns, waf=GRPC_RULE_HCL),
         gw.grpc_route(
             "grpc-route",
             ns,
@@ -225,9 +248,9 @@ def test_grpc_headers_inspected(stack):
     kubectl.wait_route_parent_condition(
         "grpc-route", ns, "ResolvedRefs", kind="grpcroute", timeout=60)
 
-    def call(headers=None):
+    def call(name="krouter", headers=None):
         return net.grpc_hello(
-            ports.EXTENSIONS_WAF, GRPC_HOST, headers=headers)
+            ports.EXTENSIONS_WAF, GRPC_HOST, name=name, headers=headers)
 
     kubectl.wait_for(
         lambda: (call()[1].startswith("Hello") or None),
@@ -235,9 +258,16 @@ def test_grpc_headers_inspected(stack):
         desc="clean gRPC call served through the WAF route",
     )
 
-    status, reply = call(headers={"x-attack": "yes"})
-    assert not reply.startswith("Hello"), \
-        f"hostile metadata must not reach the backend, got {reply!r}"
+    # Hostile metadata is still blocked at the request-header phase.
+    _, header_reply = call(headers={"x-attack": "yes"})
+    assert not header_reply.startswith("Hello"), \
+        f"hostile metadata must not reach the backend, got {header_reply!r}"
+
+    # An attack token carried in the request message is blocked in the
+    # body phase: the buffered gRPC message is inspected.
+    _, body_reply = call(name="pwn<script>alert(1)</script>")
+    assert not body_reply.startswith("Hello"), \
+        f"hostile gRPC message must not reach the backend, got {body_reply!r}"
 
 
 def test_websocket_handshake_denied_before_hijack(stack):
