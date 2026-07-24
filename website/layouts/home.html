@@ -23,7 +23,7 @@
 <section class="section stats-strip">
   <div class="container">
     <div class="columns is-mobile is-multiline has-text-centered">
-      <div class="column"><p class="stat-number">717</p><p class="stat-label">automated tests on every build</p></div>
+      <div class="column"><p class="stat-number">752</p><p class="stat-label">automated tests on every build</p></div>
       <div class="column"><p class="stat-number">630</p><p class="stat-label">Gateway API conformance checks</p></div>
       <div class="column"><p class="stat-number">0</p><p class="stat-label">custom CRDs to learn</p></div>
       <div class="column"><p class="stat-number">1</p><p class="stat-label">binary to run</p></div>
@@ -37,10 +37,11 @@
     <div class="columns is-multiline mt-5">
       <div class="column is-4">
         <div class="feature-card">
-          <h3 class="title is-5">Standards, not lock-in</h3>
-          <p>Pure Gateway API v1.5.1. Your Gateways and Routes are portable
-          Kubernetes resources: adopt krouter today, swap it out tomorrow,
-          keep your YAML forever.</p>
+          <h3 class="title is-5">Standards first, no lock-in</h3>
+          <p>Built on pure Gateway API v1.5.1: your Gateways and Routes stay
+          portable Kubernetes resources. Even the extras (rate limiting, WAF)
+          ride the standard ExtensionRef filter and plain ConfigMaps, so there
+          are still no custom CRDs holding your YAML hostage.</p>
         </div>
       </div>
       <div class="column is-4">
@@ -78,9 +79,10 @@
       <div class="column is-4">
         <div class="feature-card">
           <h3 class="title is-5">Secure at both ends</h3>
-          <p>Terminate TLS, validate client certificates, re-encrypt to
-          backends with SAN-verified policies: mTLS in and out, configured
-          entirely through standard resources.</p>
+          <p>Terminate TLS, validate client certificates and re-encrypt to
+          backends with SAN-verified policies, then shield routes with a
+          built-in WAF (OWASP Core Rule Set) and per-route rate limiting:
+          defence in depth, configured entirely through standard resources.</p>
         </div>
       </div>
     </div>
