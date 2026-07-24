@@ -118,4 +118,4 @@ per entry on the ListenerSet, and counts accepted sets in the Gateway's
 `attachedListenerSets`. Routes may target the set directly with a
 `parentRefs` entry of `kind: ListenerSet` naming `team-a-listeners`.
 
-**Next:** [put a web application firewall in front](/docs/tutorials/waf/).
+**Next:** [throttle abusive clients](/docs/tutorials/rate-limiting/).

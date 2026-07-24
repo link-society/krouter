@@ -1,7 +1,7 @@
 ---
 title: "Web application firewall"
 description: "Put the embedded OWASP Core Rule Set in front of a route, layer your own SecLang rules from ConfigMaps, and ship full rulesets as files."
-weight: 8
+weight: 9
 params:
   level: "Advanced"
 ---
@@ -270,9 +270,10 @@ naturally) to apply new file contents.
 
 Two closing notes:
 
-- The same ConfigMap can also carry a `ratelimit.hcl` key: rate limiting
-  runs first, so a limited request costs no WAF CPU. See
-  [Extensions](/docs/extensions/) for composition and status details.
+- The same ConfigMap can also carry a `ratelimit.hcl` key:
+  [rate limiting](/docs/tutorials/rate-limiting/) runs first, so a
+  limited request costs no WAF CPU. See [Extensions](/docs/extensions/)
+  for composition and status details.
 - On [GRPCRoute](/docs/tutorials/grpc/) rules the WAF inspects request
   headers and buffers the request message like an HTTP body. The stock
   CRS rejects the `application/grpc` content type at the header phase
