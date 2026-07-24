@@ -35,10 +35,12 @@ extensions · — not provided):
 | Hitless reloads (proven with 10,000 live connections) | ✅ | ✅ | ◐ | ✅ | ✅ |
 | Built-in live topology dashboard | ✅ | — | — | ✅ | ◐ |
 | Conformance report published with every build | ✅ | ◐ | ◐ | ◐ | ◐ |
+| **Security** | | | | | |
+| Rate limiting | ✅ | ✅ | — | ✅ | ✅ |
+| Web application firewall (built-in OWASP CRS) | ✅ | ◐ | — | ◐ | ◐ |
+| Authentication / authorization policies | — | ✅ | — | ✅ | ✅ |
 | **Beyond krouter's scope** | | | | | |
 | Service mesh (east-west traffic) | — | — | — | — | ✅ |
-| Rate limiting | — | ✅ | — | ✅ | ✅ |
-| Authentication / authorization policies | — | ✅ | — | ✅ | ✅ |
 | Retries and circuit breaking | — | ✅ | — | ✅ | ✅ |
 | Active backend health checks | — | ✅ | — | ✅ | ✅ |
 

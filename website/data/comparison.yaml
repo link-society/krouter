@@ -39,14 +39,19 @@ groups:
       - feature: "Conformance report published with every build"
         values: [yes, partial, partial, partial, partial]
 
+  - name: Security
+    rows:
+      - feature: "Rate limiting"
+        values: [yes, yes, no, yes, yes]
+      - feature: "Web application firewall (built-in OWASP CRS)"
+        values: [yes, partial, no, partial, partial]
+      - feature: "Authentication / authorization policies"
+        values: [no, yes, no, yes, yes]
+
   - name: Beyond krouter's scope
     rows:
       - feature: "Service mesh (east-west traffic)"
         values: [no, no, no, no, yes]
-      - feature: "Rate limiting"
-        values: [no, yes, no, yes, yes]
-      - feature: "Authentication / authorization policies"
-        values: [no, yes, no, yes, yes]
       - feature: "Retries and circuit breaking"
         values: [no, yes, no, yes, yes]
       - feature: "Active backend health checks"
