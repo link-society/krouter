@@ -108,6 +108,26 @@ type Rule struct {
 	// (docs/spec/traffic.md).
 	RequestTimeoutMillis int64 `json:"requestTimeoutMillis,omitempty"`
 	BackendTimeoutMillis int64 `json:"backendTimeoutMillis,omitempty"`
+	// RateLimit, when set, throttles the rule before any other filter
+	// (docs/spec/extensions.md Rate limiting).
+	RateLimit *RateLimit `json:"rateLimit,omitempty"`
+	// ExtensionsInvalid marks a rule whose ExtensionRef target is broken
+	// (missing ConfigMap, invalid document, incomplete merge): matching
+	// requests are answered 500 and never forwarded, per the upstream
+	// unresolvable-filter contract (docs/spec/extensions.md).
+	ExtensionsInvalid bool `json:"extensionsInvalid,omitempty"`
+}
+
+// RateLimit is the merged rate limiting configuration of one rule
+// (docs/spec/extensions.md Rate limiting): a token bucket of capacity
+// Burst refilled at Requests per window, bucketed by Key, answering
+// Status with Retry-After when exhausted.
+type RateLimit struct {
+	Requests     int64  `json:"requests"`
+	WindowMillis int64  `json:"windowMillis"`
+	Burst        int64  `json:"burst"`
+	Key          string `json:"key"`
+	Status       int32  `json:"status"`
 }
 
 type Match struct {
