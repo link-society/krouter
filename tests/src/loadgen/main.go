@@ -57,9 +57,10 @@ type config struct {
 }
 
 type second struct {
-	Second   int   `json:"second"`
-	Requests int64 `json:"requests"`
-	Errors   int64 `json:"errors"`
+	Second      int   `json:"second"`
+	Requests    int64 `json:"requests"`
+	Errors      int64 `json:"errors"`
+	Disconnects int64 `json:"disconnects"`
 }
 
 type latency struct {
@@ -107,10 +108,10 @@ func newCollector() *collector {
 	return &collector{timeline: map[int]*second{}}
 }
 
-func (c *collector) record(d time.Duration, err bool) {
+// cellLocked returns the timeline cell for the current second; c.mu must be
+// held by the caller.
+func (c *collector) cellLocked() *second {
 	sec := int(time.Since(c.start).Seconds())
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	cell, ok := c.timeline[sec]
 	if !ok {
@@ -118,6 +119,14 @@ func (c *collector) record(d time.Duration, err bool) {
 		c.timeline[sec] = cell
 	}
 
+	return cell
+}
+
+func (c *collector) record(d time.Duration, err bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	cell := c.cellLocked()
 	cell.Requests++
 
 	if err {
@@ -125,6 +134,13 @@ func (c *collector) record(d time.Duration, err bool) {
 	} else {
 		c.latencies = append(c.latencies, d)
 	}
+}
+
+func (c *collector) recordDisconnect() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.cellLocked().Disconnects++
 }
 
 func (c *collector) report(cfg config, elapsed time.Duration) report {
@@ -195,6 +211,7 @@ func (t *disconnectTracker) observe(col *collector, newConn bool, err error) {
 	if err != nil {
 		if !t.dead {
 			col.disconnects.Add(1)
+			col.recordDisconnect()
 		}
 		t.dead = true
 
@@ -203,6 +220,7 @@ func (t *disconnectTracker) observe(col *collector, newConn bool, err error) {
 
 	if newConn && !t.dead {
 		col.disconnects.Add(1)
+		col.recordDisconnect()
 	}
 	t.dead = false
 }

@@ -10,7 +10,9 @@ network and targets one worker's NodePort directly, so all connections land
 on a single data-plane pod (externalTrafficPolicy: Local).
 """
 
+import json
 import logging
+import re
 import threading
 import time
 
@@ -133,6 +135,37 @@ def test_10k_concurrent_connections_survive_reload(stack):
         result["disconnects"],
         result["latency"]["p99_ms"],
     )
+
+    # Diagnostics for any disconnect: when they happen (clustered at the
+    # reload vs. scattered) and what the data plane logged, so a failure
+    # is attributable from the captured output alone.
+    drops = [cell for cell in result["timeline"] if cell.get("disconnects")]
+    if drops:
+        log.warning(
+            "disconnect timeline (reload at t=%ds): %s",
+            RELOAD_AT_S,
+            json.dumps(drops),
+        )
+
+        for pod in kubectl.dataplane_pods():
+            name = pod["metadata"]["name"]
+            lines = kubectl.pod_logs(
+                name,
+                config.SYSTEM_NAMESPACE,
+                since=f"{HOLD_DURATION_S + 120}s",
+            ).splitlines()
+            suspicious = [
+                line for line in lines
+                if re.search(r"panic|error|refused|reset|EOF", line, re.IGNORECASE)
+            ]
+            if suspicious:
+                log.warning(
+                    "dataplane pod %s suspicious log lines (last %d of %d):\n%s",
+                    name,
+                    len(suspicious[-50:]),
+                    len(suspicious),
+                    "\n".join(suspicious[-50:]),
+                )
 
     # Release gate (docs/spec/performance.md, docs/spec/acceptance.md criterion 10) — all hard requirements.
     assert result["established"] == CONNECTIONS, (

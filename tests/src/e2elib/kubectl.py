@@ -291,6 +291,18 @@ def pod_restart_counts(pods: list[dict]) -> dict[str, int]:
     }
 
 
+def pod_logs(name: str, namespace: str, since: str | None = None) -> str:
+    """
+    Return a pod's logs, optionally limited to the trailing time window.
+    """
+
+    args = ["logs", name, "-n", namespace]
+    if since:
+        args += [f"--since={since}"]
+
+    return kubectl(*args).stdout
+
+
 def container_env(pod: dict, name: str) -> str | None:
     for container in pod["spec"]["containers"]:
         for env in container.get("env", []):
