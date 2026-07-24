@@ -56,3 +56,9 @@ jobs:
     uses: ./.github/workflows/build-website.yml
     with:
       ref: ${{ github.sha }}
+
+  deploy-website:
+    needs: build-website
+    uses: ./.github/workflows/deploy-website.yml
+    with:
+      ref: ${{ github.sha }}
