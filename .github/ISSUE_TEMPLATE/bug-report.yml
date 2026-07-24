@@ -1,0 +1,54 @@
+---
+name: Bug Report
+description: Something does not behave as documented or specified
+title: "[BUG] "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        Minimal manifests (Gateway, routes, ConfigMaps) and the commands
+        that trigger the problem.
+      placeholder: |
+        1. Apply this manifest: ...
+        2. Send this request: ...
+        3. Observe: ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: krouter version
+      description: Image tag or commit SHA.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Kubernetes distribution and version, Gateway API CRD channel and version.
+      placeholder: kind v0.30 / Kubernetes v1.34 / Gateway API v1.5.1 experimental
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs and status
+      description: >-
+        Control-plane and data-plane logs, and `kubectl describe` output of
+        the affected resources. This will be rendered as code.
+      render: text

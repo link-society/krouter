@@ -1,0 +1,43 @@
+---
+name: Security Report
+description: Report a security vulnerability (see SECURITY.md)
+title: "[SECURITY] "
+labels:
+  - security
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Please do not include working exploits against infrastructure you do
+        not own. If the issue requires confidentiality, say so here without
+        details and a maintainer will follow up privately.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is the vulnerability, and what is its impact?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal configuration and requests demonstrating the issue.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Affected versions
+      description: Versions or commits you verified as affected (see SECURITY.md for supported versions).
+    validations:
+      required: true
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Suggested mitigation
+      description: Workarounds or fixes, if you have any in mind.
