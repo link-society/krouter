@@ -111,6 +111,10 @@ type Rule struct {
 	// RateLimit, when set, throttles the rule before any other filter
 	// (docs/spec/extensions.md Rate limiting).
 	RateLimit *RateLimit `json:"rateLimit,omitempty"`
+	// WAF, when set, is the concatenated SecLang program inspecting the
+	// request phases before any byte reaches a backend
+	// (docs/spec/extensions.md Web application firewall).
+	WAF string `json:"waf,omitempty"`
 	// ExtensionsInvalid marks a rule whose ExtensionRef target is broken
 	// (missing ConfigMap, invalid document, incomplete merge): matching
 	// requests are answered 500 and never forwarded, per the upstream

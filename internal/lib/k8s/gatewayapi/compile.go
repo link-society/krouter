@@ -963,6 +963,7 @@ func (r *Engine) compileGRPCRule(
 	}
 
 	compiledRule.RateLimit = ext.rateLimit
+	compiledRule.WAF = ext.waf
 	compiledRule.ExtensionsInvalid = ext.invalid
 
 	for _, backendRef := range rule.BackendRefs {
@@ -1142,6 +1143,7 @@ func (r *Engine) compileRoute(
 		}
 
 		compiledRule.RateLimit = ext.rateLimit
+		compiledRule.WAF = ext.waf
 		compiledRule.ExtensionsInvalid = ext.invalid
 
 		if err := compileTimeouts(&compiledRule, rule.Timeouts); err != nil {

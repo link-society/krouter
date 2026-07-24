@@ -6,6 +6,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/link-society/krouter/internal/extensions/ratelimiting"
+	"github.com/link-society/krouter/internal/extensions/waf"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 )
 
@@ -18,6 +19,7 @@ const reasonInvalidExtensionRef = "InvalidExtensionRef"
 // rule (docs/spec/extensions.md).
 type ruleExtensions struct {
 	rateLimit *compiled.RateLimit
+	waf       string
 	invalid   bool
 }
 
@@ -48,9 +50,11 @@ func (r *Engine) compileExtensions(
 		outcome.refsMessage = message
 		ext.invalid = true
 		ext.rateLimit = nil
+		ext.waf = ""
 	}
 
 	var rateLimitDocs []*ratelimiting.Document
+	var wafDocs []*waf.Document
 
 	for _, ref := range refs {
 		if string(ref.Group) != "" || string(ref.Kind) != "ConfigMap" {
@@ -66,7 +70,7 @@ func (r *Engine) compileExtensions(
 		}
 
 		rateLimitSrc, hasRateLimit := cm.Data[compiled.RateLimitKey]
-		_, hasWAF := cm.Data[compiled.WAFKey]
+		wafSrc, hasWAF := cm.Data[compiled.WAFKey]
 
 		if !hasRateLimit && !hasWAF {
 			invalidate(fmt.Sprintf(
@@ -86,6 +90,18 @@ func (r *Engine) compileExtensions(
 
 			rateLimitDocs = append(rateLimitDocs, doc)
 		}
+
+		if hasWAF {
+			doc, err := waf.Parse(wafSrc)
+			if err != nil {
+				invalidate(fmt.Sprintf(
+					"extension ConfigMap %s: invalid %s: %v",
+					nsName(namespace, ref.Name), compiled.WAFKey, err))
+				return ext, nil
+			}
+
+			wafDocs = append(wafDocs, doc)
+		}
 	}
 
 	if len(rateLimitDocs) > 0 {
@@ -96,6 +112,20 @@ func (r *Engine) compileExtensions(
 		}
 
 		ext.rateLimit = config
+	}
+
+	if len(wafDocs) > 0 {
+		program := waf.Concat(wafDocs)
+
+		// The control plane validates the concatenated program by building
+		// the engine once at compile time (docs/spec/extensions.md Web
+		// application firewall).
+		if _, err := waf.NewEngine(program); err != nil {
+			invalidate(fmt.Sprintf("concatenated %s invalid: %v", compiled.WAFKey, err))
+			return ext, nil
+		}
+
+		ext.waf = program
 	}
 
 	return ext, nil
