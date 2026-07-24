@@ -24,13 +24,18 @@ Service behind a Gateway like any other backend.
 Both planes expose Prometheus metrics on their management port (`:9090`,
 path `/metrics`). krouter ships as one binary, so every name below is
 registered on both endpoints, but the `krouter_dataplane_*` series only
-move on data-plane pods. Scrape them with your Prometheus installation as
+move on data-plane pods and the `krouter_controlplane_*` ones on the
+control plane. Scrape them with your Prometheus installation as
 described in the
 [Kubernetes monitoring docs](https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-usage-monitoring/).
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `krouter_dataplane_requests_total` | Counter | `class`: `1xx` to `5xx` | HTTP and gRPC requests handled, by response status class. |
+| `krouter_dataplane_request_duration_seconds` | Histogram | `class`: `1xx` to `5xx` | Request duration, by response status class. |
+| `krouter_dataplane_active_requests` | Gauge | — | HTTP and gRPC requests currently in flight. |
+| `krouter_dataplane_http_bytes_total` | Counter | `direction`: `downstream_to_backend`, `backend_to_downstream` | Bytes transferred on HTTP and gRPC routes, by direction. |
+| `krouter_dataplane_backend_errors_total` | Counter | `kind`: `selection`, `connection` | Backend failures on HTTP and gRPC routes: `selection` covers rules without a usable backend or ready endpoint, `connection` covers failed backend requests. |
 | `krouter_dataplane_ratelimit_decisions_total` | Counter | `result`: `allowed`, `limited` | [Rate limiting](/docs/extensions/) decisions on rules carrying a limit. |
 | `krouter_dataplane_waf_decisions_total` | Counter | `result`: `allowed`, `denied`, `error` | [WAF](/docs/extensions/) decisions on rules carrying a ruleset. |
 | `krouter_dataplane_tcp_connections_total` | Counter | `result`: `forwarded`, `refused`, `error` | TCP connections handled, by outcome. |
@@ -38,9 +43,15 @@ described in the
 | `krouter_dataplane_tcp_bytes_total` | Counter | `direction`: `downstream_to_backend`, `backend_to_downstream` | Bytes forwarded on TCP routes, by direction. |
 | `krouter_dataplane_tls_connections_total` | Counter | `result`: `forwarded`, `refused`, `error` | TLS passthrough connections handled, by outcome. |
 | `krouter_dataplane_tls_active_connections` | Gauge | — | TLS passthrough connections currently forwarded. |
+| `krouter_dataplane_tls_bytes_total` | Counter | `direction`: `downstream_to_backend`, `backend_to_downstream` | Bytes forwarded on TLS routes, by direction. |
 | `krouter_dataplane_udp_flows_total` | Counter | `result`: `forwarded`, `refused`, `error` | UDP flows handled, by outcome. |
 | `krouter_dataplane_udp_active_flows` | Gauge | — | UDP flows currently forwarded. |
 | `krouter_dataplane_udp_bytes_total` | Counter | `direction`: `downstream_to_backend`, `backend_to_downstream` | Bytes forwarded on UDP routes, by direction. |
+| `krouter_dataplane_config_loads_total` | Counter | `result`: `applied`, `rejected` | Configuration generation loads; already-applied generations are not reloaded and not counted. |
+| `krouter_dataplane_config_load_duration_seconds` | Histogram | — | Time spent building the routing tables of one generation. |
+| `krouter_dataplane_gateways_out_of_sync` | Gauge | — | Gateways whose applied generation diverges from the desired one on this pod; nonzero while a rejected generation keeps the last valid one serving. |
+| `krouter_controlplane_reconciliation_errors_total` | Counter | `step` (bounded step names, e.g. `gather`, `frontend`, `publish generation`, `gateway status`) | Failed reconciliation steps. |
+| `krouter_controlplane_reconcile_duration_seconds` | Histogram | — | Duration of one full reconciliation pass; its `_count` also tallies passes. |
 
 The endpoints also export the standard
 [Go runtime and process collectors](https://prometheus.io/docs/guides/go-application/)
