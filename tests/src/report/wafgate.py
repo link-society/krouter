@@ -3,9 +3,9 @@ gotestwaf score gate (docs/spec/extensions.md Verification,
 docs/spec/acceptance.md criterion 25).
 
 Reads the JSON report produced by `task tests:waf` and fails when the
-overall application-security true-positive score is below the blocking
-threshold. A one-case JUnit file is written next to the JSON report so
-the verdict joins the aggregate test report (build.py). Usage:
+gotestwaf overall score is below the blocking threshold. A one-case JUnit
+file is written next to the JSON report so the verdict joins the aggregate
+test report (build.py). Usage:
 
     python wafgate.py <report.json> [threshold-percent]
 """
@@ -19,7 +19,7 @@ from junitparser import Failure, JUnitXml, TestCase, TestSuite
 
 def resolve_score(report: dict) -> float:
     """
-    The true-positive blocking score, as a percentage.
+    The gotestwaf overall score, as a percentage.
 
     gotestwaf nests scores differently across versions; every known
     location is tried, loudly failing when none matches so a format
@@ -27,8 +27,10 @@ def resolve_score(report: dict) -> float:
     """
 
     candidates = [
+        ("score",),
         ("summary", "score"),
         ("score", "average"),
+        ("summary", "true_positive_tests", "score"),
         ("app_sec", "true_positive"),
         ("truePositiveTests", "score"),
     ]
