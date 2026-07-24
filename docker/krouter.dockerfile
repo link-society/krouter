@@ -28,7 +28,7 @@ COPY --from=sources /src /workspace
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/...
+    go build -trimpath -tags no_fs_access -ldflags="-s -w" -o bin/ ./cmd/...
 
 ##############################
 ## FINAL ARTIFACT
