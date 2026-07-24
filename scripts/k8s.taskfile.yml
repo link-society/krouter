@@ -4,14 +4,30 @@ version: '3'
 tasks:
   up:
     desc: Create the kind test cluster and install Gateway API {{.GATEWAY_API_VERSION}} CRDs
+    vars:
+      CLUSTER_CONFIG_CHECKSUM:
+        sh: openssl dgst -sha256 tests/config/kind/cluster.yaml | awk '{print $NF}'
     status:
       - kind get clusters 2>/dev/null | grep -qx '{{.KIND_CLUSTER}}'
+      - >-
+        test "$(kubectl --context {{.KIND_CONTEXT}} -n kube-system
+        get configmap krouter-kind-config -o jsonpath='{.data.checksum}' 2>/dev/null)"
+        = "{{.CLUSTER_CONFIG_CHECKSUM}}"
     cmds:
+      # The cluster picks up tests/config/kind/cluster.yaml at creation time
+      # only, and clusters persist across runs (notably on the self-hosted
+      # runner): recreate whenever the config changed since. The checksum of
+      # the config that built the cluster lives in-cluster.
+      - kind delete cluster --name {{.KIND_CLUSTER}}
       - >-
         kind create cluster
         --name {{.KIND_CLUSTER}}
         --config tests/config/kind/cluster.yaml
         {{if .KIND_NODE_IMAGE}}--image {{.KIND_NODE_IMAGE}}{{end}}
+      - >-
+        kubectl --context {{.KIND_CONTEXT}} -n kube-system
+        create configmap krouter-kind-config
+        --from-literal=checksum={{.CLUSTER_CONFIG_CHECKSUM}}
       - task: crds:install
 
   crds:install:

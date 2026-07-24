@@ -20,6 +20,17 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: krouter-e2e
+# Under bursty load on Linux hosts, retransmitted packets can arrive with
+# out-of-window sequence numbers; conntrack marks them INVALID, they bypass
+# the NodePort DNAT and provoke RSTs that kill established connections
+# (kubernetes/kubernetes#74839). This broke the performance gate with a
+# handful of scattered disconnects per run. Liberal window tracking is the
+# purpose-built kube-proxy mitigation.
+kubeadmConfigPatches:
+  - |
+    kind: KubeProxyConfiguration
+    conntrack:
+      tcpBeLiberal: true
 nodes:
   - role: control-plane
   - role: worker
