@@ -10,6 +10,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -25,6 +28,14 @@ import (
 	"github.com/link-society/krouter/internal/config"
 	"github.com/link-society/krouter/internal/config/hclparams"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
+)
+
+var reconciliationErrors = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "krouter_controlplane_reconciliation_errors_total",
+		Help: "Failed reconciliation steps, by step.",
+	},
+	[]string{"step"},
 )
 
 // Engine is the single-writer reconciliation engine. Exactly one actor
@@ -53,6 +64,7 @@ func NewEngine(
 }
 
 func logSyncError(step, subject string, err error) {
+	reconciliationErrors.WithLabelValues(step).Inc()
 	slog.Error("reconciliation step failed", "step", step, "subject", subject, "error", err)
 }
 

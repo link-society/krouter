@@ -6,11 +6,39 @@ import (
 
 	"encoding/json"
 
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/vladopajic/go-actor/actor"
 
 	"github.com/link-society/krouter/internal/app/dataplane/configwatcher"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
+)
+
+var configLoads = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "krouter_dataplane_config_loads_total",
+		Help: "Configuration generation loads, by result. Generations already applied are not reloaded and not counted.",
+	},
+	[]string{"result"}, // applied | rejected
+)
+
+var configLoadDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "krouter_dataplane_config_load_duration_seconds",
+		Help:    "Time spent building the routing tables of one configuration generation.",
+		Buckets: prometheus.DefBuckets,
+	},
+)
+
+var gatewaysOutOfSync = promauto.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "krouter_dataplane_gateways_out_of_sync",
+		Help: "Gateways whose applied configuration generation diverges from the desired one on this pod.",
+	},
 )
 
 // worker rebuilds and publishes the routing tables for every configuration
@@ -74,8 +102,12 @@ func (w *worker) rebuild(ctx actor.Context, raw configwatcher.RawConfig) {
 			}
 
 			var table *routing.GatewayTable
+			buildStart := time.Now()
 			table, err = routing.LoadGeneration(manifest, raw.ConfigMaps, raw.Secrets, w.applied[uid])
+			configLoadDuration.Observe(time.Since(buildStart).Seconds())
+
 			if err == nil {
+				configLoads.WithLabelValues("applied").Inc()
 				applied[uid] = table
 				status.AppliedGeneration = manifest.Generation
 			}
@@ -87,6 +119,8 @@ func (w *worker) rebuild(ctx actor.Context, raw configwatcher.RawConfig) {
 			// Last-valid behavior (docs/spec/configuration.md): keep serving the previous
 			// generation and report the error through readiness.
 			slog.Warn("cannot load desired generation", "gateway", uid, "error", err)
+
+			configLoads.WithLabelValues("rejected").Inc()
 
 			status.LastError = err.Error()
 
@@ -102,6 +136,16 @@ func (w *worker) rebuild(ctx actor.Context, raw configwatcher.RawConfig) {
 	}
 
 	w.applied = applied
+
+	// Desired/applied divergence on this pod (docs/spec/observability.md):
+	// nonzero while a rejected generation keeps the last valid one serving.
+	outOfSync := 0
+	for _, status := range statuses {
+		if status.AppliedGeneration != status.DesiredGeneration {
+			outOfSync++
+		}
+	}
+	gatewaysOutOfSync.Set(float64(outOfSync))
 
 	merged := routing.MergeTables(applied)
 

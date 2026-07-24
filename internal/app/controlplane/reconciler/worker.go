@@ -3,10 +3,21 @@ package reconciler
 import (
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/vladopajic/go-actor/actor"
 
 	"github.com/link-society/krouter/internal/lib/k8s/gatewayapi"
 	"github.com/link-society/krouter/internal/lib/snapshot"
+)
+
+var reconcileDuration = promauto.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "krouter_controlplane_reconcile_duration_seconds",
+		Help:    "Duration of one full reconciliation pass.",
+		Buckets: prometheus.DefBuckets,
+	},
 )
 
 // worker runs one engine pass every two seconds with the latest published
@@ -25,9 +36,13 @@ var _ actor.Worker = (*worker)(nil)
 const syncInterval = 2 * time.Second
 
 func (w *worker) DoWork(ctx actor.Context) actor.WorkerStatus {
+	start := time.Now()
+
 	if topo := w.engine.Sync(ctx, w.acks.Load()); topo != nil {
 		w.topo.Publish(topo)
 	}
+
+	reconcileDuration.Observe(time.Since(start).Seconds())
 
 	select {
 	case <-ctx.Done():

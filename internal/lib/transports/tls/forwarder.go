@@ -39,6 +39,14 @@ var activeConnections = promauto.NewGauge(
 	},
 )
 
+var bytesTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "krouter_dataplane_tls_bytes_total",
+		Help: "Bytes forwarded by the data plane, by direction.",
+	},
+	[]string{"direction"}, // downstream_to_backend | backend_to_downstream
+)
+
 // Selection identifies the backend endpoint chosen for one downstream
 // connection, with the identities required by the access log
 // (docs/spec/observability.md).
@@ -161,6 +169,10 @@ func (f *Forwarder) forward(
 	defer activeConnections.Dec()
 
 	received, sent := tcp.Splice(stream, backend)
+
+	bytesTotal.WithLabelValues("downstream_to_backend").
+		Add(float64(received + int64(len(prefix))))
+	bytesTotal.WithLabelValues("backend_to_downstream").Add(float64(sent))
 
 	connectionsTotal.WithLabelValues("forwarded").Inc()
 

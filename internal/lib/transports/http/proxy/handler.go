@@ -42,6 +42,76 @@ var requestsTotal = promauto.NewCounterVec(
 	[]string{"class"},
 )
 
+var activeRequests = promauto.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "krouter_dataplane_active_requests",
+		Help: "HTTP and gRPC requests currently in flight in the data plane.",
+	},
+)
+
+var requestDuration = promauto.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "krouter_dataplane_request_duration_seconds",
+		Help:    "Request duration, by response class.",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{"class"},
+)
+
+var httpBytesTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "krouter_dataplane_http_bytes_total",
+		Help: "Bytes transferred on HTTP and gRPC routes, by direction.",
+	},
+	[]string{"direction"}, // downstream_to_backend | backend_to_downstream
+)
+
+var backendErrors = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "krouter_dataplane_backend_errors_total",
+		Help: "Backend failures on HTTP and gRPC routes, by kind: selection covers rules without a usable backend or ready endpoint, connection covers failed backend requests.",
+	},
+	[]string{"kind"}, // selection | connection
+)
+
+// countingWriter counts response bytes without hiding the wrapped
+// writer's Flusher and Hijacker (http.ResponseController unwraps it, so
+// streaming responses and upgrades keep working).
+type countingWriter struct {
+	http.ResponseWriter
+}
+
+func (w *countingWriter) Write(b []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(b)
+	httpBytesTotal.WithLabelValues("backend_to_downstream").Add(float64(n))
+
+	return n, err
+}
+
+func (w *countingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// countingBody counts request-body bytes actually read, whether by the
+// WAF buffering them or by the backend request streaming them.
+type countingBody struct {
+	io.ReadCloser
+}
+
+func (b countingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	httpBytesTotal.WithLabelValues("downstream_to_backend").Add(float64(n))
+
+	return n, err
+}
+
+// observeRequest records the response-class counter and the duration
+// histogram for one finished request, so their series always agree.
+func observeRequest(status int, start time.Time) {
+	class := fmt.Sprintf("%dxx", status/100)
+
+	requestsTotal.WithLabelValues(class).Inc()
+	requestDuration.WithLabelValues(class).Observe(time.Since(start).Seconds())
+}
+
 // Handler is the request path shared by every port server. It only reads
 // the snapshots published by the loader and resolver actors.
 type Handler struct {
@@ -115,13 +185,23 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	start := time.Now()
 	host := hostOnly(r.Host)
 
+	activeRequests.Inc()
+	defer activeRequests.Dec()
+
+	// Transferred bytes (docs/spec/observability.md): everything written
+	// downstream and every request-body byte read, whoever reads it.
+	w = &countingWriter{ResponseWriter: w}
+	if r.Body != nil {
+		r.Body = countingBody{ReadCloser: r.Body}
+	}
+
 	tables := h.state.Tables.Load()
 
 	// Misdirected-request detection (docs/spec/traffic.md): the authority
 	// must be owned by the listener the connection's SNI selected.
 	if withTLS && r.TLS != nil && tables.Misdirected(port, r.TLS.ServerName, host) {
 		http.Error(w, "misdirected request", http.StatusMisdirectedRequest)
-		requestsTotal.WithLabelValues("4xx").Inc()
+		observeRequest(http.StatusMisdirectedRequest, start)
 		return
 	}
 
@@ -131,12 +211,12 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 			// docs/spec/traffic.md gRPC routing: unmatched gRPC requests
 			// receive UNIMPLEMENTED.
 			grpc.Unimplemented(w)
-			requestsTotal.WithLabelValues("2xx").Inc()
+			observeRequest(http.StatusOK, start)
 			return
 		}
 
 		http.Error(w, "not found", http.StatusNotFound)
-		requestsTotal.WithLabelValues("4xx").Inc()
+		observeRequest(http.StatusNotFound, start)
 		return
 	}
 
@@ -157,7 +237,7 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 		}
 	}
 
-	requestsTotal.WithLabelValues(fmt.Sprintf("%dxx", status/100)).Inc()
+	observeRequest(status, start)
 
 	// Access log event (docs/spec/observability.md); gRPC requests
 	// additionally carry the gRPC status code.
@@ -281,6 +361,8 @@ func rewrittenPath(path string, filter compiled.Filter) string {
 func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.RuleTable, withTLS bool) int {
 	backend := rule.PickBackend()
 	if backend == nil {
+		backendErrors.WithLabelValues("selection").Inc()
+
 		if rule.GRPC() {
 			grpc.Unavailable(w)
 			return http.StatusOK
@@ -291,6 +373,8 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 	}
 
 	if !backend.Valid() {
+		backendErrors.WithLabelValues("selection").Inc()
+
 		// Unresolvable refs answer for their traffic share (Gateway API).
 		if rule.GRPC() {
 			grpc.Internal(w)
@@ -304,12 +388,16 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 	// Fail closed for a rejected BackendTLSPolicy (docs/spec/traffic.md
 	// Backend TLS): never fall back to cleartext.
 	if backend.TLSInvalid() {
+		backendErrors.WithLabelValues("selection").Inc()
+
 		http.Error(w, "bad gateway", http.StatusBadGateway)
 		return http.StatusBadGateway
 	}
 
 	target, ok := backend.Pick(h.state.Endpoints.Load())
 	if !ok {
+		backendErrors.WithLabelValues("selection").Inc()
+
 		// Required unavailable response (docs/spec/failure-modes.md).
 		if rule.GRPC() {
 			grpc.Unavailable(w)
@@ -392,6 +480,8 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 				http.Error(w, "gateway timeout", http.StatusGatewayTimeout)
 				return
 			}
+
+			backendErrors.WithLabelValues("connection").Inc()
 
 			slog.Warn("backend request failed", "error", err)
 			status = http.StatusBadGateway
