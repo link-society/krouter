@@ -157,8 +157,11 @@ tasks:
       # The kind cluster publishes NodePort 30104 on 127.0.0.1; the
       # container reaches it through the host network. krouter's HTTP
       # listener serves h2c, so the gRPC test set targets the same port.
+      # The image runs as a non-root user that cannot write to the bind
+      # mount on Linux hosts, so run it as the invoking user instead.
       - >-
         docker run --rm --network host
+        --user "$(id -u):$(id -g)"
         -v {{.ROOT_DIR}}/tests/results/waf:/app/reports
         wallarm/gotestwaf
         --url=http://127.0.0.1:30104
