@@ -1,0 +1,58 @@
+---
+name: ci-main
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-main
+  cancel-in-progress: false
+
+jobs:
+  build-docker:
+    uses: ./.github/workflows/build-docker.yml
+    with:
+      ref: ${{ github.sha }}
+
+  test-unit:
+    uses: ./.github/workflows/test-unit.yml
+    with:
+      ref: ${{ github.sha }}
+
+  test-e2e:
+    needs: build-docker
+    uses: ./.github/workflows/test-e2e.yml
+    with:
+      ref: ${{ github.sha }}
+
+  # The slow suites run only on main (not in PRs).
+  test-conformance:
+    needs: build-docker
+    uses: ./.github/workflows/test-conformance.yml
+    with:
+      ref: ${{ github.sha }}
+
+  test-performance:
+    needs: build-docker
+    uses: ./.github/workflows/test-performance.yml
+    with:
+      ref: ${{ github.sha }}
+
+  test-waf:
+    needs: build-docker
+    uses: ./.github/workflows/test-waf.yml
+    with:
+      ref: ${{ github.sha }}
+
+  build-website:
+    needs:
+      - test-unit
+      - test-e2e
+      - test-conformance
+      - test-performance
+      - test-waf
+    uses: ./.github/workflows/build-website.yml
+    with:
+      ref: ${{ github.sha }}

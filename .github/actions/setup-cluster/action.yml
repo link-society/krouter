@@ -1,0 +1,37 @@
+---
+name: Setup krouter test cluster
+description: >-
+  Create the kind cluster with the Gateway API CRDs, load the krouter image
+  built by the build-docker workflow, and deploy the static manifest.
+
+inputs:
+  ref:
+    description: Git reference the docker image artifact was built from
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: setup@kind
+      uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+      with:
+        install_only: true
+
+    - name: create@cluster
+      shell: bash
+      run: task k8s:up
+
+    - name: download@image
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: docker-image-${{ inputs.ref }}
+
+    - name: load@image
+      shell: bash
+      run: |
+        docker load -i image.tar
+        task k8s:image:load
+
+    - name: deploy@krouter
+      shell: bash
+      run: task k8s:apply

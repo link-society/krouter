@@ -1,0 +1,35 @@
+---
+name: Setup krouter toolchain
+description: Install Go, Task and (optionally) the Python test toolchain
+
+inputs:
+  testsuite:
+    description: Also install PDM and the Python test dependencies
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: setup@go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: setup@task
+      uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+      with:
+        version: 3.x
+        repo-token: ${{ github.token }}
+
+    - name: setup@pdm
+      if: inputs.testsuite == 'true'
+      uses: pdm-project/setup-pdm@94a823180e06fcde4ad29308721954a521c96ed0 # v4
+      with:
+        python-version: "3.13"
+
+    - name: install@test-deps
+      if: inputs.testsuite == 'true'
+      shell: bash
+      run: pdm install --quiet --project tests

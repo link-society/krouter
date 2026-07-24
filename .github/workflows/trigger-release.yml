@@ -1,0 +1,64 @@
+---
+name: trigger-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release version (for example v0.1.0)
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: cibot@auth
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.CIBOT_APPID }}
+          private-key: ${{ secrets.CIBOT_PRIVKEY }}
+
+      - name: checkout@scm
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: main
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: setup@scm
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          git config --global user.name "link-society[bot]"
+          git config --global user.email "noreply@link-society.com"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+
+      # SECURITY.md carries the supported-versions table; it is regenerated
+      # for every release from the tag history plus the new tag.
+      - name: tag@scm
+        env:
+          VERSION: ${{ github.event.inputs.tag }}
+        run: |
+          pip install packaging
+          python scripts/update-security-policy.py --next-release "${VERSION}" > SECURITY.md
+          git add SECURITY.md
+          git commit -m ":bookmark: ${VERSION}"
+          git push origin main
+
+          git tag ${VERSION}
+          git push origin ${VERSION}
+
+      - name: publish@release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ github.event.inputs.tag }}
+        run: |
+          gh release create ${VERSION} \
+            --generate-notes \
+            --latest

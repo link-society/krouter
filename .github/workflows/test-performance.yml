@@ -1,0 +1,44 @@
+---
+name: test-performance
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: checkout@scm
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: setup@toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          testsuite: "true"
+
+      - name: setup@cluster
+        uses: ./.github/actions/setup-cluster
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: run@testsuite
+        run: task tests:performance:junit
+
+      - name: report@testsuite
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/publish-test-report
+        with:
+          suite: performance
+          checkname: Performance Test Report

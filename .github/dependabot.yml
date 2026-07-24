@@ -1,0 +1,71 @@
+---
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: ":arrow_up: "
+    labels:
+      - "deps: go"
+    groups:
+      operator:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directories:
+      - "/tests/mocks"
+      - "/tests/specs/conformance"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: ":arrow_up: :white_check_mark: "
+    labels:
+      - "deps: go"
+      - "deps: tests"
+    groups:
+      testsuite-go:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/tests"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: ":arrow_up: :white_check_mark: "
+    labels:
+      - "deps: python"
+      - "deps: tests"
+    groups:
+      testsuite-python:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: ":arrow_up: :whale: "
+    labels:
+      - "deps: docker"
+    groups:
+      docker:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: ":arrow_up: :construction_worker: "
+    labels:
+      - "deps: ci"
+    groups:
+      ci:
+        patterns:
+          - "*"

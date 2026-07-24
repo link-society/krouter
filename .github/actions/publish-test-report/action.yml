@@ -1,0 +1,33 @@
+---
+name: Publish krouter test report
+description: >-
+  Publish one suite's JUnit report as a check run attached to the commit
+  (pushes to main) or as a comment on the pull request, and upload the raw
+  results as an artifact.
+
+inputs:
+  suite:
+    description: Suite name (unit, e2e, conformance, performance, waf)
+    required: true
+  checkname:
+    description: Name of the check run
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: publish@report
+      if: ${{ !cancelled() }}
+      uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
+      with:
+        check_name: ${{ inputs.checkname }}
+        comment_mode: ${{ github.event_name == 'pull_request' && 'always' || 'off' }}
+        files: tests/results/${{ inputs.suite }}/junit.xml
+
+    - name: upload@artifact
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: test-results-${{ inputs.suite }}
+        path: tests/results/
+        retention-days: 7

@@ -1,0 +1,47 @@
+---
+name: test-waf
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+
+jobs:
+  waf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: checkout@scm
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: setup@toolchain
+        uses: ./.github/actions/setup-toolchain
+        with:
+          testsuite: "true"
+
+      - name: setup@cluster
+        uses: ./.github/actions/setup-cluster
+        with:
+          ref: ${{ inputs.ref }}
+
+      # The task builds and loads the mock backends, applies the standing
+      # WAF target, runs gotestwaf and enforces the score gate; the JUnit
+      # verdict lands in tests/results/waf/junit.xml (wafgate.py).
+      - name: run@testsuite
+        run: task tests:waf
+
+      - name: report@testsuite
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/publish-test-report
+        with:
+          suite: waf
+          checkname: WAF Evaluation Report

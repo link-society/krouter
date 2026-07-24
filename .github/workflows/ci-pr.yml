@@ -1,0 +1,43 @@
+---
+name: ci-pr
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - main
+
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# The conformance, performance and WAF suites are too slow for PRs; they
+# run on every push to main (ci-main.yml).
+jobs:
+  build-docker:
+    uses: ./.github/workflows/build-docker.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+
+  test-unit:
+    uses: ./.github/workflows/test-unit.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+
+  test-e2e:
+    needs: build-docker
+    uses: ./.github/workflows/test-e2e.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+
+  build-website:
+    needs:
+      - test-unit
+      - test-e2e
+    uses: ./.github/workflows/build-website.yml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
