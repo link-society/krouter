@@ -10,7 +10,7 @@ on:
 
 jobs:
   waf:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 60
     permissions:
       contents: read
