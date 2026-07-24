@@ -17,6 +17,8 @@ import subprocess
 import threading
 import time
 
+from pathlib import Path
+
 import pytest
 
 from e2elib import backends, config, gateway as gw, kubectl, loadgen, net, ports
@@ -104,20 +106,27 @@ def test_10k_concurrent_connections_survive_reload(stack):
 
     restarts_before = kubectl.pod_restart_counts(kubectl.dataplane_pods())
 
-    # Record connection teardown packets on the node for the whole hold:
-    # whoever sends the first FIN/RST, and when, names the reaper that the
-    # counters kept exonerating. Header-only capture from a netshoot
-    # container sharing the node's netns (kindest/node has no tcpdump),
-    # bounded by the run duration.
+    # Record every packet on the NodePort for the whole hold into a pcap
+    # (headers only) inside a netshoot container sharing the node's netns:
+    # kindest/node has no tcpdump, and FIN-only captures kept hiding
+    # whatever precedes a teardown. The pcap lands in the results
+    # directory, which CI uploads as an artifact.
+    capture_name = f"krouter-perf-capture-{int(time.time())}"
+    capture_dir = (Path(__file__).parents[2] / "results" / "performance").resolve()
+    capture_dir.mkdir(parents=True, exist_ok=True)
     tcpdump = subprocess.Popen(
         [
             "docker", "run", "--rm",
+            "--name", capture_name,
             "--network", f"container:{worker}",
+            "-v", f"{capture_dir}:/cap",
             "nicolaka/netshoot:v0.14",
-            "timeout", str(HOLD_DURATION_S + 60),
-            "tcpdump", "-n", "-tttt", "--immediate-mode",
-            "-i", "any",
-            f"port {ports.PERFORMANCE} and tcp[tcpflags] & (tcp-fin|tcp-rst) != 0",
+            "timeout", str(HOLD_DURATION_S + 120),
+            "tcpdump", "-n", "--immediate-mode",
+            "-i", "any", "-s", "128",
+            "-Z", "root",
+            "-w", "/cap/hold.pcap",
+            f"port {ports.PERFORMANCE}",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -147,7 +156,20 @@ def test_10k_concurrent_connections_survive_reload(stack):
 
     finally:
         timer.cancel()
-        tcpdump.terminate()
+        # docker stop delivers SIGTERM so tcpdump flushes the pcap; the
+        # container removes itself (--rm) and the client process exits.
+        subprocess.run(
+            ["docker", "stop", capture_name],
+            capture_output=True,
+            text=True,
+        )
+
+        try:
+            tcpdump.communicate(timeout=15)
+
+        except subprocess.TimeoutExpired:
+            tcpdump.kill()
+            tcpdump.communicate()
 
     log.info(
         "loadgen report: established=%s requests=%s errors=%s disconnects=%s "
@@ -193,21 +215,34 @@ def test_10k_concurrent_connections_survive_reload(stack):
                 probe.stderr.strip(),
             )
 
-        # Teardown packets seen on the node during the hold: the source of
-        # the first FIN/RST per flow is the party that closed it.
-        try:
-            capture, capture_err = tcpdump.communicate(timeout=30)
+        # Full per-flow history of every dropped connection, extracted from
+        # the pcap: data, ACKs and teardown, not just FIN/RST. The old local
+        # port from the reconnect event is the join key.
+        for event in result.get("reconnects", []):
+            old = event.get("old") or ""
+            old_port = old.rsplit(":", 1)[-1]
+            if not old_port.isdigit():
+                continue
 
-        except subprocess.TimeoutExpired:
-            tcpdump.kill()
-            capture, capture_err = tcpdump.communicate()
-        log.warning(
-            "tcpdump FIN/RST on %s (%d lines, first 120):\n%s\n%s",
-            worker,
-            len(capture.splitlines()),
-            "\n".join(capture.splitlines()[:120]),
-            capture_err.strip(),
-        )
+            flow = subprocess.run(
+                [
+                    "docker", "run", "--rm",
+                    "-v", f"{capture_dir}:/cap",
+                    "nicolaka/netshoot:v0.14",
+                    "tcpdump", "-n", "-tttt", "-r", "/cap/hold.pcap",
+                    f"tcp port {old_port}",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            tail = "\n".join(flow.stdout.splitlines()[-40:])
+            log.warning(
+                "dead flow %s (reconnected at t=%.1fs), last packets:\n%s%s",
+                old,
+                event["at_s"],
+                tail,
+                flow.stderr.strip(),
+            )
 
         for pod in kubectl.dataplane_pods():
             name = pod["metadata"]["name"]

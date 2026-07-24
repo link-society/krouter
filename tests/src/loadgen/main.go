@@ -63,6 +63,14 @@ type second struct {
 	Disconnects int64 `json:"disconnects"`
 }
 
+// reconnect is one transparent replacement of a held connection; the old
+// local address is the join key into node-side packet captures.
+type reconnect struct {
+	AtSeconds float64 `json:"at_s"`
+	Old       string  `json:"old"`
+	New       string  `json:"new"`
+}
+
 type latency struct {
 	MeanMs float64 `json:"mean_ms"`
 	P50Ms  float64 `json:"p50_ms"`
@@ -72,21 +80,22 @@ type latency struct {
 }
 
 type report struct {
-	Mode            string   `json:"mode"`
-	URL             string   `json:"url"`
-	Connections     int      `json:"connections"`
-	DurationSeconds float64  `json:"duration_seconds"`
-	Established     int64    `json:"established"`
-	ConnectErrors   int64    `json:"connect_errors"`
-	Requests        int64    `json:"requests"`
-	RequestErrors   int64    `json:"request_errors"`
-	Non2xx          int64    `json:"non_2xx"`
-	Disconnects     int64    `json:"disconnects"`
-	CloseDemanded   int64    `json:"close_demanded"`
-	BytesIn         int64    `json:"bytes_in"`
-	RequestsPerSec  float64  `json:"requests_per_sec"`
-	Latency         latency  `json:"latency"`
-	Timeline        []second `json:"timeline"`
+	Mode            string      `json:"mode"`
+	URL             string      `json:"url"`
+	Connections     int         `json:"connections"`
+	DurationSeconds float64     `json:"duration_seconds"`
+	Established     int64       `json:"established"`
+	ConnectErrors   int64       `json:"connect_errors"`
+	Requests        int64       `json:"requests"`
+	RequestErrors   int64       `json:"request_errors"`
+	Non2xx          int64       `json:"non_2xx"`
+	Disconnects     int64       `json:"disconnects"`
+	CloseDemanded   int64       `json:"close_demanded"`
+	BytesIn         int64       `json:"bytes_in"`
+	RequestsPerSec  float64     `json:"requests_per_sec"`
+	Latency         latency     `json:"latency"`
+	Timeline        []second    `json:"timeline"`
+	Reconnects      []reconnect `json:"reconnects"`
 }
 
 type collector struct {
@@ -101,9 +110,10 @@ type collector struct {
 
 	start time.Time
 
-	mu        sync.Mutex
-	latencies []time.Duration
-	timeline  map[int]*second
+	mu         sync.Mutex
+	latencies  []time.Duration
+	timeline   map[int]*second
+	reconnects []reconnect
 }
 
 func newCollector() *collector {
@@ -143,6 +153,17 @@ func (c *collector) recordDisconnect() {
 	defer c.mu.Unlock()
 
 	c.cellLocked().Disconnects++
+}
+
+func (c *collector) recordReconnect(old, cur string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.reconnects = append(c.reconnects, reconnect{
+		AtSeconds: time.Since(c.start).Seconds(),
+		Old:       old,
+		New:       cur,
+	})
 }
 
 func (c *collector) report(cfg config, elapsed time.Duration) report {
@@ -198,7 +219,8 @@ func (c *collector) report(cfg config, elapsed time.Duration) report {
 			P99Ms:  pct(0.99),
 			MaxMs:  pct(1.0),
 		},
-		Timeline: timeline,
+		Timeline:   timeline,
+		Reconnects: append([]reconnect(nil), c.reconnects...),
 	}
 }
 
@@ -273,6 +295,20 @@ func doRequest(ctx context.Context, client *http.Client, cfg config, col *collec
 				addrs.prev = addrs.cur
 			}
 			addrs.cur = local
+		},
+		PutIdleConn: func(err error) {
+			// A pool rejection closes the connection now and forces a
+			// fresh dial on the next request: exactly the shape of the
+			// silent reconnects under investigation.
+			if err != nil {
+				fmt.Fprintf(
+					os.Stderr,
+					"loadgen: pool rejected conn %s at t=%.1fs: %v\n",
+					addrs.cur,
+					time.Since(col.start).Seconds(),
+					err,
+				)
+			}
 		},
 	}
 
@@ -395,6 +431,7 @@ func runHold(ctx context.Context, cfg config, col *collector) {
 					tracker.observe(col, newConn, err)
 
 					if newConn && err == nil && !wasDead {
+						col.recordReconnect(addrs.prev, addrs.cur)
 						fmt.Fprintf(
 							os.Stderr,
 							"loadgen: transparent reconnect at t=%.1fs: %s -> %s\n",
