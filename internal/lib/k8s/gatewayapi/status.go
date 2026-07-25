@@ -541,7 +541,7 @@ func mergeParentStatuses(
 // gatewayConditions builds the top-level Gateway conditions.
 func gatewayConditions(gw *gatewayv1.Gateway, paramsErr error,
 	addresses gatewayAddresses, acked bool,
-	validListeners int) (metav1.Condition, metav1.Condition) {
+	validListeners, invalidOwnListeners int) (metav1.Condition, metav1.Condition) {
 	if paramsErr != nil {
 		// Invalid or missing parameters (docs/spec/parameters.md).
 		accepted := condition(
@@ -590,6 +590,20 @@ func gatewayConditions(gw *gatewayv1.Gateway, paramsErr error,
 		"Gateway is accepted",
 		gw.Generation,
 	)
+
+	// Invalid listeners surface on the Accepted condition with reason
+	// ListenersNotValid; the Gateway stays accepted while at least one
+	// effective listener remains valid (docs/spec/status.md).
+	if validListeners == 0 {
+		accepted.Status = metav1.ConditionFalse
+		accepted.Reason = string(gatewayv1.GatewayReasonListenersNotValid)
+		accepted.Message = "no valid listeners"
+	} else if invalidOwnListeners > 0 {
+		accepted.Reason = string(gatewayv1.GatewayReasonListenersNotValid)
+		accepted.Message = fmt.Sprintf(
+			"%d invalid listener(s), the remaining listeners are accepted",
+			invalidOwnListeners)
+	}
 
 	if len(addresses.unusable) > 0 {
 		// Static addresses that no data-plane node serves

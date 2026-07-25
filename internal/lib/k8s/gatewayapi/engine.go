@@ -323,7 +323,7 @@ func (r *Engine) reconcileGateway(
 	)
 
 	if paramsErr != nil || addresses.unsupportedType {
-		accepted, programmed := gatewayConditions(gw, paramsErr, addresses, false, 0)
+		accepted, programmed := gatewayConditions(gw, paramsErr, addresses, false, 0, 0)
 
 		input := gatewayStatusInput{
 			accepted:     accepted,
@@ -369,9 +369,14 @@ func (r *Engine) reconcileGateway(
 	}
 
 	validListeners := 0
+	invalidOwnListeners := 0
 	for _, lst := range listeners {
 		if lst.valid() {
 			validListeners++
+		} else if lst.set == nil {
+			// Invalid ListenerSet entries surface on the set's own status
+			// (docs/spec/frontend.md Listener sets), not the Gateway's.
+			invalidOwnListeners++
 		}
 	}
 
@@ -393,7 +398,8 @@ func (r *Engine) reconcileGateway(
 
 	acked := validListeners > 0 && w.acks.AllAcked(string(gw.UID), generation)
 
-	accepted, programmed := gatewayConditions(gw, nil, addresses, acked, validListeners)
+	accepted, programmed := gatewayConditions(gw, nil, addresses, acked,
+		validListeners, invalidOwnListeners)
 
 	// ListenerSet statuses and the attachedListenerSets count
 	// (docs/spec/frontend.md Listener sets, docs/spec/status.md).
