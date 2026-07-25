@@ -23,7 +23,7 @@ extensions · — not provided):
 |---|:-:|:-:|:-:|:-:|:-:|
 | **Gateway API** | | | | | |
 | Core conformance (HTTP, GRPC, TLS profiles) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Every non-mesh Extended conformance test (v1.5.1) | ✅ | ◐ | ◐ | ◐ | ◐ |
+| Every non-mesh Extended conformance test (v1.6.1) | ✅ | ◐ | ◐ | ◐ | ◐ |
 | TCPRoute, UDPRoute, TLSRoute | ✅ | ✅ | ◐ | ◐ | ✅ |
 | ListenerSet (merged listeners) | ✅ | ◐ | — | — | — |
 | BackendTLSPolicy (incl. SAN validation) | ✅ | ✅ | ◐ | — | ◐ |

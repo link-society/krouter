@@ -7,10 +7,11 @@ weight: 6
 krouter treats the official
 [Gateway API conformance suite](https://gateway-api.sigs.k8s.io/concepts/conformance/)
 as its contract: **every non-mesh test in the `GATEWAY-HTTP`,
-`GATEWAY-GRPC` and `GATEWAY-TLS` profiles passes**, Core and Extended. The
-supported feature set is not hand-declared either: the suite infers it
-from what krouter publishes in `GatewayClass.status.supportedFeatures`, so
-an over-claimed feature would fail its own tests.
+`GATEWAY-GRPC`, `GATEWAY-TLS`, `GATEWAY-TCP` and `GATEWAY-UDP` profiles
+passes**, Core and Extended. The supported feature set is not
+hand-declared either: the suite infers it from what krouter publishes in
+`GatewayClass.status.supportedFeatures`, so an over-claimed feature would
+fail its own tests.
 
 ## The report
 

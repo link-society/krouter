@@ -11,8 +11,8 @@ weight: 3
 | [HTTPRoute](https://gateway-api.sigs.k8s.io/api-types/httproute/) | `v1` | HTTP/1.1 and HTTP/2, host + path + method + header + query matching |
 | [GRPCRoute](https://gateway-api.sigs.k8s.io/api-types/grpcroute/) | `v1` | gRPC with service/method and header matching, h2c to backends |
 | TLSRoute | `v1` | SNI-routed TLS, passthrough or terminated |
-| TCPRoute | `v1alpha2` | Raw TCP streams |
-| UDPRoute | `v1alpha2` | UDP datagram flows |
+| TCPRoute | `v1` | Raw TCP streams |
+| UDPRoute | `v1` | UDP datagram flows |
 
 Backends are regular
 [Services](https://kubernetes.io/docs/concepts/services-networking/service/);

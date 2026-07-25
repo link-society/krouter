@@ -9,8 +9,8 @@ params:
 **Use case:** expose non-HTTP workloads (databases, DNS, MQTT, anything)
 through the same gateway infrastructure.
 
-These route kinds come from the Gateway API
-[Experimental channel](https://gateway-api.sigs.k8s.io/concepts/versioning/#release-channels),
+These route kinds are GA since Gateway API v1.6 and ship with the
+[Standard channel](https://gateway-api.sigs.k8s.io/concepts/versioning/#release-channels),
 installed in the [installation guide](/docs/installation/).
 
 ## Raw TCP
@@ -33,7 +33,7 @@ spec:
         namespaces:
           from: Same
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: postgres
@@ -60,7 +60,7 @@ listeners:
 ```
 
 ```yaml
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: UDPRoute
 metadata:
   name: dns

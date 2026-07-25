@@ -19,22 +19,23 @@ weight: 1
 krouter deliberately does not bundle the Gateway API
 [CustomResourceDefinitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/):
 they are cluster-wide, versioned upstream, and often shared with other
-controllers. Install the **v1.5.1 Experimental channel** (the Standard
-resources plus `TCPRoute`, `UDPRoute`, `TLSRoute` and `ListenerSet`):
+controllers. Install the **v1.6.1 Standard channel**: since Gateway API
+v1.6 it carries everything krouter uses, including `TCPRoute`,
+`UDPRoute`, `TLSRoute`, `BackendTLSPolicy` and `ListenerSet`:
 
 ```sh
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/experimental-install.yaml
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml
 ```
 
-> Server-side apply is required: some experimental CRDs exceed the
+> Server-side apply is recommended: the larger CRDs exceed the
 > annotation size limit used by client-side apply. See
 > [Server-Side Apply](https://kubernetes.io/docs/reference/using-api/server-side-apply/)
 > for background, and the upstream
 > [installation guide](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api)
 > for channel details.
 
-If you only need HTTP and HTTPS, the Standard channel works too: krouter
-detects missing experimental CRDs and degrades gracefully.
+The Experimental channel works too: krouter ignores the resources it
+does not implement, and detects missing CRDs by degrading gracefully.
 
 ## 2. Deploy krouter
 
