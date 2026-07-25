@@ -2,8 +2,8 @@
 // against a live cluster running krouter.
 //
 // The conformance target (docs/spec/overview.md, docs/spec/acceptance.md criteria 1,
-// 14 and 15) is: all Core tests of the GATEWAY-HTTP, GATEWAY-GRPC and
-// GATEWAY-TLS profiles, Gateway API v1.6.1.
+// 13, 14, 15 and 19) is: all Core tests of the GATEWAY-HTTP, GATEWAY-GRPC,
+// GATEWAY-TLS, GATEWAY-TCP and GATEWAY-UDP profiles, Gateway API v1.6.1.
 // The profiles are therefore forced here rather than left to a flag.
 //
 // The suite dials the addresses published on Gateway status, which are
@@ -28,12 +28,15 @@ import (
 func TestConformance(t *testing.T) {
 	opts := conformance.DefaultOptions(t)
 
-	// docs/spec/acceptance.md criteria 1, 14 and 15: the GATEWAY-HTTP,
-	// GATEWAY-GRPC and GATEWAY-TLS Core profiles must pass in full.
+	// docs/spec/acceptance.md criteria 1, 13, 14, 15 and 19: the
+	// GATEWAY-HTTP, GATEWAY-GRPC, GATEWAY-TLS, GATEWAY-TCP and GATEWAY-UDP
+	// Core profiles must pass in full.
 	opts.ConformanceProfiles = []suite.ConformanceProfileName{
 		suite.GatewayHTTPConformanceProfileName,
 		suite.GatewayGRPCConformanceProfileName,
 		suite.GatewayTLSConformanceProfileName,
+		suite.GatewayTCPConformanceProfileName,
+		suite.GatewayUDPConformanceProfileName,
 	}
 
 	// No feature is declared manually: the suite infers the supported
