@@ -11,8 +11,8 @@ columns:
 groups:
   - name: Gateway API
     rows:
-      - feature: "Core conformance (HTTP, GRPC, TLS profiles)"
-        values: [yes, yes, yes, yes, yes]
+      - feature: "Core conformance (HTTP, GRPC, TLS, TCP, UDP profiles)"
+        values: [yes, yes, partial, partial, yes]
       - feature: "Every non-mesh Extended conformance test (v1.6.1)"
         values: [yes, partial, partial, partial, partial]
       - feature: "TCPRoute, UDPRoute, TLSRoute"

@@ -22,7 +22,7 @@ extensions · — not provided):
 | Feature | krouter | Envoy Gateway | NGINX Gateway Fabric | Traefik | Istio |
 |---|:-:|:-:|:-:|:-:|:-:|
 | **Gateway API** | | | | | |
-| Core conformance (HTTP, GRPC, TLS profiles) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Core conformance (HTTP, GRPC, TLS, TCP, UDP profiles) | ✅ | ✅ | ◐ | ◐ | ✅ |
 | Every non-mesh Extended conformance test (v1.6.1) | ✅ | ◐ | ◐ | ◐ | ◐ |
 | TCPRoute, UDPRoute, TLSRoute | ✅ | ✅ | ◐ | ◐ | ✅ |
 | ListenerSet (merged listeners) | ✅ | ◐ | — | — | — |
