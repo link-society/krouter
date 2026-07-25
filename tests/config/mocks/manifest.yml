@@ -652,7 +652,7 @@ spec:
         - name: grpcbin
           port: 9000
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: TCPRoute
 metadata:
   name: tcpbin
@@ -666,7 +666,7 @@ spec:
         - name: tcpbin
           port: 4242
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1
 kind: UDPRoute
 metadata:
   name: udpbin
