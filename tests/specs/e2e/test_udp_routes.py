@@ -118,26 +118,18 @@ def test_flows_balanced_across_backends(stack):
 def test_multi_rule_route_rejected(stack):
     """
     Rules carry no matching semantics on L4 routes: a UDPRoute declaring
-    more than one rule is ambiguous and MUST be rejected with reason
-    UnsupportedValue, never partially applied (docs/spec/traffic.md).
+    more than one rule is ambiguous. The v1 CRD schema refuses it at
+    admission, so the object never reaches krouter (docs/spec/traffic.md).
     """
 
     rule = {"backendRefs": [gw.backend_ref(BACKEND, backends.UDP_BACKEND_PORT)]}
 
-    kubectl.apply([
-        gw.udp_route(
-            "multi-rule-route",
-            stack,
-            [gw.parent_ref("udp-gw")],
-            rules=[rule, dict(rule)],
-        ),
-    ])
-
-    kubectl.wait_route_parent_condition(
-        "multi-rule-route",
-        stack,
-        "Accepted",
-        status="False",
-        reason="UnsupportedValue",
-        kind="udproute",
-    )
+    with pytest.raises(kubectl.KubectlError, match="must have at most 1 item"):
+        kubectl.apply([
+            gw.udp_route(
+                "multi-rule-route",
+                stack,
+                [gw.parent_ref("udp-gw")],
+                rules=[rule, dict(rule)],
+            ),
+        ])

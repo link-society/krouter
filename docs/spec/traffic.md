@@ -46,8 +46,9 @@ rewritten.
   header, or filter semantics: every connection accepted by the listener
   is forwarded to one of the route's backend endpoints.
 - Rules carry no matching semantics on L4 routes, so a route declaring
-  more than one rule is ambiguous: it MUST be rejected with reason
-  `UnsupportedValue`, never partially applied.
+  more than one rule is ambiguous: the v1 CRD schema rejects it at
+  admission, and krouter MUST reject any such object that reaches it
+  anyway (reason `UnsupportedValue`), never partially applying it.
 - When several routes attach to one listener, the oldest route (then the
   lexically smallest namespaced name) serves it, deterministically on
   every data-plane pod.
