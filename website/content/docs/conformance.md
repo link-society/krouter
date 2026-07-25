@@ -50,8 +50,9 @@ the report as `gotestwaf.html`.
 
 ## What is intentionally out of scope
 
-krouter is a gateway, not a service mesh: the `MESH` profile tests are the
-only skipped conformance tests. Authentication policies, retries and active
-health checks are also out of scope today; the
+krouter is a gateway, not a service mesh: the `MESH` profile tests and
+the HTTPRoute retry tests are the only skipped conformance tests.
+Authentication policies, retries and active health checks are out of
+scope today; the
 [comparison table](/#how-krouter-compares) lists which alternatives cover
 those.

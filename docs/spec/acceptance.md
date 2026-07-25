@@ -55,9 +55,10 @@ The implementation is accepted when:
 22. The Gateway API conformance suite passes every non-Mesh test in the
     `GATEWAY-HTTP`, `GATEWAY-GRPC`, `GATEWAY-TLS`, `GATEWAY-TCP`, and
     `GATEWAY-UDP` profiles: the only skipped tests are those requiring
-    the `MESH` profile and the "not supported" tests that skip themselves
-    because krouter supports the corresponding feature (TLSRoute
-    Terminate and mixed termination).
+    the `MESH` profile, the HTTPRoute retry tests (retries are deferred
+    work), and the "not supported" tests that skip themselves because
+    krouter supports the corresponding feature (TLSRoute Terminate and
+    mixed termination).
 23. WebSocket upgrades traverse the proxy end to end on HTTP and HTTPS
     listeners, verified by end-to-end tests exchanging frames through
     the gateway, surviving configuration reloads.
