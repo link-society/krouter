@@ -5,11 +5,11 @@
 krouter is a Kubernetes Gateway API implementation and HTTP/HTTPS reverse
 proxy.
 
-krouter implements the Gateway API `GATEWAY-HTTP`, `GATEWAY-GRPC`, and
-`GATEWAY-TLS` Core conformance profiles, plus TCPRoute support. The
-architecture MUST remain extensible to the other Standard Gateway API route
-types and features without introducing krouter-specific Kubernetes custom
-resources.
+krouter implements the Gateway API `GATEWAY-HTTP`, `GATEWAY-GRPC`,
+`GATEWAY-TLS`, `GATEWAY-TCP`, and `GATEWAY-UDP` Core conformance profiles.
+The architecture MUST remain extensible to the other Standard Gateway API
+route types and features without introducing krouter-specific Kubernetes
+custom resources.
 
 ## Design principles
 
@@ -30,8 +30,8 @@ resources.
 | Item | Requirement |
 |---|---|
 | Kubernetes | v1.31 or newer |
-| Gateway API | v1.5.1, Experimental channel CRDs (the Standard resources plus `TCPRoute`, `TLSRoute`, and `UDPRoute`) |
-| Conformance target | Every test in the `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS` profiles, Core and Extended: the suite MUST skip only Mesh-profile tests; TCPRoute and UDPRoute have no conformance profile in v1.5.1 and are verified by the krouter test suite (plus the provisional UDPRoute conformance test) |
+| Gateway API | v1.6.1; every resource krouter consumes ships with the Standard channel CRDs (TCPRoute, UDPRoute, TLSRoute, BackendTLSPolicy, and ListenerSet graduated in v1.6) |
+| Conformance target | Every test in the `GATEWAY-HTTP`, `GATEWAY-GRPC`, `GATEWAY-TLS`, `GATEWAY-TCP`, and `GATEWAY-UDP` profiles, Core and Extended: the suite MUST skip only Mesh-profile tests |
 | Route types | HTTPRoute, GRPCRoute, TCPRoute, TLSRoute, and UDPRoute |
 | Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, TLS passthrough, and UDP |
 | Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends and Service ports declaring `appProtocol: kubernetes.io/h2c`; WebSocket upgrade passthrough (incl. `appProtocol: kubernetes.io/ws`); raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends; UDP datagrams for UDPRoute backends; HTTPS to backends covered by a BackendTLSPolicy |
@@ -41,7 +41,7 @@ resources.
 | Authentication | Out of scope |
 | Rate limiting | Per-rule token buckets via the `ExtensionRef` filter (docs/spec/extensions.md); enforcement is per data-plane pod |
 | Web application firewall | Coraza with the embedded OWASP Core Rule Set via the `ExtensionRef` filter (docs/spec/extensions.md) |
-| Experimental Gateway API features | Out of scope, except TCPRoute (`v1alpha2`), TLSRoute (`v1`), UDPRoute (`v1alpha2`), BackendTLSPolicy (`v1alpha3`), and ListenerSet (`v1`) |
+| Experimental Gateway API features | Out of scope; TCPRoute (`v1`), TLSRoute (`v1`), UDPRoute (`v1`), BackendTLSPolicy (`v1`), and ListenerSet (`v1`) are Standard as of Gateway API v1.6 |
 | Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring), HTTPRoute rule timeouts, named route rules (HTTPRoute and GRPCRoute), and Gateways whose `spec.addresses` entries carry no value are supported and verified by their Extended conformance tests; the remaining Extended features are listed under deferred work |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
@@ -49,11 +49,11 @@ annotation on installed Gateway API CRDs and publish the GatewayClass
 `SupportedVersion` condition. Unsupported bundles MUST NOT be reconciled as
 if they were compatible.
 
-TCPRoute, TLSRoute, and UDPRoute support requires the corresponding
-Experimental-channel CRDs. When such a CRD is not installed, krouter MUST
-reconcile the remaining resources normally and MUST NOT crash or degrade
-HTTP behavior; the affected listeners then receive a negative condition for
-lack of an attachable route kind.
+TCPRoute, TLSRoute, and UDPRoute support requires the corresponding CRDs.
+When such a CRD is not installed, krouter MUST reconcile the remaining
+resources normally and MUST NOT crash or degrade HTTP behavior; the
+affected listeners then receive a negative condition for lack of an
+attachable route kind.
 
 TLS listeners support `Passthrough` mode (krouter routes on the SNI value
 and never holds the certificate) and `Terminate` mode, where krouter
@@ -72,8 +72,7 @@ decrypted stream to TLSRoute backends. Both modes MAY share one port
   client-certificate validation (frontend and backend).
 - BackendTLSPolicy `options`.
 - Policy attachment to ListenerSets.
-- Experimental-channel resources and fields other than TCPRoute,
-  TLSRoute, UDPRoute, BackendTLSPolicy, and ListenerSet.
+- Experimental-channel resources and fields.
 - Authentication and authorization policies.
 - Distributed (cluster-coordinated) rate limiting, WAF response-phase
   inspection, and in-tunnel WebSocket enforcement

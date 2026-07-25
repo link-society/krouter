@@ -130,6 +130,9 @@ exposure, and data-plane treatment as the Gateway's own listeners.
 - Routes attach to a ListenerSet by naming it in `parentRefs`; such routes
   bind only to that set's listeners, and routes attached to the Gateway
   bind only to the Gateway's own listeners.
+- The `allowedRoutes` namespace policy of a merged listener resolves
+  against its owner: `Same` (the default) admits routes from the
+  ListenerSet's namespace, not the parent Gateway's.
 - Certificate references of ListenerSet listeners resolve in the set's
   namespace; cross-namespace references require a ReferenceGrant naming
   the ListenerSet kind. Grants for the parent Gateway are not inherited.

@@ -35,7 +35,7 @@ self-contained enough to be consulted on its own.
 
 ## Authoritative references
 
-- [Gateway API v1.5.1 release](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.5.1)
+- [Gateway API v1.6.1 release](https://github.com/kubernetes-sigs/gateway-api/releases/tag/v1.6.1)
 - [Gateway API specification](https://gateway-api.sigs.k8s.io/reference/api-spec/)
 - [Gateway API implementer's guide](https://gateway-api.sigs.k8s.io/guides/implementers-guide/)
 - [Gateway API conformance](https://gateway-api.sigs.k8s.io/concepts/conformance/)

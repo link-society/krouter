@@ -5,13 +5,16 @@
 The control plane is the sole status writer.
 
 It MUST implement all status fields and conditions required by Gateway API
-v1.5.1, including:
+v1.6.1, including:
 
 - GatewayClass `Accepted` and `SupportedVersion`.
 - GatewayClass `status.supportedFeatures`, listing exactly the Gateway API
   features this implementation supports, sorted by name, so conformance
   tooling can derive the feature set from the cluster.
-- Gateway `Accepted` and `Programmed`.
+- Gateway `Accepted` and `Programmed`. Invalid Gateway listeners surface
+  on `Accepted` with reason `ListenersNotValid`: the condition stays True
+  while at least one effective listener is valid and becomes False when
+  none is.
 - Per-listener status and attached Route counts.
 - Route `status.parents[]` entries with this installation's controller
   name.

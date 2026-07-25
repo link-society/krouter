@@ -2,7 +2,7 @@
 
 The implementation is accepted when:
 
-1. The Gateway API v1.5.1 `GATEWAY-HTTP` Core conformance suite passes in
+1. The Gateway API v1.6.1 `GATEWAY-HTTP` Core conformance suite passes in
    full.
 2. HTTP/1.1 and HTTP/2 work through HTTP and HTTPS listeners.
 3. Cross-namespace Route attachment and backend access obey namespace
@@ -24,8 +24,7 @@ The implementation is accepted when:
     Gateway API CRDs.
 13. TCP listeners forward raw streams to TCPRoute backends with the same
     atomic-update, last-valid, and connection-survival guarantees as HTTP
-    traffic. TCPRoute has no conformance profile in Gateway API v1.5.1;
-    the krouter end-to-end suite is the verification.
+    traffic, and the `GATEWAY-TCP` Core conformance tests pass.
 14. TLS passthrough listeners route by SNI to TLSRoute backends without
     terminating the session, with the same guarantees as TCP forwarding,
     and the `GATEWAY-TLS` Core conformance tests pass.
@@ -44,9 +43,8 @@ The implementation is accepted when:
     declaration.
 19. UDP listeners forward datagrams to UDPRoute backends with per-flow
     backend association and the same atomic-update and last-valid
-    guarantees as TCP traffic. UDPRoute has no conformance profile in
-    Gateway API v1.5.1; the krouter end-to-end suite and the provisional
-    UDPRoute conformance test are the verification.
+    guarantees as TCP traffic, and the `GATEWAY-UDP` Core conformance
+    tests pass.
 20. BackendTLSPolicy re-encryption (SNI, CA verification, fail-closed
     mismatches, conflict resolution, and ancestor status) passes the
     corresponding conformance tests.
@@ -55,10 +53,11 @@ The implementation is accepted when:
     semantics, and set statuses) passes the corresponding conformance
     tests.
 22. The Gateway API conformance suite passes every non-Mesh test in the
-    `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS` profiles: the only
-    skipped tests are those requiring the `MESH` profile and the
-    "not supported" tests that skip themselves because krouter supports
-    the corresponding feature (TLSRoute Terminate and mixed termination).
+    `GATEWAY-HTTP`, `GATEWAY-GRPC`, `GATEWAY-TLS`, `GATEWAY-TCP`, and
+    `GATEWAY-UDP` profiles: the only skipped tests are those requiring
+    the `MESH` profile and the "not supported" tests that skip themselves
+    because krouter supports the corresponding feature (TLSRoute
+    Terminate and mixed termination).
 23. WebSocket upgrades traverse the proxy end to end on HTTP and HTTPS
     listeners, verified by end-to-end tests exchanging frames through
     the gateway, surviving configuration reloads.

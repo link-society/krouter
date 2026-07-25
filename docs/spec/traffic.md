@@ -207,9 +207,8 @@ plane access to or compiling a cross-namespace backend reference.
 
 krouter implements the exact matching, precedence, backend weighting,
 listener isolation, reference resolution, and filter behavior required by
-the Gateway API v1.5.1 `GATEWAY-HTTP`, `GATEWAY-GRPC`, and `GATEWAY-TLS`
-Core conformance profiles, and the TCPRoute attachment semantics defined by
-the upstream API specification.
+the Gateway API v1.6.1 `GATEWAY-HTTP`, `GATEWAY-GRPC`, `GATEWAY-TLS`,
+`GATEWAY-TCP`, and `GATEWAY-UDP` Core conformance profiles.
 
 Route `parentRefs` MAY pin listeners by `port` in addition to
 `sectionName`. A parentRef carrying only `port` attaches to every listener
