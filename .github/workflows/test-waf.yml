@@ -45,3 +45,7 @@ jobs:
         with:
           suite: waf
           checkname: WAF Evaluation Report
+
+      - name: cleanup@cluster
+        if: ${{ always() }}
+        run: task k8s:down

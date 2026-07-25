@@ -42,3 +42,7 @@ jobs:
         with:
           suite: performance
           checkname: Performance Test Report
+
+      - name: cleanup@cluster
+        if: ${{ always() }}
+        run: task k8s:down

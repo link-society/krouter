@@ -44,3 +44,7 @@ jobs:
         with:
           suite: conformance
           checkname: Gateway API Conformance Report
+
+      - name: cleanup@cluster
+        if: ${{ always() }}
+        run: task k8s:down

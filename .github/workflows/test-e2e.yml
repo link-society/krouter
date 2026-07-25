@@ -45,3 +45,7 @@ jobs:
         with:
           suite: e2e
           checkname: End-To-End Test Report
+
+      - name: cleanup@cluster
+        if: ${{ always() }}
+        run: task k8s:down
