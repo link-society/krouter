@@ -24,7 +24,6 @@ updates:
       prefix: ":arrow_up: :white_check_mark: "
     labels:
       - "deps: go"
-      - "deps: tests"
     groups:
       testsuite-go:
         patterns:
@@ -38,7 +37,6 @@ updates:
       prefix: ":arrow_up: :white_check_mark: "
     labels:
       - "deps: python"
-      - "deps: tests"
     groups:
       testsuite-python:
         patterns:
