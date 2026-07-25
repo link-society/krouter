@@ -68,7 +68,7 @@ def test_gatewayclass_accepted_and_supported_version(gateway_class):
     supported = kubectl.find_condition(obj, "SupportedVersion")
     assert supported is not None, "SupportedVersion condition must be published"
     assert supported["status"] == "True", \
-        "v1.5.1 Standard CRDs are installed; SupportedVersion must be True"
+        "v1.6.1 CRDs are installed; SupportedVersion must be True"
 
 
 def test_foreign_gatewayclass_is_ignored(cluster, cluster_scoped_cleanup):

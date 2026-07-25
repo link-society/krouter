@@ -176,7 +176,7 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 }()
 
 func (r *Engine) writeClassStatus(ctx context.Context, w *world, name string) error {
-	supported := strings.HasPrefix(w.bundleVersion, "v1.5")
+	supported := strings.HasPrefix(w.bundleVersion, "v1.6")
 
 	supportedCondition := condition(
 		string(gatewayv1.GatewayClassConditionStatusSupportedVersion),

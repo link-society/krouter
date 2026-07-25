@@ -3,10 +3,8 @@
 //
 // The conformance target (docs/spec/overview.md, docs/spec/acceptance.md criteria 1,
 // 14 and 15) is: all Core tests of the GATEWAY-HTTP, GATEWAY-GRPC and
-// GATEWAY-TLS profiles, Gateway API v1.5.1. TCPRoute has no conformance
-// profile in this release (docs/spec/acceptance.md criterion 13); it is
-// verified by the e2e suite instead.
-// The profile is therefore forced here rather than left to a flag.
+// GATEWAY-TLS profiles, Gateway API v1.6.1.
+// The profiles are therefore forced here rather than left to a flag.
 //
 // The suite dials the addresses published on Gateway status, which are
 // cluster-internal. Run it through `task tests:conformance`, which compiles
@@ -20,7 +18,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -33,11 +30,11 @@ func TestConformance(t *testing.T) {
 
 	// docs/spec/acceptance.md criteria 1, 14 and 15: the GATEWAY-HTTP,
 	// GATEWAY-GRPC and GATEWAY-TLS Core profiles must pass in full.
-	opts.ConformanceProfiles = sets.New(
+	opts.ConformanceProfiles = []suite.ConformanceProfileName{
 		suite.GatewayHTTPConformanceProfileName,
 		suite.GatewayGRPCConformanceProfileName,
 		suite.GatewayTLSConformanceProfileName,
-	)
+	}
 
 	// No feature is declared manually: the suite infers the supported
 	// feature set from GatewayClass status.supportedFeatures, which the

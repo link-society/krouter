@@ -31,12 +31,12 @@ tasks:
       - task: crds:install
 
   crds:install:
-    desc: Install the Gateway API Experimental channel CRDs — the Standard set plus TCPRoute and TLSRoute (spec requires them pre-installed, docs/spec/overview.md, docs/spec/deployment.md)
+    desc: Install the Gateway API Experimental channel CRDs — the Standard set (which includes TCPRoute and UDPRoute since v1.6) plus TLSRoute and ListenerSet (spec requires them pre-installed, docs/spec/overview.md, docs/spec/deployment.md)
     cmds:
       # Server-side apply: the experimental CRDs exceed the client-side
       # last-applied-configuration annotation size limit.
       - kubectl --context {{.KIND_CONTEXT}} apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/experimental-install.yaml
-      - kubectl --context {{.KIND_CONTEXT}} wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io crd/referencegrants.gateway.networking.k8s.io crd/tcproutes.gateway.networking.k8s.io crd/tlsroutes.gateway.networking.k8s.io
+      - kubectl --context {{.KIND_CONTEXT}} wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io crd/referencegrants.gateway.networking.k8s.io crd/tcproutes.gateway.networking.k8s.io crd/tlsroutes.gateway.networking.k8s.io crd/udproutes.gateway.networking.k8s.io
 
   image:update:
     desc: Build the krouter image and load it into the kind cluster
