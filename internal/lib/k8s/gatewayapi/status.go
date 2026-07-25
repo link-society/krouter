@@ -16,7 +16,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	"sigs.k8s.io/gateway-api/pkg/features"
 )
 
@@ -419,7 +418,6 @@ func (r *Engine) writeRouteStatuses(
 	controllerName := gatewayv1.GatewayController(r.settings.ControllerName)
 
 	v1 := r.gwClient.GatewayV1()
-	v1alpha2 := r.gwClient.GatewayV1alpha2()
 
 	syncRouteStatuses(ctx, "HTTPRoute", w.routes, outcomes, controllerName,
 		func(ctx context.Context, namespace, name string) (*gatewayv1.HTTPRoute, error) {
@@ -452,12 +450,12 @@ func (r *Engine) writeRouteStatuses(
 		})
 
 	syncRouteStatuses(ctx, "TLSRoute", w.tlsRoutes, outcomes, controllerName,
-		func(ctx context.Context, namespace, name string) (*gatewayv1alpha2.TLSRoute, error) {
-			return v1alpha2.TLSRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		func(ctx context.Context, namespace, name string) (*gatewayv1.TLSRoute, error) {
+			return v1.TLSRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
 		},
-		func(rt *gatewayv1alpha2.TLSRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
-		func(ctx context.Context, fresh *gatewayv1alpha2.TLSRoute) error {
-			_, err := v1alpha2.TLSRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
+		func(rt *gatewayv1.TLSRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1.TLSRoute) error {
+			_, err := v1.TLSRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
 

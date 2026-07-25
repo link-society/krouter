@@ -22,7 +22,6 @@ import (
 	extclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
 	"github.com/link-society/krouter/internal/config"
@@ -153,7 +152,7 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		return nil, err
 	}
 
-	tlsRouteList, err := r.gwClient.GatewayV1alpha2().TLSRoutes(metav1.NamespaceAll).
+	tlsRouteList, err := r.gwClient.GatewayV1().TLSRoutes(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{})
 	if err == nil {
 		w.tlsRoutes = tlsRouteList.Items
@@ -355,7 +354,7 @@ func (r *Engine) reconcileGateway(
 		func(rt *gatewayv1.TCPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
 		r.attachTCPRoute)...)
 	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.tlsRoutes,
-		func(rt *gatewayv1alpha2.TLSRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		func(rt *gatewayv1.TLSRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
 		r.attachTLSRoute)...)
 	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.udpRoutes,
 		func(rt *gatewayv1.UDPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },

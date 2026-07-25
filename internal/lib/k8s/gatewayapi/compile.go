@@ -15,7 +15,6 @@ import (
 	"k8s.io/utils/ptr"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
@@ -776,7 +775,7 @@ func (r *Engine) attachTLSRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
 	listeners []*listenerState,
-	route *gatewayv1alpha2.TLSRoute,
+	route *gatewayv1.TLSRoute,
 	parentRef gatewayv1.ParentReference,
 ) *routeParentOutcome {
 	outcome := &routeParentOutcome{

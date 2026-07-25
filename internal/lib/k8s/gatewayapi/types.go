@@ -5,7 +5,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
@@ -18,7 +17,7 @@ type world struct {
 	routes     []gatewayv1.HTTPRoute
 	grpcRoutes []gatewayv1.GRPCRoute
 	tcpRoutes  []gatewayv1.TCPRoute
-	tlsRoutes  []gatewayv1alpha2.TLSRoute
+	tlsRoutes  []gatewayv1.TLSRoute
 	udpRoutes  []gatewayv1.UDPRoute
 	grants     []gatewayv1beta1.ReferenceGrant
 	namespaces map[string]map[string]string
@@ -119,7 +118,7 @@ type routeParentOutcome struct {
 	route     *gatewayv1.HTTPRoute
 	grpcRoute *gatewayv1.GRPCRoute
 	tcpRoute  *gatewayv1.TCPRoute
-	tlsRoute  *gatewayv1alpha2.TLSRoute
+	tlsRoute  *gatewayv1.TLSRoute
 	udpRoute  *gatewayv1.UDPRoute
 	parentRef gatewayv1.ParentReference
 

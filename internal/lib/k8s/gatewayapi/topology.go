@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"sigs.k8s.io/yaml"
 
@@ -228,7 +227,7 @@ func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routePa
 		case outcome.tlsRoute != nil:
 			clone := outcome.tlsRoute.DeepCopy()
 			info.YAML = objectYAML(clone,
-				gatewayv1alpha2.GroupVersion.String(), "TLSRoute", &clone.ObjectMeta)
+				gatewayv1.GroupVersion.String(), "TLSRoute", &clone.ObjectMeta)
 
 			for _, hostname := range outcome.tlsRoute.Spec.Hostnames {
 				info.Hostnames = append(info.Hostnames, string(hostname))
