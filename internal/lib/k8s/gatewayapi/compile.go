@@ -46,7 +46,7 @@ func (r *Engine) validateListeners(
 
 		for _, entry := range set.set.Spec.Listeners {
 			// ListenerEntry and Listener are field-for-field identical in
-			// v1.5.1; the conversion breaks loudly if they ever diverge.
+			// v1.6.1; the conversion breaks loudly if they ever diverge.
 			spec := gatewayv1.Listener(entry)
 
 			listeners = append(listeners,
@@ -709,7 +709,7 @@ func (r *Engine) attachTCPRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
 	listeners []*listenerState,
-	route *gatewayv1alpha2.TCPRoute,
+	route *gatewayv1.TCPRoute,
 	parentRef gatewayv1.ParentReference,
 ) *routeParentOutcome {
 	outcome := &routeParentOutcome{
@@ -744,7 +744,7 @@ func (r *Engine) attachUDPRoute(
 	w *world,
 	gw *gatewayv1.Gateway,
 	listeners []*listenerState,
-	route *gatewayv1alpha2.UDPRoute,
+	route *gatewayv1.UDPRoute,
 	parentRef gatewayv1.ParentReference,
 ) *routeParentOutcome {
 	outcome := &routeParentOutcome{

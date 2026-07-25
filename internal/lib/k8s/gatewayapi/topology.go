@@ -223,7 +223,7 @@ func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routePa
 		case outcome.tcpRoute != nil:
 			clone := outcome.tcpRoute.DeepCopy()
 			info.YAML = objectYAML(clone,
-				gatewayv1alpha2.GroupVersion.String(), "TCPRoute", &clone.ObjectMeta)
+				gatewayv1.GroupVersion.String(), "TCPRoute", &clone.ObjectMeta)
 
 		case outcome.tlsRoute != nil:
 			clone := outcome.tlsRoute.DeepCopy()
@@ -237,7 +237,7 @@ func (b *topologyBuilder) addRouteParent(gw *gatewayv1.Gateway, outcome *routePa
 		case outcome.udpRoute != nil:
 			clone := outcome.udpRoute.DeepCopy()
 			info.YAML = objectYAML(clone,
-				gatewayv1alpha2.GroupVersion.String(), "UDPRoute", &clone.ObjectMeta)
+				gatewayv1.GroupVersion.String(), "UDPRoute", &clone.ObjectMeta)
 
 		default:
 			clone := outcome.route.DeepCopy()

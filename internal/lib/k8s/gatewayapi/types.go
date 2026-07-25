@@ -17,9 +17,9 @@ type world struct {
 	gateways   []gatewayv1.Gateway
 	routes     []gatewayv1.HTTPRoute
 	grpcRoutes []gatewayv1.GRPCRoute
-	tcpRoutes  []gatewayv1alpha2.TCPRoute
+	tcpRoutes  []gatewayv1.TCPRoute
 	tlsRoutes  []gatewayv1alpha2.TLSRoute
-	udpRoutes  []gatewayv1alpha2.UDPRoute
+	udpRoutes  []gatewayv1.UDPRoute
 	grants     []gatewayv1beta1.ReferenceGrant
 	namespaces map[string]map[string]string
 
@@ -118,9 +118,9 @@ func (l *listenerState) effectiveName() string {
 type routeParentOutcome struct {
 	route     *gatewayv1.HTTPRoute
 	grpcRoute *gatewayv1.GRPCRoute
-	tcpRoute  *gatewayv1alpha2.TCPRoute
+	tcpRoute  *gatewayv1.TCPRoute
 	tlsRoute  *gatewayv1alpha2.TLSRoute
-	udpRoute  *gatewayv1alpha2.UDPRoute
+	udpRoute  *gatewayv1.UDPRoute
 	parentRef gatewayv1.ParentReference
 
 	accepted       bool

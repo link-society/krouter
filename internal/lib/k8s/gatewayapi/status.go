@@ -442,12 +442,12 @@ func (r *Engine) writeRouteStatuses(
 		})
 
 	syncRouteStatuses(ctx, "TCPRoute", w.tcpRoutes, outcomes, controllerName,
-		func(ctx context.Context, namespace, name string) (*gatewayv1alpha2.TCPRoute, error) {
-			return v1alpha2.TCPRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		func(ctx context.Context, namespace, name string) (*gatewayv1.TCPRoute, error) {
+			return v1.TCPRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
 		},
-		func(rt *gatewayv1alpha2.TCPRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
-		func(ctx context.Context, fresh *gatewayv1alpha2.TCPRoute) error {
-			_, err := v1alpha2.TCPRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
+		func(rt *gatewayv1.TCPRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1.TCPRoute) error {
+			_, err := v1.TCPRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
 
@@ -462,12 +462,12 @@ func (r *Engine) writeRouteStatuses(
 		})
 
 	syncRouteStatuses(ctx, "UDPRoute", w.udpRoutes, outcomes, controllerName,
-		func(ctx context.Context, namespace, name string) (*gatewayv1alpha2.UDPRoute, error) {
-			return v1alpha2.UDPRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
+		func(ctx context.Context, namespace, name string) (*gatewayv1.UDPRoute, error) {
+			return v1.UDPRoutes(namespace).Get(ctx, name, metav1.GetOptions{})
 		},
-		func(rt *gatewayv1alpha2.UDPRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
-		func(ctx context.Context, fresh *gatewayv1alpha2.UDPRoute) error {
-			_, err := v1alpha2.UDPRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
+		func(rt *gatewayv1.UDPRoute) *[]gatewayv1.RouteParentStatus { return &rt.Status.Parents },
+		func(ctx context.Context, fresh *gatewayv1.UDPRoute) error {
+			_, err := v1.UDPRoutes(fresh.Namespace).UpdateStatus(ctx, fresh, metav1.UpdateOptions{})
 			return err
 		})
 }

@@ -141,9 +141,11 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 	}
 	w.grpcRoutes = grpcRouteList.Items
 
-	// TCPRoute and TLSRoute require the Experimental-channel CRDs; their
-	// absence MUST NOT crash or degrade HTTP behavior (docs/spec/overview.md).
-	tcpRouteList, err := r.gwClient.GatewayV1alpha2().TCPRoutes(metav1.NamespaceAll).
+	// TCPRoute and UDPRoute graduated to GA in Gateway API v1.6 and ship
+	// with the Standard channel; TLSRoute still requires the Experimental
+	// CRDs. Their absence MUST NOT crash or degrade HTTP behavior
+	// (docs/spec/overview.md).
+	tcpRouteList, err := r.gwClient.GatewayV1().TCPRoutes(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{})
 	if err == nil {
 		w.tcpRoutes = tcpRouteList.Items
@@ -159,7 +161,7 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		return nil, err
 	}
 
-	udpRouteList, err := r.gwClient.GatewayV1alpha2().UDPRoutes(metav1.NamespaceAll).
+	udpRouteList, err := r.gwClient.GatewayV1().UDPRoutes(metav1.NamespaceAll).
 		List(ctx, metav1.ListOptions{})
 	if err == nil {
 		w.udpRoutes = udpRouteList.Items
@@ -350,13 +352,13 @@ func (r *Engine) reconcileGateway(
 		func(rt *gatewayv1.GRPCRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
 		r.attachGRPCRoute)...)
 	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.tcpRoutes,
-		func(rt *gatewayv1alpha2.TCPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		func(rt *gatewayv1.TCPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
 		r.attachTCPRoute)...)
 	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.tlsRoutes,
 		func(rt *gatewayv1alpha2.TLSRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
 		r.attachTLSRoute)...)
 	outcomes = append(outcomes, attachAll(w, gw, listenerSets, listeners, w.udpRoutes,
-		func(rt *gatewayv1alpha2.UDPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
+		func(rt *gatewayv1.UDPRoute) []gatewayv1.ParentReference { return rt.Spec.ParentRefs },
 		r.attachUDPRoute)...)
 
 	for _, outcome := range outcomes {
