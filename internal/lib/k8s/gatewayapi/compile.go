@@ -578,7 +578,15 @@ func admitListeners(
 
 	var admitted []*listenerState
 	for _, lst := range kindAdmitted {
-		if namespaceAllowed(lst.spec.AllowedRoutes, routeNamespace, gatewayNamespace, namespaces) {
+		// "Same" resolves against the listener owner's namespace: the
+		// Gateway's for its own listeners, the ListenerSet's for merged
+		// entries (docs/spec/frontend.md Listener sets).
+		ownerNamespace := gatewayNamespace
+		if lst.set != nil {
+			ownerNamespace = lst.set.Namespace
+		}
+
+		if namespaceAllowed(lst.spec.AllowedRoutes, routeNamespace, ownerNamespace, namespaces) {
 			admitted = append(admitted, lst)
 		}
 	}
