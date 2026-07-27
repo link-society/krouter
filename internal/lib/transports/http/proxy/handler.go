@@ -644,6 +644,10 @@ type readCloser struct {
 // such a peer sent describes hops krouter cannot see, so its chain is
 // preserved with the peer appended and only the values it left unset are
 // generated (docs/spec/traffic.md Forwarding headers).
+//
+// ReverseProxy strips these four headers from the outbound request before
+// calling Rewrite, precisely so this function decides: what the peer sent
+// is readable on the inbound request only.
 func rewriteForwardingHeaders(pr *httputil.ProxyRequest, withTLS, trustedPeer bool) {
 	peer := pr.In.RemoteAddr
 	if host, _, err := net.SplitHostPort(peer); err == nil {
@@ -655,16 +659,24 @@ func rewriteForwardingHeaders(pr *httputil.ProxyRequest, withTLS, trustedPeer bo
 		proto = "https"
 	}
 
-	if !trustedPeer {
-		pr.Out.Header.Del("Forwarded")
-		pr.Out.Header.Del("X-Forwarded-For")
-		pr.Out.Header.Del("X-Forwarded-Host")
-		pr.Out.Header.Del("X-Forwarded-Proto")
-	}
+	chain := ""
 
-	chain := strings.Join(pr.Out.Header.Values("X-Forwarded-For"), ", ")
-	if chain != "" {
-		chain += ", "
+	if trustedPeer {
+		if received := strings.Join(pr.In.Header.Values("X-Forwarded-For"), ", "); received != "" {
+			chain = received + ", "
+		}
+
+		if host := pr.In.Header.Get("X-Forwarded-Host"); host != "" {
+			pr.Out.Header.Set("X-Forwarded-Host", host)
+		}
+
+		if scheme := pr.In.Header.Get("X-Forwarded-Proto"); scheme != "" {
+			pr.Out.Header.Set("X-Forwarded-Proto", scheme)
+		}
+
+		if forwarded := strings.Join(pr.In.Header.Values("Forwarded"), ", "); forwarded != "" {
+			pr.Out.Header.Set("Forwarded", forwarded)
+		}
 	}
 
 	pr.Out.Header.Set("X-Forwarded-For", chain+peer)
