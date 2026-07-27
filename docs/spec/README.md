@@ -18,7 +18,7 @@ self-contained enough to be consulted on its own.
 
 | Document | Contents |
 |---|---|
-| [overview.md](overview.md) | Purpose, design principles, scope and compatibility, deferred work |
+| [overview.md](overview.md) | Purpose, design principles, scope and compatibility, deferred work and non-goals |
 | [deployment.md](deployment.md) | Distribution artifacts, runtime settings, multi-instance isolation |
 | [architecture.md](architecture.md) | Component model, control and data planes, reconciliation loop, invariants |
 | [frontend.md](frontend.md) | Per-Gateway Services, mirrored EndpointSlices, internal listener ports |

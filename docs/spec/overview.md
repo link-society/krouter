@@ -43,7 +43,7 @@ custom resources.
 | Rate limiting | Per-rule token buckets via the `ExtensionRef` filter (docs/spec/extensions.md); enforcement is per data-plane pod |
 | Web application firewall | Coraza with the embedded OWASP Core Rule Set via the `ExtensionRef` filter (docs/spec/extensions.md) |
 | Experimental Gateway API features | Out of scope; TCPRoute (`v1`), TLSRoute (`v1`), UDPRoute (`v1`), BackendTLSPolicy (`v1`), and ListenerSet (`v1`) are Standard as of Gateway API v1.6 |
-| Standard-channel Extended features | HTTPRoute filters (response header modification, URL rewriting, redirect path/scheme/port and alternative status codes, request mirroring), HTTPRoute rule timeouts, named route rules (HTTPRoute and GRPCRoute), and Gateways whose `spec.addresses` entries carry no value are supported and verified by their Extended conformance tests; the remaining Extended features are listed under deferred work |
+| Standard-channel Extended features | Every Extended feature of the supported route types except HTTPRoute retries, verified by their Extended conformance tests; the exact set is published on the GatewayClass `status.supportedFeatures` (docs/spec/status.md), which is the authoritative list |
 
 The control plane MUST inspect the `gateway.networking.k8s.io/bundle-version`
 annotation on installed Gateway API CRDs and publish the GatewayClass
@@ -64,13 +64,10 @@ decrypted stream to TLSRoute backends. Both modes MAY share one port
 
 ## Explicitly deferred work
 
-- Gateway API Standard Extended features other than the supported
-  HTTPRoute filters (including CORS), rule timeouts, named rules,
-  Gateway addresses (value-less and static), parentRef port matching,
-  method and query-parameter matching, listener isolation,
-  misdirected-request detection, backend protocol selection,
-  per-backendRef filters, infrastructure metadata propagation, and
-  client-certificate validation (frontend and backend).
+Features krouter does not implement yet, in scope for a later version:
+
+- HTTPRoute retries (`rules[].retry`), the only Standard Extended feature
+  krouter does not claim in its published `supportedFeatures`.
 - BackendTLSPolicy `options`.
 - Policy attachment to ListenerSets.
 - Experimental-channel resources and fields.
@@ -78,7 +75,20 @@ decrypted stream to TLSRoute backends. Both modes MAY share one port
 - Distributed (cluster-coordinated) rate limiting, WAF response-phase
   inspection, and in-tunnel WebSocket enforcement
   (docs/spec/extensions.md).
-- Active backend health checks.
-- Per-Gateway compute isolation inside one installation.
 - Distributed or multi-replica control plane.
-- Custom krouter policies or CRDs.
+
+## Non-goals
+
+Features krouter will not implement, by design:
+
+- krouter-specific custom resources, policy CRDs included: configuration
+  stays on standard Kubernetes and Gateway API objects (design principle
+  2).
+- Service mesh and east-west traffic: krouter is a gateway, and the
+  Gateway API `MESH` conformance profile is out of scope.
+- Active backend health checks and circuit breaking: backend health comes
+  from EndpointSlice conditions, which Kubernetes maintains from the
+  backend's own probes.
+- Per-Gateway compute isolation inside one installation: operators
+  requiring it install another krouter instance with its own GatewayClass
+  and controller name (design principle 7).
