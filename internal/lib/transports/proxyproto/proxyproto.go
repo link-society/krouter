@@ -11,6 +11,7 @@ package proxyproto
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"strconv"
 	"strings"
@@ -23,6 +24,20 @@ import (
 
 	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+// connectionsRejected counts connections closed before any request
+// (docs/spec/observability.md). The peer stays out of the labels: client
+// addresses are unbounded.
+var connectionsRejected = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "krouter_dataplane_connections_rejected_total",
+		Help: "Connections closed before any request, by cause (docs/spec/traffic.md Proxy protocol).",
+	},
+	[]string{"cause"}, // no_preamble | untrusted_peer | malformed
 )
 
 // MaxLineLength bounds a version 1 preamble, per the protocol
@@ -233,22 +248,49 @@ func (c *Conn) preamble() error {
 	c.once.Do(func() {
 		peer, err := peerAddr(c.Conn.RemoteAddr())
 		if err != nil {
-			c.err = err
+			c.reject("malformed", err)
 			return
 		}
 
 		if c.trusted == nil || !c.trusted(peer) {
-			c.err = ErrUntrusted
+			c.reject("untrusted_peer", ErrUntrusted)
 			return
 		}
 
 		c.Conn.SetReadDeadline(time.Now().Add(readTimeout))
 		defer c.Conn.SetReadDeadline(time.Time{})
 
-		c.source, c.err = Read(c.reader)
+		source, err := Read(c.reader)
+		if err != nil {
+			cause := "malformed"
+			if errors.Is(err, ErrNoPreamble) {
+				cause = "no_preamble"
+			}
+
+			c.reject(cause, err)
+			return
+		}
+
+		c.source = source
 	})
 
 	return c.err
+}
+
+// reject records the refusal and closes the connection: no request was
+// read, so there is no response to give (docs/spec/traffic.md Proxy
+// protocol, docs/spec/observability.md).
+func (c *Conn) reject(cause string, err error) {
+	c.err = err
+
+	connectionsRejected.WithLabelValues(cause).Inc()
+	slog.Warn("connection rejected",
+		"peer", c.Conn.RemoteAddr().String(),
+		"cause", cause,
+		"error", err,
+	)
+
+	c.Conn.Close()
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
