@@ -165,6 +165,9 @@ Semantics:
 - A matching deny rule interrupts the request: the client receives the
   interruption's status code (`403 Forbidden` when the ruleset does not
   set one) and the backend never sees the request.
+- The remote address the ruleset inspects is the resolved client IP
+  (docs/spec/traffic.md Forwarding headers), so rules keyed on the client
+  address hold behind a trusted proxy.
 - Response phases are NOT inspected: response header and body inspection
   is deferred work, preserving response streaming.
 - On GRPCRoute rules the request-header phase is enforced and the request

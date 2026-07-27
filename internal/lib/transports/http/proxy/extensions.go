@@ -83,7 +83,7 @@ func serveExtensions(
 		// so a long-lived stream is forwarded once the limit is reached.
 		headersOnly := isUpgrade(r)
 
-		denial, err := engine.Evaluate(r, headersOnly)
+		denial, err := engine.Evaluate(r, clientIP, headersOnly)
 		if err != nil {
 			wafDecisions.WithLabelValues("error").Inc()
 			status := deny(w, grpcRule, http.StatusInternalServerError,

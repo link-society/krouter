@@ -63,6 +63,11 @@ func TestConcatKeepsFilterOrder(t *testing.T) {
 
 // -------------------------------------------------------------- engine --
 
+// peerIP is the address httptest gives every request; passing it is what
+// the request path does for an untrusted peer (docs/spec/traffic.md
+// Forwarding headers).
+const peerIP = "192.0.2.1"
+
 const headerRule = `
 SecRuleEngine On
 SecRule REQUEST_HEADERS:X-Attack "@streq yes" "id:911001,phase:1,deny,status:406"
@@ -76,7 +81,7 @@ func TestEngineDeniesAndAllows(t *testing.T) {
 	}
 
 	hostile := httptest.NewRequest(http.MethodGet, "/?q=<script>alert(1)</script>", nil)
-	denial, err := engine.Evaluate(hostile, false)
+	denial, err := engine.Evaluate(hostile, peerIP, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,7 +93,7 @@ func TestEngineDeniesAndAllows(t *testing.T) {
 	header := httptest.NewRequest(http.MethodGet, "/", nil)
 	header.Header.Set("X-Attack", "yes")
 
-	denial, err = engine.Evaluate(header, false)
+	denial, err = engine.Evaluate(header, peerIP, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -99,13 +104,46 @@ func TestEngineDeniesAndAllows(t *testing.T) {
 	}
 
 	clean := httptest.NewRequest(http.MethodGet, "/", nil)
-	denial, err = engine.Evaluate(clean, false)
+	denial, err = engine.Evaluate(clean, peerIP, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if denial != nil {
 		t.Errorf("clean request must pass, got %+v", denial)
+	}
+}
+
+func TestEngineInspectsTheResolvedClientIP(t *testing.T) {
+	// Behind a trusted proxy the connection's peer is the proxy, so rules
+	// keyed on REMOTE_ADDR must see the resolved client instead
+	// (docs/spec/extensions.md, docs/spec/traffic.md Forwarding headers).
+	engine, err := NewEngine(`
+SecRuleEngine On
+SecRule REMOTE_ADDR "@ipMatch 203.0.113.0/24" "id:911020,phase:1,deny,status:403"
+`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	forwarded := httptest.NewRequest(http.MethodGet, "/", nil)
+	denial, err := engine.Evaluate(forwarded, "203.0.113.7", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if denial == nil || denial.RuleID != 911020 {
+		t.Errorf("expected the resolved client to be inspected, got %+v", denial)
+	}
+
+	direct := httptest.NewRequest(http.MethodGet, "/", nil)
+	denial, err = engine.Evaluate(direct, peerIP, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if denial != nil {
+		t.Errorf("another client must pass, got %+v", denial)
 	}
 }
 
@@ -124,7 +162,7 @@ SecRule REQUEST_BODY "@contains attack" "id:911003,phase:2,deny,status:403"
 
 	// gRPC rules and upgrade requests forward payloads without
 	// inspection (docs/spec/extensions.md).
-	denial, err := engine.Evaluate(r, true)
+	denial, err := engine.Evaluate(r, peerIP, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,7 +186,7 @@ SecRule REQUEST_BODY "@contains attack" "id:911003,phase:2,deny,status:403"
 	hostile := httptest.NewRequest(
 		http.MethodPost, "/", strings.NewReader("an attack payload"))
 
-	denial, err := engine.Evaluate(hostile, false)
+	denial, err := engine.Evaluate(hostile, peerIP, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -160,7 +198,7 @@ SecRule REQUEST_BODY "@contains attack" "id:911003,phase:2,deny,status:403"
 	clean := httptest.NewRequest(
 		http.MethodPost, "/", strings.NewReader("a friendly payload"))
 
-	denial, err = engine.Evaluate(clean, false)
+	denial, err = engine.Evaluate(clean, peerIP, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -196,7 +234,7 @@ SecRuleEngine On
 	hostile := httptest.NewRequest(
 		http.MethodGet, "/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E", nil)
 
-	denial, err := engine.Evaluate(hostile, false)
+	denial, err := engine.Evaluate(hostile, peerIP, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -209,7 +247,7 @@ SecRuleEngine On
 	clean.Header.Set("User-Agent", "krouter-tests/1.0")
 	clean.Header.Set("Accept", "application/json")
 
-	denial, err = engine.Evaluate(clean, false)
+	denial, err = engine.Evaluate(clean, peerIP, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -248,7 +286,7 @@ func TestEngineIncludesFilesystemRules(t *testing.T) {
 		hostile := httptest.NewRequest(http.MethodGet, "/", nil)
 		hostile.Header.Set("X-Attack", "yes")
 
-		denial, err := engine.Evaluate(hostile, false)
+		denial, err := engine.Evaluate(hostile, peerIP, false)
 		if err != nil {
 			t.Fatalf("%s: unexpected error: %v", name, err)
 		}

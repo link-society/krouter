@@ -87,15 +87,19 @@ type Denial struct {
 // handshakes forward the tunnel without inspection). The inspected body
 // bytes are replayed onto r.Body so the backend receives the request
 // unchanged.
-func (e *Engine) Evaluate(r *http.Request, headersOnly bool) (*Denial, error) {
+//
+// clientIP is the resolved client address (docs/spec/traffic.md
+// Forwarding headers): rules keyed on the remote address inspect the
+// client, not the proxy that carried the request.
+func (e *Engine) Evaluate(r *http.Request, clientIP string, headersOnly bool) (*Denial, error) {
 	tx := e.waf.NewTransaction()
 	defer func() {
 		tx.ProcessLogging()
 		tx.Close()
 	}()
 
-	clientHost, clientPort := hostPort(r.RemoteAddr)
-	tx.ProcessConnection(clientHost, clientPort, "", 0)
+	_, clientPort := hostPort(r.RemoteAddr)
+	tx.ProcessConnection(clientIP, clientPort, "", 0)
 
 	tx.ProcessURI(r.URL.RequestURI(), r.Method, r.Proto)
 	tx.SetServerName(hostOnly(r.Host))
