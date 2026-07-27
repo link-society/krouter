@@ -16,6 +16,7 @@ def infra_params_hcl(
     node_ports: dict[str, int] | None = None,
     annotations: dict[str, str] | None = None,
     trusted_proxies: list[str] | None = None,
+    proxy_protocol: list[str] | None = None,
 ) -> str:
     """
     Gateway infrastructure parameters (docs/spec/parameters.md).
@@ -49,11 +50,21 @@ def infra_params_hcl(
 
     lines.append("}")
 
-    if trusted_proxies is not None:
-        rendered = ", ".join(f'"{cidr}"' for cidr in trusted_proxies)
+    if trusted_proxies is not None or proxy_protocol is not None:
         lines.append("")
         lines.append("client_ip {")
-        lines.append(f"  trusted_proxies = [{rendered}]")
+
+        if trusted_proxies is not None:
+            rendered = ", ".join(f'"{cidr}"' for cidr in trusted_proxies)
+            lines.append(f"  trusted_proxies = [{rendered}]")
+
+        if proxy_protocol is not None:
+            rendered = ", ".join(f'"{name}"' for name in proxy_protocol)
+            lines.append("")
+            lines.append("  proxy_protocol {")
+            lines.append(f"    listeners = [{rendered}]")
+            lines.append("  }")
+
         lines.append("}")
 
     return "\n".join(lines) + "\n"

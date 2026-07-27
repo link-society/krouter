@@ -6,7 +6,7 @@ infrastructure parameters (docs/spec/parameters.md) and must be published by
 tests/config/kind/cluster.yaml. Keeping the registry central prevents port
 collisions between test modules sharing the session cluster.
 
-Published window: 30080-30105 and 30443-30446.
+Published window: 30080-30106 and 30443-30446.
 """
 
 from e2elib import config
@@ -42,6 +42,7 @@ EXTENSIONS_RATELIMIT = 30102
 EXTENSIONS_WAF = 30103
 GOTESTWAF = 30104  # standing WAF target (tests/config/waf/manifest.yml)
 CLIENT_IP = 30105
+PROXY_PROTOCOL = 30106
 
 # TLS listeners
 PROTOCOLS_HTTPS = 30443

@@ -191,6 +191,125 @@ def wait_tcp_ready(node_port: int, timeout: float = 120, worker: int = 1) -> str
     )
 
 
+# ------------------------------------------------------ proxy protocol --
+
+def proxy_v1(
+    source: str,
+    source_port: int = 56324,
+    destination: str = "10.0.0.1",
+    destination_port: int = 443,
+) -> bytes:
+    """
+    Version 1 preamble announcing `source` as the client
+    (docs/spec/traffic.md Proxy protocol).
+    """
+
+    family = "TCP6" if ":" in source else "TCP4"
+
+    return (
+        f"PROXY {family} {source} {destination} "
+        f"{source_port} {destination_port}\r\n"
+    ).encode()
+
+
+def proxy_v1_unknown() -> bytes:
+    """
+    Version 1 UNKNOWN preamble: no client address.
+    """
+
+    return b"PROXY UNKNOWN\r\n"
+
+
+def proxy_v2_local() -> bytes:
+    """
+    Version 2 LOCAL preamble: no client address, what load balancer health
+    checks send (docs/spec/traffic.md Proxy protocol).
+    """
+
+    return b"\r\n\r\n\x00\r\nQUIT\n" + bytes([0x20, 0x00, 0x00, 0x00])
+
+
+def raw_http(
+    node_port: int,
+    path: str = "/",
+    host: str | None = None,
+    preamble: bytes = b"",
+    worker: int = 1,
+    timeout: float = 10,
+) -> int:
+    """
+    Issue one HTTP/1.1 request on a raw socket, optionally prefixed with a
+    PROXY protocol preamble, and return the response status.
+
+    A gateway that closes the connection without answering, which is what a
+    missing or refused preamble produces (docs/spec/traffic.md), returns 0:
+    there is no status to report.
+    """
+
+    authority = host or config.TEST_HOST
+    request = (
+        f"GET {path} HTTP/1.1\r\n"
+        f"Host: {authority}\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode()
+
+    try:
+        with socket.create_connection(
+            (config.TEST_HOST, ports.host_port(node_port, worker)),
+            timeout=timeout,
+        ) as sock:
+            sock.sendall(preamble + request)
+
+            chunks = []
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+
+                chunks.append(chunk)
+
+    except (ConnectionError, socket.timeout):
+        return 0
+
+    response = b"".join(chunks)
+    if not response.startswith(b"HTTP/"):
+        return 0
+
+    return int(response.split(b" ", 2)[1])
+
+
+def wait_raw_http_ok(
+    node_port: int,
+    path: str = "/",
+    host: str | None = None,
+    preamble: bytes = b"",
+    timeout: float = 120,
+    worker: int = 1,
+) -> int:
+    """
+    Wait until a raw request, preamble included, is served (traffic
+    readiness on a proxy protocol listener).
+    """
+
+    def check():
+        status = raw_http(
+            node_port,
+            path=path,
+            host=host,
+            preamble=preamble,
+            worker=worker,
+        )
+
+        return status if status == 200 else None
+
+    return kubectl.wait_for(
+        check,
+        timeout=timeout,
+        desc=f"HTTP 200 from a raw request to …:{node_port}{path}",
+    )
+
+
 class UdpFlow:
     """
     One UDP flow (fixed source address) to a published NodePort

@@ -82,6 +82,7 @@ and exits non-zero if any suite failed, errored or crashed.
 | 24 | `ExtensionRef` rate limiting | `task tests:e2e` |
 | 25 | `ExtensionRef` WAF inspection | `task tests:e2e` + `task tests:waf` |
 | 26 | Trusted-proxy client IP resolution | `task tests:e2e` |
+| 27 | Proxy protocol listeners | `task tests:e2e` |
 
 The e2e suite is organized as one test module per criterion (plus one for
 the installation contract of docs/spec/deployment.md, docs/spec/security.md, docs/spec/observability.md); discover them with
