@@ -55,6 +55,10 @@ type GatewayConfig struct {
 	// connections under the BackendClientCert* keys of the generation TLS
 	// Secret (docs/spec/traffic.md Backend TLS).
 	BackendClientCert bool `json:"backendClientCert,omitempty"`
+	// TrustedProxies lists the networks whose forwarded headers are
+	// honored when resolving the client IP (docs/spec/traffic.md
+	// Forwarding headers). Empty means no peer is trusted.
+	TrustedProxies []string `json:"trustedProxies,omitempty"`
 }
 
 // Generation TLS Secret keys of the backend client certificate; the
