@@ -40,11 +40,17 @@ the SNI value for TLS passthrough); UDP listeners write one event per
 expired flow. gRPC requests are logged like HTTP
 requests, additionally carrying the gRPC status code.
 
+A connection closed for a proxy protocol violation ([traffic.md](traffic.md))
+is logged with the peer address and the cause. No route, listener hostname,
+or request is known at that point.
+
 ## Metrics
 
 Prometheus metrics MUST cover at least:
 
 - Requests, responses, errors, active requests, and active connections.
+- Connections closed before any request, by cause (proxy protocol
+  violations).
 - Request duration and transferred bytes.
 - Backend selection and connection errors.
 - Configuration generation success/failure and reload duration.

@@ -79,3 +79,13 @@ The implementation is accepted when:
     a trusted chain reaches backends with the peer appended, values sent
     by an untrusted peer are discarded, and a malformed prefix is
     reported as `InvalidParameters`, verified by end-to-end tests.
+27. Listeners named in `client_ip.proxy_protocol` accept version 1 and
+    version 2 preambles from trusted peers and take the client address
+    from them, for the access log, `client_ip` rate limiting buckets and
+    the WAF; `LOCAL` and `UNKNOWN` preambles fall back to the peer
+    address; connections without a preamble, with a malformed one, or
+    carrying one from an untrusted peer are closed before any handshake
+    or request; and a listener list that names an unknown or UDP
+    listener, that comes without trusted proxies, or that disagrees
+    across listeners sharing an internal listener is reported as
+    `InvalidParameters`, verified by end-to-end tests.
