@@ -37,6 +37,23 @@ HTTPS listeners: `default.validation` applies to every HTTPS listener, and
   `ConfigurationChanged`; the condition is removed when the mode returns
   to `AllowValidOnly`.
 
+## Client IP trust
+
+Forwarded headers are attacker-controlled unless an intermediary rewrites
+them. krouter therefore honors `X-Forwarded-For` only from peers covered
+by the `client_ip.trusted_proxies` Gateway infrastructure parameter
+([parameters.md](parameters.md), [traffic.md](traffic.md) Forwarding
+headers), and trusts no peer by default.
+
+Operators MUST list only intermediaries that append to or overwrite the
+chain themselves. Trusting a network clients can reach directly lets any
+client pick its own client IP, which defeats the access log, rate
+limiting keys, and every policy derived from them. The list is a Gateway
+infrastructure parameter because the trust decision follows the
+deployment topology in front of that Gateway: it belongs to the cluster
+operator owning the Gateway, not to the teams owning the routes attached
+to it.
+
 ## RBAC
 
 The installation follows least privilege within the constraints of a

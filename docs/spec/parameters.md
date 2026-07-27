@@ -54,6 +54,11 @@ service {
     # "http" = 30080
   }
 }
+
+client_ip {
+  # Networks whose forwarded headers are trusted, in CIDR notation.
+  trusted_proxies = ["10.0.0.0/8", "2001:db8::/32"]
+}
 ```
 
 Defaults:
@@ -63,6 +68,14 @@ Defaults:
 - NodePorts are allocated by Kubernetes unless explicitly requested.
 - No annotations.
 - No load balancer class.
+- `trusted_proxies` empty: no peer is trusted, and forwarded headers are
+  regenerated from the downstream connection.
+
+Every `trusted_proxies` entry MUST be a valid IPv4 or IPv6 prefix; a
+malformed entry is an invalid parameter. What trusting a peer changes is
+specified in [traffic.md](traffic.md) (Forwarding headers), and why the
+list belongs to the Gateway rather than to its routes in
+[security.md](security.md) (Client IP trust).
 
 Fields that do not apply to the selected Service type are omitted from the
 generated Service. Invalid combinations are reported as invalid parameters.
