@@ -138,6 +138,44 @@ The list is empty by default, which means no peer is trusted. Only list
 intermediaries clients cannot bypass: trusting a network reachable
 directly lets any client pick its own client IP.
 
+### Load balancers speaking the PROXY protocol
+
+A load balancer that forwards TCP without terminating HTTP has no
+`X-Forwarded-For` to write into. It can instead send a
+[PROXY protocol](https://www.haproxy.org/download/2.1/doc/proxy-protocol.txt)
+preamble, before anything else on the connection. Name the listeners that
+receive one in the same `client_ip` block:
+
+```hcl
+client_ip {
+  trusted_proxies = ["10.0.0.0/8"]
+
+  proxy_protocol {
+    listeners = ["http"]
+  }
+}
+```
+
+- Versions 1 and 2 are both accepted, and only from a peer in
+  `trusted_proxies`. The address the preamble carries becomes the client
+  everywhere: access log, rate limiting buckets, WAF, and the chain sent
+  to backends.
+- Every connection to that listener must carry one. A connection without a
+  preamble is closed, with no response: nothing has been read yet, and on
+  an HTTPS listener no handshake has happened. This includes clients
+  inside the cluster, so give the load balancer its own listener rather
+  than sharing one with in-cluster callers.
+- `LOCAL` preambles carry no address and keep the peer, which is what load
+  balancer health checks send.
+- Refused connections are counted in
+  `krouter_dataplane_connections_rejected_total` and logged with their
+  cause.
+
+The load balancer needs its own configuration to send the preamble,
+usually a Service annotation such as
+`service.beta.kubernetes.io/aws-load-balancer-proxy-protocol`. Declare it
+under `service.annotations` above; krouter adds none of its own.
+
 ## Listeners
 
 Each Gateway declares its

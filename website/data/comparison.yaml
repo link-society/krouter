@@ -48,7 +48,7 @@ groups:
       - feature: "Client IP from trusted proxies (X-Forwarded-For)"
         values: [yes, yes, yes, yes, yes]
       - feature: "PROXY protocol (client IP on raw TCP)"
-        values: [no, yes, yes, yes, yes]
+        values: [yes, yes, yes, yes, yes]
       - feature: "Authentication / authorization policies"
         values: [no, yes, no, yes, yes]
 

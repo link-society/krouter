@@ -47,6 +47,7 @@ described in the
 | `krouter_dataplane_udp_flows_total` | Counter | `result`: `forwarded`, `refused`, `error` | UDP flows handled, by outcome. |
 | `krouter_dataplane_udp_active_flows` | Gauge | — | UDP flows currently forwarded. |
 | `krouter_dataplane_udp_bytes_total` | Counter | `direction`: `downstream_to_backend`, `backend_to_downstream` | Bytes forwarded on UDP routes, by direction. |
+| `krouter_dataplane_connections_rejected_total` | Counter | `cause`: `no_preamble`, `untrusted_peer`, `malformed` | Connections closed before any request, on listeners requiring a [PROXY protocol](/docs/configuration/#load-balancers-speaking-the-proxy-protocol) preamble. |
 | `krouter_dataplane_config_loads_total` | Counter | `result`: `applied`, `rejected` | Configuration generation loads; already-applied generations are not reloaded and not counted. |
 | `krouter_dataplane_config_load_duration_seconds` | Histogram | — | Time spent building the routing tables of one generation. |
 | `krouter_dataplane_gateways_out_of_sync` | Gauge | — | Gateways whose applied generation diverges from the desired one on this pod; nonzero while a rejected generation keeps the last valid one serving. |
