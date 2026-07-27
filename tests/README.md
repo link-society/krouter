@@ -78,7 +78,10 @@ and exits non-zero if any suite failed, errored or crashed.
 | 20 | BackendTLSPolicy re-encryption | `task tests:conformance` |
 | 21 | ListenerSet attachment | `task tests:conformance` |
 | 22 | Only Mesh-profile conformance tests are skipped | `task tests:conformance` |
-| 21 | ListenerSet attachment and merging | `task tests:conformance` |
+| 23 | WebSocket upgrades traverse the proxy end to end | `task tests:e2e` |
+| 24 | `ExtensionRef` rate limiting | `task tests:e2e` |
+| 25 | `ExtensionRef` WAF inspection | `task tests:e2e` + `task tests:waf` |
+| 26 | Trusted-proxy client IP resolution | `task tests:e2e` |
 
 The e2e suite is organized as one test module per criterion (plus one for
 the installation contract of docs/spec/deployment.md, docs/spec/security.md, docs/spec/observability.md); discover them with
@@ -94,7 +97,8 @@ through kind. As the implementation lands, that includes at minimum:
   (docs/spec/frontend.md, docs/spec/failure-modes.md)
 - Compiled-configuration generation, checksums, manifest commit marker (docs/spec/configuration.md)
 - Round-robin and weighted endpoint selection (docs/spec/traffic.md)
-- Forwarded/X-Forwarded-* header regeneration (docs/spec/traffic.md)
+- Forwarded/X-Forwarded-* header regeneration and trusted-proxy client IP
+  resolution (docs/spec/traffic.md)
 - Route matching precedence beyond what conformance covers (docs/spec/traffic.md)
 - EndpointSlice mirroring/splitting logic (docs/spec/frontend.md)
 - Status condition computation, generation acknowledgement aggregation (docs/spec/status.md)
