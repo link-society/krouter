@@ -126,6 +126,58 @@ func TestParseInfraRejectsInvalidTrustedProxies(t *testing.T) {
 	}
 }
 
+func TestParseInfraProxyProtocol(t *testing.T) {
+	src := `
+version = 1
+
+client_ip {
+  trusted_proxies = ["10.0.0.0/8"]
+
+  proxy_protocol {
+    listeners = ["http", "https"]
+  }
+}
+`
+
+	params, err := ParseInfra(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(params.ClientIP.ProxyProtocol.Listeners) != 2 ||
+		params.ClientIP.ProxyProtocol.Listeners[0] != "http" {
+		t.Errorf("unexpected listeners: %v", params.ClientIP.ProxyProtocol.Listeners)
+	}
+}
+
+func TestParseInfraExpectsNoPreambleByDefault(t *testing.T) {
+	params, err := ParseInfra("version = 1\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(params.ClientIP.ProxyProtocol.Listeners) != 0 {
+		t.Errorf("expected no listener, got %v", params.ClientIP.ProxyProtocol.Listeners)
+	}
+}
+
+func TestParseInfraRejectsProxyProtocolWithoutTrust(t *testing.T) {
+	// docs/spec/parameters.md: no peer would be allowed to send the
+	// preamble those listeners require.
+	src := "version = 1\nclient_ip {\n  proxy_protocol {\n    listeners = [\"http\"]\n  }\n}\n"
+	if _, err := ParseInfra(src); err == nil {
+		t.Fatal("expected an error")
+	}
+}
+
+func TestParseInfraRejectsEmptyProxyProtocolListener(t *testing.T) {
+	src := "version = 1\nclient_ip {\n  trusted_proxies = [\"10.0.0.0/8\"]\n" +
+		"  proxy_protocol {\n    listeners = [\"\"]\n  }\n}\n"
+	if _, err := ParseInfra(src); err == nil {
+		t.Fatal("expected an error")
+	}
+}
+
 func TestParseClassDefaults(t *testing.T) {
 	params, err := ParseClass("version = 1\n")
 	if err != nil {
