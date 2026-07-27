@@ -17,6 +17,7 @@ import (
 
 	"github.com/vladopajic/go-actor/actor"
 
+	"github.com/link-society/krouter/internal/lib/transports/proxyproto"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
 )
 
@@ -33,10 +34,17 @@ type Server struct {
 
 var _ actor.Actor = (*Server)(nil)
 
-func New(port int32, forwarder *tcp.Forwarder) (*Server, error) {
+// New binds the port. When trusted is non-nil, every connection must carry
+// a proxy protocol preamble from a peer it accepts (docs/spec/traffic.md
+// Proxy protocol).
+func New(port int32, forwarder *tcp.Forwarder, trusted proxyproto.TrustFunc) (*Server, error) {
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return nil, err
+	}
+
+	if trusted != nil {
+		ln = proxyproto.Wrap(ln, trusted)
 	}
 
 	return &Server{

@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 
 	"net/http"
+	"net/netip"
 
 	"sync/atomic"
 	"time"
@@ -62,12 +63,15 @@ func (t *Tables) ClientIP(port int32, r *http.Request) (string, bool) {
 }
 
 // PortSpec describes one internal listener port for the listener
-// supervisor: which server kind to run and whether it terminates TLS.
+// supervisor: which server kind to run, whether it terminates TLS, and
+// whether it requires a proxy protocol preamble. It is compared by value,
+// so a change restarts the port's server.
 type PortSpec struct {
 	TLS            bool
 	TCP            bool
 	UDP            bool
 	TLSPassthrough bool
+	ProxyProtocol  bool
 }
 
 // Ports returns every internal listener port and its spec, for the
@@ -80,10 +84,23 @@ func (t *Tables) Ports() map[int32]PortSpec {
 			TCP:            table.tcp,
 			UDP:            table.udp,
 			TLSPassthrough: table.tlsPassthrough,
+			ProxyProtocol:  table.proxyProtocol,
 		}
 	}
 
 	return ports
+}
+
+// TrustsPeer reports whether a peer of one internal listener port may
+// speak for a client, either through forwarded headers or a proxy
+// protocol preamble (docs/spec/security.md Client IP trust).
+func (t *Tables) TrustsPeer(port int32, addr netip.Addr) bool {
+	table := t.byPort[port]
+	if table == nil {
+		return false
+	}
+
+	return table.trust.Contains(addr)
 }
 
 // Backends returns the namespaces containing accepted backends, for the
@@ -99,7 +116,10 @@ type PortTable struct {
 	tcp            bool
 	udp            bool
 	tlsPassthrough bool
-	listeners      []*ListenerTable
+	// proxyProtocol requires a PROXY protocol preamble on every connection
+	// (docs/spec/traffic.md Proxy protocol).
+	proxyProtocol bool
+	listeners     []*ListenerTable
 	// trust holds the gateway's trusted proxies; nil trusts no peer
 	// (docs/spec/traffic.md Forwarding headers).
 	trust *clientip.Trust

@@ -111,6 +111,10 @@ func BuildGatewayTable(
 			table.byPort[lst.InternalPort] = port
 		}
 
+		// Listeners sharing an internal port agree on the preamble, which
+		// the control plane enforces (docs/spec/frontend.md).
+		port.proxyProtocol = port.proxyProtocol || lst.ProxyProtocol
+
 		port.listeners = append(port.listeners, entry)
 		listeners[lst.Name] = entry
 	}

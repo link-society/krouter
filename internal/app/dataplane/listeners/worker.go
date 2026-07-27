@@ -3,6 +3,8 @@ package listeners
 import (
 	"log/slog"
 
+	"net/netip"
+
 	"sync"
 
 	"github.com/vladopajic/go-actor/actor"
@@ -13,6 +15,7 @@ import (
 	"github.com/link-society/krouter/internal/app/dataplane/listeners/udpserver"
 	"github.com/link-society/krouter/internal/lib/transports/http/proxy"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
+	"github.com/link-society/krouter/internal/lib/transports/proxyproto"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
 	"github.com/link-society/krouter/internal/lib/transports/tls"
 	"github.com/link-society/krouter/internal/lib/transports/udp"
@@ -22,6 +25,7 @@ import (
 // It is the only goroutine touching the children map.
 type worker struct {
 	in           actor.MailboxReceiver[*routing.Tables]
+	state        *routing.State
 	handler      *proxy.Handler
 	forwarder    *tcp.Forwarder
 	tlsForwarder *tls.Forwarder
@@ -74,18 +78,28 @@ func (w *worker) reconcile(tables *routing.Tables) {
 		var srv actor.Actor
 		var err error
 
+		// Peers allowed to speak for a client are read from the live tables
+		// on every connection, so editing the trust list needs no restart
+		// (docs/spec/traffic.md Proxy protocol).
+		var trusted proxyproto.TrustFunc
+		if spec.ProxyProtocol {
+			trusted = func(addr netip.Addr) bool {
+				return w.state.Tables.Load().TrustsPeer(port, addr)
+			}
+		}
+
 		switch {
 		case spec.TCP:
-			srv, err = tcpserver.New(port, w.forwarder)
+			srv, err = tcpserver.New(port, w.forwarder, trusted)
 
 		case spec.UDP:
 			srv, err = udpserver.New(port, w.udpForwarder)
 
 		case spec.TLSPassthrough:
-			srv, err = tlsserver.New(port, w.tlsForwarder)
+			srv, err = tlsserver.New(port, w.tlsForwarder, trusted)
 
 		default:
-			srv, err = portserver.New(port, spec.TLS, w.handler)
+			srv, err = portserver.New(port, spec.TLS, w.handler, trusted)
 		}
 
 		if err != nil {

@@ -26,6 +26,7 @@ var _ actor.Actor = (*Manager)(nil)
 func New(in actor.MailboxReceiver[*routing.Tables], state *routing.State) *Manager {
 	w := &worker{
 		in:           in,
+		state:        state,
 		handler:      proxy.NewHandler(state),
 		forwarder:    tcp.NewForwarder(state),
 		tlsForwarder: tls.NewForwarder(state),
