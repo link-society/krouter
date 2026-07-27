@@ -86,10 +86,10 @@ The rejection status is configurable with `status` (any 4xx or 5xx) if
 
 ## 3. Key by client identity
 
-`key = "client_ip"` buckets by the downstream TCP peer address.
-Forwarded headers are not consulted, since krouter has no trusted-proxy
-configuration. When clients authenticate, bucket them by what identifies
-them instead:
+`key = "client_ip"` buckets by the resolved client address: the
+downstream peer, or the client its forwarded chain names when the Gateway
+[trusts that peer](/docs/configuration/#client-ip-behind-another-proxy).
+When clients authenticate, bucket them by what identifies them instead:
 
 ```hcl
 version = 1
