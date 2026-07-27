@@ -326,8 +326,9 @@ The client IP of a request MUST be resolved as follows:
   parsed for resolution.
 
 The resolved client IP is the one reported in the access log
-([observability.md](observability.md)) and the one the `client_ip` rate
-limiting key buckets by ([extensions.md](extensions.md)).
+([observability.md](observability.md)), the one the `client_ip` rate
+limiting key buckets by, and the one the WAF sees as the connection's
+remote address ([extensions.md](extensions.md)).
 
 Outbound headers follow the same trust decision:
 
