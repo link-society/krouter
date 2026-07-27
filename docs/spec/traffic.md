@@ -305,7 +305,45 @@ semantics:
 
 ## Forwarding headers
 
-By default, krouter regenerates spoof-sensitive `Forwarded` and
-`X-Forwarded-*` values from the actual downstream connection. Standard
-HTTPRoute `RequestHeaderModifier` filters run afterward and MAY add,
-replace, or remove those headers for a rule.
+krouter tells trusted downstream peers from untrusted ones through the
+`client_ip.trusted_proxies` Gateway infrastructure parameter
+([parameters.md](parameters.md)). No peer is trusted by default.
+
+The client IP of a request MUST be resolved as follows:
+
+- When the peer address is not covered by `trusted_proxies`, the client
+  IP is the peer address and every forwarded header the peer sent is
+  untrusted.
+- Otherwise the `X-Forwarded-For` chain is walked from right to left and
+  the first address not covered by `trusted_proxies` is the client IP.
+  When every address in the chain is trusted, the leftmost one is used.
+  When an entry is not a valid IP address, the walk stops and the
+  nearest trusted address examined so far is used, so the resolved value
+  is always an address krouter itself observed or a trusted proxy
+  vouched for. An implementation MAY bound the number of entries it
+  examines, provided the bound is at least 16.
+- Only `X-Forwarded-For` is consulted. `Forwarded` (RFC 7239) is not
+  parsed for resolution.
+
+The resolved client IP is the one reported in the access log
+([observability.md](observability.md)) and the one the `client_ip` rate
+limiting key buckets by ([extensions.md](extensions.md)).
+
+Outbound headers follow the same trust decision:
+
+- From an untrusted peer, krouter regenerates spoof-sensitive
+  `Forwarded` and `X-Forwarded-*` values from the actual downstream
+  connection, discarding whatever the peer sent.
+- From a trusted peer, the received `X-Forwarded-For` chain is preserved
+  with the peer address appended, and the received `X-Forwarded-Host`,
+  `X-Forwarded-Proto`, and `Forwarded` values are passed through
+  unchanged.
+
+Standard HTTPRoute `RequestHeaderModifier` filters run afterward and MAY
+add, replace, or remove those headers for a rule.
+
+Trusting a peer changes nothing else: `RequestRedirect` scheme
+inheritance and misdirected-request detection keep describing the
+connection krouter actually terminated. Proxy Protocol remains deferred
+work ([overview.md](overview.md)), so TCP, TLS passthrough, and UDP
+listeners always report the peer address.

@@ -98,9 +98,10 @@ Semantics:
 - Token bucket per `(rule, client key)`: capacity `burst`, refilled at
   `requests` per `window`. A request consumes one token; an empty bucket
   rejects the request.
-- `key = "client_ip"` buckets by the downstream TCP peer address.
-  Forwarded headers are NOT consulted: krouter has no trusted-proxy
-  configuration (docs/spec/overview.md deferred work).
+- `key = "client_ip"` buckets by the resolved client IP
+  (docs/spec/traffic.md Forwarding headers): the downstream peer
+  address, or the address the forwarded chain attributes the request to
+  when that peer is a trusted proxy.
 - `key = "header:<Name>"` buckets by the first value of that request
   header. Requests without the header share one anonymous bucket.
 - Rejected requests are answered with `status` (default `429 Too Many

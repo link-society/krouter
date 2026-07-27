@@ -73,3 +73,9 @@ The implementation is accepted when:
     fails closed on broken references, and the gotestwaf suite scores
     at or above the agreed threshold against a CRS-protected route,
     runnable locally.
+26. Client IP resolution honors `X-Forwarded-For` only from peers listed
+    in the Gateway's `client_ip.trusted_proxies` parameter: the resolved
+    address drives the access log and `client_ip` rate limiting buckets,
+    a trusted chain reaches backends with the peer appended, values sent
+    by an untrusted peer are discarded, and a malformed prefix is
+    reported as `InvalidParameters`, verified by end-to-end tests.

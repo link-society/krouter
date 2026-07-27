@@ -79,6 +79,6 @@ decrypted stream to TLSRoute backends. Both modes MAY share one port
   (docs/spec/extensions.md).
 - Active backend health checks.
 - Per-Gateway compute isolation inside one installation.
-- Trusted upstream proxy configuration and Proxy Protocol.
+- Proxy Protocol.
 - Distributed or multi-replica control plane.
 - Custom krouter policies or CRDs.

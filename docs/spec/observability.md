@@ -29,7 +29,9 @@ at least:
 - Duration.
 - Bytes received and sent.
 - HTTP protocol.
-- Actual client IP.
+- Actual client IP: the peer address, or the address the trusted proxy
+  chain attributes the request to ([traffic.md](traffic.md) Forwarding
+  headers).
 - Error classification when applicable.
 
 For TCP and TLS passthrough listeners, the data plane writes one event per
