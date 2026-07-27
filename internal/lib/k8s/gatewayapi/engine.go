@@ -380,7 +380,7 @@ func (r *Engine) reconcileGateway(
 		}
 	}
 
-	generation, err := r.publishGeneration(ctx, w, gw, listeners, outcomes, clientCert)
+	generation, err := r.publishGeneration(ctx, w, gw, infra, listeners, outcomes, clientCert)
 	if err != nil {
 		logSyncError("publish generation", nsName(gw.Namespace, gw.Name), err)
 		return

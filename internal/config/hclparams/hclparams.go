@@ -5,6 +5,8 @@ package hclparams
 import (
 	"fmt"
 
+	"net/netip"
+
 	"github.com/hashicorp/hcl/v2/hclsimple"
 )
 
@@ -43,8 +45,9 @@ func ParseClass(src string) (*ClassParams, error) {
 // ------------------------------------- Gateway infrastructure (docs/spec/parameters.md) --
 
 type InfraParams struct {
-	Version int           `hcl:"version"`
-	Service *ServiceBlock `hcl:"service,block"`
+	Version  int            `hcl:"version"`
+	Service  *ServiceBlock  `hcl:"service,block"`
+	ClientIP *ClientIPBlock `hcl:"client_ip,block"`
 }
 
 type ServiceBlock struct {
@@ -53,6 +56,13 @@ type ServiceBlock struct {
 	LoadBalancerClass     *string           `hcl:"load_balancer_class,optional"`
 	Annotations           map[string]string `hcl:"annotations,optional"`
 	NodePorts             map[string]int32  `hcl:"node_ports,optional"`
+}
+
+// ClientIPBlock lists the networks whose forwarded headers are honored
+// when resolving the client IP (docs/spec/traffic.md Forwarding headers).
+// Empty means no peer is trusted (docs/spec/security.md Client IP trust).
+type ClientIPBlock struct {
+	TrustedProxies []string `hcl:"trusted_proxies,optional"`
 }
 
 func ParseInfra(src string) (*InfraParams, error) {
@@ -97,6 +107,16 @@ func ParseInfra(src string) (*InfraParams, error) {
 	if params.Service.Type == "ClusterIP" {
 		// externalTrafficPolicy does not apply to ClusterIP services.
 		params.Service.ExternalTrafficPolicy = ""
+	}
+
+	if params.ClientIP == nil {
+		params.ClientIP = &ClientIPBlock{}
+	}
+
+	for _, cidr := range params.ClientIP.TrustedProxies {
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			return nil, fmt.Errorf("invalid trusted_proxies entry %q", cidr)
+		}
 	}
 
 	return params, nil

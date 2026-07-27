@@ -14,6 +14,7 @@ import (
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	"github.com/link-society/krouter/internal/config/hclparams"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 )
 
@@ -24,6 +25,7 @@ func (r *Engine) publishGeneration(
 	ctx context.Context,
 	w *world,
 	gw *gatewayv1.Gateway,
+	infra *hclparams.InfraParams,
 	listeners []*listenerState,
 	outcomes []*routeParentOutcome,
 	clientCert backendClientCert,
@@ -35,6 +37,9 @@ func (r *Engine) publishGeneration(
 		Namespace: gw.Namespace,
 		Name:      gw.Name,
 		Listeners: []compiled.Listener{},
+		// Peers whose forwarded headers are honored on this Gateway
+		// (docs/spec/traffic.md Forwarding headers).
+		TrustedProxies: infra.ClientIP.TrustedProxies,
 	}
 
 	secretData := map[string][]byte{}
