@@ -15,6 +15,7 @@ def infra_params_hcl(
     external_traffic_policy: str = "Local",
     node_ports: dict[str, int] | None = None,
     annotations: dict[str, str] | None = None,
+    trusted_proxies: list[str] | None = None,
 ) -> str:
     """
     Gateway infrastructure parameters (docs/spec/parameters.md).
@@ -47,6 +48,13 @@ def infra_params_hcl(
         lines.append("  }")
 
     lines.append("}")
+
+    if trusted_proxies is not None:
+        rendered = ", ".join(f'"{cidr}"' for cidr in trusted_proxies)
+        lines.append("")
+        lines.append("client_ip {")
+        lines.append(f"  trusted_proxies = [{rendered}]")
+        lines.append("}")
 
     return "\n".join(lines) + "\n"
 

@@ -13,7 +13,7 @@
 #   worker  (krouter-e2e-worker):  nodePort N -> host 127.0.0.1:N
 #   worker2 (krouter-e2e-worker2): nodePort N -> host 127.0.0.1:(N + 1000)
 #
-# The window is 30080-30104 and 30443-30446 (30097 is published as UDP for
+# The window is 30080-30105 and 30443-30446 (30097 is published as UDP for
 # the UDPRoute suite). Port assignments per test module
 # live in tests/src/e2elib/ports.py. The krouter internal listener port range
 # (docs/spec/deployment.md, default 10000-29999) must never overlap these NodePorts.
@@ -60,6 +60,7 @@ nodes:
       - { containerPort: 30102, hostPort: 30102, listenAddress: 127.0.0.1 }
       - { containerPort: 30103, hostPort: 30103, listenAddress: 127.0.0.1 }
       - { containerPort: 30104, hostPort: 30104, listenAddress: 127.0.0.1 }
+      - { containerPort: 30105, hostPort: 30105, listenAddress: 127.0.0.1 }
       - { containerPort: 30443, hostPort: 30443, listenAddress: 127.0.0.1 }
       - { containerPort: 30444, hostPort: 30444, listenAddress: 127.0.0.1 }
       - { containerPort: 30445, hostPort: 30445, listenAddress: 127.0.0.1 }
@@ -91,6 +92,7 @@ nodes:
       - { containerPort: 30102, hostPort: 31102, listenAddress: 127.0.0.1 }
       - { containerPort: 30103, hostPort: 31103, listenAddress: 127.0.0.1 }
       - { containerPort: 30104, hostPort: 31104, listenAddress: 127.0.0.1 }
+      - { containerPort: 30105, hostPort: 31105, listenAddress: 127.0.0.1 }
       - { containerPort: 30443, hostPort: 31443, listenAddress: 127.0.0.1 }
       - { containerPort: 30444, hostPort: 31444, listenAddress: 127.0.0.1 }
       - { containerPort: 30445, hostPort: 31445, listenAddress: 127.0.0.1 }

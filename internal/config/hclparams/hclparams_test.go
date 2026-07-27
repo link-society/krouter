@@ -75,6 +75,57 @@ func TestParseInfraRejectsInvalidType(t *testing.T) {
 	}
 }
 
+func TestParseInfraTrustsNobodyByDefault(t *testing.T) {
+	// docs/spec/security.md Client IP trust: no peer is trusted unless the
+	// operator says so.
+	params, err := ParseInfra("version = 1\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(params.ClientIP.TrustedProxies) != 0 {
+		t.Errorf("expected no trusted proxies, got %v", params.ClientIP.TrustedProxies)
+	}
+}
+
+func TestParseInfraTrustedProxies(t *testing.T) {
+	src := `
+version = 1
+
+client_ip {
+  trusted_proxies = ["10.0.0.0/8", "2001:db8::/32"]
+}
+`
+
+	params, err := ParseInfra(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(params.ClientIP.TrustedProxies) != 2 ||
+		params.ClientIP.TrustedProxies[0] != "10.0.0.0/8" ||
+		params.ClientIP.TrustedProxies[1] != "2001:db8::/32" {
+		t.Errorf("unexpected trusted proxies: %v", params.ClientIP.TrustedProxies)
+	}
+}
+
+func TestParseInfraRejectsInvalidTrustedProxies(t *testing.T) {
+	// docs/spec/parameters.md: a malformed prefix is an invalid parameter,
+	// never a silently ignored entry.
+	cases := map[string]string{
+		"bare address": "10.0.0.1",
+		"garbage":      "trust-me",
+		"bad mask":     "10.0.0.0/33",
+	}
+
+	for name, cidr := range cases {
+		src := "version = 1\nclient_ip {\n  trusted_proxies = [\"" + cidr + "\"]\n}\n"
+		if _, err := ParseInfra(src); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}
+
 func TestParseClassDefaults(t *testing.T) {
 	params, err := ParseClass("version = 1\n")
 	if err != nil {
