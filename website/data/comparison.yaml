@@ -45,6 +45,10 @@ groups:
         values: [yes, yes, no, yes, yes]
       - feature: "Web application firewall (built-in OWASP CRS)"
         values: [yes, partial, no, partial, partial]
+      - feature: "Client IP from trusted proxies (X-Forwarded-For)"
+        values: [yes, yes, yes, yes, yes]
+      - feature: "PROXY protocol (client IP on raw TCP)"
+        values: [no, yes, yes, yes, yes]
       - feature: "Authentication / authorization policies"
         values: [no, yes, no, yes, yes]
 
