@@ -109,6 +109,10 @@ port for each `(Gateway UID, external port, listener protocol)` group.
   or UDP for UDP listeners).
 - The allocation MUST be persisted in generated Service/configuration state
   and reconstructed from that state after a control-plane restart.
+- Listeners sharing an internal listener MUST agree on whether they require
+  a proxy protocol preamble ([traffic.md](traffic.md)): the preamble is read
+  per connection, before krouter knows which listener the connection is
+  for. Disagreement is an invalid parameter.
 - An exhausted internal port range sets an appropriate negative Programmed
   condition and MUST NOT steal or renumber an active allocation.
 

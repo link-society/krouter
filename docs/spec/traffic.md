@@ -345,6 +345,58 @@ add, replace, or remove those headers for a rule.
 
 Trusting a peer changes nothing else: `RequestRedirect` scheme
 inheritance and misdirected-request detection keep describing the
-connection krouter actually terminated. Proxy Protocol remains deferred
-work ([overview.md](overview.md)), so TCP, TLS passthrough, and UDP
-listeners always report the peer address.
+connection krouter actually terminated. TCP, TLS passthrough, and UDP
+listeners carry no forwarded headers: their client address is the
+connection peer, or the address the preamble below names.
+
+## Proxy protocol
+
+A load balancer that forwards TCP without terminating HTTP cannot use
+`X-Forwarded-For`. The
+[PROXY protocol](https://www.haproxy.org/download/2.1/doc/proxy-protocol.txt)
+carries the original addresses in a preamble sent before any other byte of
+the connection. Listeners named in the `client_ip.proxy_protocol` Gateway
+infrastructure parameter ([parameters.md](parameters.md)) MUST require one:
+
+- Every connection MUST begin with a version 1 or version 2 preamble. Both
+  versions MUST be accepted, and the version detected from the first bytes.
+- A preamble MUST be honored only when the connection peer is covered by
+  `trusted_proxies`. From any other peer the connection MUST be closed
+  ([security.md](security.md) Client IP trust).
+- A connection that does not begin with a preamble MUST be closed, without
+  a response of any kind. There is none to give: no request has been read,
+  and on an HTTPS or TLS listener no handshake has happened yet.
+- The source address a preamble carries replaces the peer address for the
+  rest of the connection. Everything describing the client uses it: the
+  access log, the `client_ip` rate limiting key, the WAF's remote address,
+  and the entry appended to `X-Forwarded-For`. Forwarded-header resolution
+  then applies on top of it against the same trust list, so a load balancer
+  followed by an HTTP proxy still resolves to the client the last one
+  names.
+- A version 2 `LOCAL` preamble and a version 1 `UNKNOWN` preamble carry no
+  client address: the connection proceeds with the peer address. Load
+  balancer health checks use them.
+- Only TCP over IPv4 and IPv6 is supported. Any other address family or
+  transport in a preamble is a protocol violation and MUST close the
+  connection.
+- Reading the preamble MUST be bounded: the version 1 line is at most 107
+  bytes, the version 2 header is 16 bytes plus its declared length, and
+  type-length-value blocks are skipped without being interpreted. A
+  preamble that does not arrive complete within a deadline MUST close the
+  connection.
+
+Requiring a preamble is a property of the listener, not of the routes
+attached to it: it is consumed before any hostname, path, or SNI is known,
+so every client of that listener MUST send one. In-cluster clients are
+included. Reaching a Gateway listener means taking the same path as any
+other client, whether or not the packets ever leave the cluster.
+
+HTTP, HTTPS, TCP, and TLS listeners MAY require a preamble. UDP listeners
+have no connection to prefix. The management endpoints and the dashboard
+([observability.md](observability.md)) never read one, whatever the
+Gateways served by the same data-plane pod require.
+
+Configuring the load balancer to send the preamble is deployment work.
+krouter adds no provider-specific annotation to the generated Service;
+operators declare them through `service.annotations`
+([parameters.md](parameters.md)).

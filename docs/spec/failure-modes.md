@@ -10,6 +10,7 @@
 | One data-plane pod unhealthy | Remove it from frontend EndpointSlices; healthy nodes continue |
 | Generated resource manually deleted | Recreate it idempotently |
 | Internal port range exhausted | Reject programming the affected listener/Gateway without disturbing existing allocations |
+| Connection to a proxy protocol listener without a valid preamble, or carrying one from an untrusted peer | Close the connection before any handshake or request; count and log the cause |
 
 All reconciliations MUST be idempotent and tolerate duplicate Kubernetes
 watch events.

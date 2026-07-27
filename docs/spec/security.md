@@ -54,6 +54,14 @@ deployment topology in front of that Gateway: it belongs to the cluster
 operator owning the Gateway, not to the teams owning the routes attached
 to it.
 
+The proxy protocol preamble ([traffic.md](traffic.md)) answers the same
+question at connection level and uses the same list. A listener therefore
+cannot require a preamble unless `trusted_proxies` is set, and a preamble
+arriving from any other peer closes the connection rather than being
+ignored: on a listener that requires one, such a connection is either a
+misconfiguration or an attempt to choose a client address, and neither
+should be served.
+
 ## RBAC
 
 The installation follows least privilege within the constraints of a

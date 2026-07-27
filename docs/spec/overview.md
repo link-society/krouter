@@ -36,6 +36,7 @@ custom resources.
 | Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, TLS passthrough, and UDP |
 | Backend protocol | HTTP/1.1; cleartext HTTP/2 (h2c) for GRPCRoute backends and Service ports declaring `appProtocol: kubernetes.io/h2c`; WebSocket upgrade passthrough (incl. `appProtocol: kubernetes.io/ws`); raw TCP for TCPRoute backends; uninterpreted TLS for TLSRoute backends; UDP datagrams for UDPRoute backends; HTTPS to backends covered by a BackendTLSPolicy |
 | Listeners | HTTP, HTTPS with TLS termination, TCP, TLS in Passthrough or Terminate mode (mixed on one port), and UDP |
+| Client address | The connection peer by default; the `X-Forwarded-For` chain of trusted proxies, and the proxy protocol preamble on listeners configured to require it (docs/spec/traffic.md) |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
 | Authentication | Out of scope |
@@ -79,6 +80,5 @@ decrypted stream to TLSRoute backends. Both modes MAY share one port
   (docs/spec/extensions.md).
 - Active backend health checks.
 - Per-Gateway compute isolation inside one installation.
-- Proxy Protocol.
 - Distributed or multi-replica control plane.
 - Custom krouter policies or CRDs.
