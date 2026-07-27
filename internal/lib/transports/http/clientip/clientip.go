@@ -69,7 +69,7 @@ func (t *Trust) Resolve(remoteAddr string, header http.Header) (string, bool) {
 
 	peer = peer.Unmap().WithZone("")
 
-	if !t.contains(peer) {
+	if !t.Contains(peer) {
 		return peer.String(), false
 	}
 
@@ -89,7 +89,7 @@ func (t *Trust) Resolve(remoteAddr string, header http.Header) (string, bool) {
 
 		addr = addr.Unmap().WithZone("")
 
-		if !t.contains(addr) {
+		if !t.Contains(addr) {
 			return addr.String(), true
 		}
 
@@ -101,7 +101,9 @@ func (t *Trust) Resolve(remoteAddr string, header http.Header) (string, bool) {
 	return resolved.String(), true
 }
 
-func (t *Trust) contains(addr netip.Addr) bool {
+// Contains reports whether an address belongs to a trusted network. A nil
+// Trust trusts nobody.
+func (t *Trust) Contains(addr netip.Addr) bool {
 	if t == nil {
 		return false
 	}
