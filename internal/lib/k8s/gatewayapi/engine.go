@@ -308,6 +308,11 @@ func (r *Engine) reconcileGateway(
 	topo *topologyBuilder,
 ) {
 	infra, paramsErr := r.loadInfraParams(ctx, gw)
+	if paramsErr == nil {
+		// The listener names a preamble applies to are only checkable
+		// against the Gateway itself (docs/spec/parameters.md).
+		paramsErr = validateProxyProtocol(gw, infra)
+	}
 
 	addresses := validateGatewayAddresses(w, gw)
 
@@ -495,4 +500,53 @@ func (r *Engine) loadInfraParams(
 
 func errInvalidParams(format string, args ...any) error {
 	return &paramsError{message: fmt.Sprintf(format, args...)}
+}
+
+// validateProxyProtocol checks the listener names carried by the
+// `client_ip.proxy_protocol` parameter against the Gateway declaring them
+// (docs/spec/parameters.md): a name that matches nothing would silently
+// leave a listener unprotected, a UDP listener has no connection to
+// prefix, and listeners sharing an internal listener share the connection,
+// so they cannot disagree (docs/spec/frontend.md).
+func validateProxyProtocol(gw *gatewayv1.Gateway, infra *hclparams.InfraParams) error {
+	required := map[string]bool{}
+	for _, name := range infra.ClientIP.ProxyProtocol.Listeners {
+		required[name] = true
+	}
+
+	if len(required) == 0 {
+		return nil
+	}
+
+	declared := map[string]gatewayv1.Listener{}
+	for _, lst := range gw.Spec.Listeners {
+		declared[string(lst.Name)] = lst
+	}
+
+	for name := range required {
+		lst, ok := declared[name]
+		if !ok {
+			return errInvalidParams("proxy_protocol names unknown listener %q", name)
+		}
+
+		if lst.Protocol == gatewayv1.UDPProtocolType {
+			return errInvalidParams("proxy_protocol names UDP listener %q", name)
+		}
+	}
+
+	// Listeners share an internal listener per (external port, protocol)
+	// group (docs/spec/frontend.md Internal listener ports).
+	groups := map[string]bool{}
+	for _, lst := range gw.Spec.Listeners {
+		key := fmt.Sprintf("%d/%s", lst.Port, lst.Protocol)
+
+		if seen, ok := groups[key]; ok && seen != required[string(lst.Name)] {
+			return errInvalidParams(
+				"listeners sharing port %d disagree on proxy_protocol", lst.Port)
+		}
+
+		groups[key] = required[string(lst.Name)]
+	}
+
+	return nil
 }

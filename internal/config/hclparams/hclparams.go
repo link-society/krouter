@@ -62,7 +62,14 @@ type ServiceBlock struct {
 // when resolving the client IP (docs/spec/traffic.md Forwarding headers).
 // Empty means no peer is trusted (docs/spec/security.md Client IP trust).
 type ClientIPBlock struct {
-	TrustedProxies []string `hcl:"trusted_proxies,optional"`
+	TrustedProxies []string            `hcl:"trusted_proxies,optional"`
+	ProxyProtocol  *ProxyProtocolBlock `hcl:"proxy_protocol,block"`
+}
+
+// ProxyProtocolBlock names the listeners requiring a PROXY protocol
+// preamble on every connection (docs/spec/traffic.md Proxy protocol).
+type ProxyProtocolBlock struct {
+	Listeners []string `hcl:"listeners,optional"`
 }
 
 func ParseInfra(src string) (*InfraParams, error) {
@@ -117,6 +124,24 @@ func ParseInfra(src string) (*InfraParams, error) {
 		if _, err := netip.ParsePrefix(cidr); err != nil {
 			return nil, fmt.Errorf("invalid trusted_proxies entry %q", cidr)
 		}
+	}
+
+	if params.ClientIP.ProxyProtocol == nil {
+		params.ClientIP.ProxyProtocol = &ProxyProtocolBlock{}
+	}
+
+	for _, name := range params.ClientIP.ProxyProtocol.Listeners {
+		if name == "" {
+			return nil, fmt.Errorf("proxy_protocol listeners must be named")
+		}
+	}
+
+	// A preamble is honored only from a trusted peer, so without a trust
+	// list every connection to those listeners would be refused
+	// (docs/spec/parameters.md).
+	if len(params.ClientIP.ProxyProtocol.Listeners) > 0 &&
+		len(params.ClientIP.TrustedProxies) == 0 {
+		return nil, fmt.Errorf("proxy_protocol requires trusted_proxies")
 	}
 
 	return params, nil

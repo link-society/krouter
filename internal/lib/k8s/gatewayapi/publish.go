@@ -44,6 +44,11 @@ func (r *Engine) publishGeneration(
 
 	secretData := map[string][]byte{}
 
+	preambleRequired := map[string]bool{}
+	for _, name := range infra.ClientIP.ProxyProtocol.Listeners {
+		preambleRequired[name] = true
+	}
+
 	// Backend client certificate (docs/spec/traffic.md Backend TLS).
 	if clientCert.resolved && clientCert.certPEM != nil {
 		gatewayConfig.BackendClientCert = true
@@ -68,6 +73,10 @@ func (r *Engine) publishGeneration(
 			// Frontend client certificate validation
 			// (docs/spec/security.md).
 			ClientCAMode: lst.clientCAMode,
+			// Connections must carry a preamble (docs/spec/traffic.md
+			// Proxy protocol). The parameter names the Gateway's own
+			// listeners, like node_ports (docs/spec/parameters.md).
+			ProxyProtocol: lst.set == nil && preambleRequired[string(lst.spec.Name)],
 		}
 
 		if lst.spec.Hostname != nil {

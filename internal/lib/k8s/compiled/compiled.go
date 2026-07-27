@@ -83,6 +83,11 @@ type Listener struct {
 	// with the CA bundle under key "<name>.client-ca.crt" in the
 	// generation TLS Secret.
 	ClientCAMode string `json:"clientCAMode,omitempty"`
+	// ProxyProtocol requires a PROXY protocol preamble on every connection
+	// reaching this listener's internal port (docs/spec/traffic.md Proxy
+	// protocol). Listeners sharing an internal port always agree, which
+	// the control plane enforces.
+	ProxyProtocol bool `json:"proxyProtocol,omitempty"`
 }
 
 // RouteConfig is the per-generation compiled (Gateway, HTTPRoute)
