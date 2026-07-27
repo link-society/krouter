@@ -22,6 +22,7 @@ import (
 	"github.com/link-society/krouter/internal/extensions/waf"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 	"github.com/link-society/krouter/internal/lib/snapshot"
+	"github.com/link-society/krouter/internal/lib/transports/http/clientip"
 )
 
 // ----------------------------------------------------------------- tables --
@@ -45,6 +46,19 @@ func EmptyTables() *Tables {
 // Port returns the table serving one internal listener port.
 func (t *Tables) Port(port int32) *PortTable {
 	return t.byPort[port]
+}
+
+// ClientIP resolves the client IP of a request and reports whether the
+// peer that carried it is one of the Gateway's trusted proxies
+// (docs/spec/traffic.md Forwarding headers). An unknown port trusts
+// nothing, like an unconfigured gateway.
+func (t *Tables) ClientIP(port int32, r *http.Request) (string, bool) {
+	var trust *clientip.Trust
+	if table := t.byPort[port]; table != nil {
+		trust = table.trust
+	}
+
+	return trust.Resolve(r.RemoteAddr, r.Header)
 }
 
 // PortSpec describes one internal listener port for the listener
@@ -86,6 +100,9 @@ type PortTable struct {
 	udp            bool
 	tlsPassthrough bool
 	listeners      []*ListenerTable
+	// trust holds the gateway's trusted proxies; nil trusts no peer
+	// (docs/spec/traffic.md Forwarding headers).
+	trust *clientip.Trust
 }
 
 type ListenerTable struct {

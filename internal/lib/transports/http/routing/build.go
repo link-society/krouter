@@ -18,6 +18,7 @@ import (
 	"github.com/link-society/krouter/internal/extensions/ratelimiting"
 	"github.com/link-society/krouter/internal/extensions/waf"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
+	"github.com/link-society/krouter/internal/lib/transports/http/clientip"
 )
 
 // BuildGatewayTable turns verified compiled payloads into runtime tables.
@@ -38,6 +39,15 @@ func BuildGatewayTable(
 	}
 
 	listeners := map[string]*ListenerTable{}
+
+	// Peers whose forwarded headers this gateway honors
+	// (docs/spec/traffic.md Forwarding headers). The control plane already
+	// rejected malformed prefixes as InvalidParameters; a failure here means
+	// a corrupted payload, so the generation is refused.
+	trust, err := clientip.New(gateway.TrustedProxies)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trusted proxies: %w", err)
+	}
 
 	for _, lst := range gateway.Listeners {
 		entry := &ListenerTable{
@@ -96,6 +106,7 @@ func BuildGatewayTable(
 				tcp:            lst.Protocol == "TCP",
 				udp:            lst.Protocol == "UDP",
 				tlsPassthrough: lst.Protocol == "TLS",
+				trust:          trust,
 			}
 			table.byPort[lst.InternalPort] = port
 		}

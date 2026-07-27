@@ -197,6 +197,10 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 
 	tables := h.state.Tables.Load()
 
+	// Client IP (docs/spec/traffic.md Forwarding headers): the peer, or
+	// what the peer's chain says when the gateway trusts that peer.
+	clientIP, trustedPeer := tables.ClientIP(port, r)
+
 	// Misdirected-request detection (docs/spec/traffic.md): the authority
 	// must be owned by the listener the connection's SNI selected.
 	if withTLS && r.TLS != nil && tables.Misdirected(port, r.TLS.ServerName, host) {
@@ -223,7 +227,7 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	// Extensions run first (docs/spec/extensions.md Request path
 	// integration): a rejected request is never mirrored, redirected,
 	// answered with CORS headers, or forwarded.
-	status, extension, wafRule := serveExtensions(w, r, rule)
+	status, extension, wafRule := serveExtensions(w, r, rule, clientIP)
 
 	if status == 0 {
 		if cors := rule.CORS(); cors != nil && isCORSPreflight(r) {
@@ -233,7 +237,7 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 		} else if redirect, ok := redirectFilter(rule); ok {
 			status = serveRedirect(w, r, redirect, withTLS)
 		} else {
-			status = h.forward(w, r, rule, withTLS)
+			status = h.forward(w, r, rule, withTLS, trustedPeer)
 		}
 	}
 
@@ -241,6 +245,16 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 
 	// Access log event (docs/spec/observability.md); gRPC requests
 	// additionally carry the gRPC status code.
+	//
+	// The client field keeps naming the connection krouter terminated,
+	// source port included, unless a trusted proxy vouched for someone
+	// else: a gateway without trusted proxies logs exactly what it always
+	// logged (docs/spec/traffic.md Forwarding headers).
+	client := r.RemoteAddr
+	if trustedPeer {
+		client = clientIP
+	}
+
 	attrs := []any{
 		"listener", listener.Name(),
 		"route", route.Key(),
@@ -249,7 +263,7 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 		"status", status,
 		"duration", time.Since(start),
 		"proto", r.Proto,
-		"client", r.RemoteAddr,
+		"client", client,
 	}
 
 	if extension != "" {
@@ -358,7 +372,13 @@ func rewrittenPath(path string, filter compiled.Filter) string {
 }
 
 // forward proxies one request to a selected backend endpoint.
-func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.RuleTable, withTLS bool) int {
+func (h *Handler) forward(
+	w http.ResponseWriter,
+	r *http.Request,
+	rule *routing.RuleTable,
+	withTLS bool,
+	trustedPeer bool,
+) int {
 	backend := rule.PickBackend()
 	if backend == nil {
 		backendErrors.WithLabelValues("selection").Inc()
@@ -457,7 +477,7 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, rule *routing.
 			})
 			pr.Out.Host = pr.In.Host
 
-			rewriteForwardingHeaders(pr, withTLS)
+			rewriteForwardingHeaders(pr, withTLS, trustedPeer)
 
 			for _, filter := range rule.Filters() {
 				applyFilter(pr, filter)
@@ -620,16 +640,14 @@ type readCloser struct {
 }
 
 // rewriteForwardingHeaders regenerates spoof-sensitive values from the
-// actual downstream connection (docs/spec/traffic.md).
-func rewriteForwardingHeaders(pr *httputil.ProxyRequest, withTLS bool) {
-	pr.Out.Header.Del("Forwarded")
-	pr.Out.Header.Del("X-Forwarded-For")
-	pr.Out.Header.Del("X-Forwarded-Host")
-	pr.Out.Header.Del("X-Forwarded-Proto")
-
-	clientIP := pr.In.RemoteAddr
-	if host, _, err := net.SplitHostPort(clientIP); err == nil {
-		clientIP = host
+// actual downstream connection, unless the peer is a trusted proxy: what
+// such a peer sent describes hops krouter cannot see, so its chain is
+// preserved with the peer appended and only the values it left unset are
+// generated (docs/spec/traffic.md Forwarding headers).
+func rewriteForwardingHeaders(pr *httputil.ProxyRequest, withTLS, trustedPeer bool) {
+	peer := pr.In.RemoteAddr
+	if host, _, err := net.SplitHostPort(peer); err == nil {
+		peer = host
 	}
 
 	proto := "http"
@@ -637,11 +655,32 @@ func rewriteForwardingHeaders(pr *httputil.ProxyRequest, withTLS bool) {
 		proto = "https"
 	}
 
-	pr.Out.Header.Set("X-Forwarded-For", clientIP)
-	pr.Out.Header.Set("X-Forwarded-Host", hostOnly(pr.In.Host))
-	pr.Out.Header.Set("X-Forwarded-Proto", proto)
-	pr.Out.Header.Set("Forwarded", fmt.Sprintf("for=%s;host=%s;proto=%s",
-		clientIP, hostOnly(pr.In.Host), proto))
+	if !trustedPeer {
+		pr.Out.Header.Del("Forwarded")
+		pr.Out.Header.Del("X-Forwarded-For")
+		pr.Out.Header.Del("X-Forwarded-Host")
+		pr.Out.Header.Del("X-Forwarded-Proto")
+	}
+
+	chain := strings.Join(pr.Out.Header.Values("X-Forwarded-For"), ", ")
+	if chain != "" {
+		chain += ", "
+	}
+
+	pr.Out.Header.Set("X-Forwarded-For", chain+peer)
+
+	if pr.Out.Header.Get("X-Forwarded-Host") == "" {
+		pr.Out.Header.Set("X-Forwarded-Host", hostOnly(pr.In.Host))
+	}
+
+	if pr.Out.Header.Get("X-Forwarded-Proto") == "" {
+		pr.Out.Header.Set("X-Forwarded-Proto", proto)
+	}
+
+	if pr.Out.Header.Get("Forwarded") == "" {
+		pr.Out.Header.Set("Forwarded", fmt.Sprintf("for=%s;host=%s;proto=%s",
+			peer, hostOnly(pr.In.Host), proto))
+	}
 }
 
 // applyFilter runs a compiled request filter after header regeneration:

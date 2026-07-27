@@ -7,7 +7,6 @@ import (
 
 	"sync"
 
-	"net"
 	"net/http"
 
 	"time"
@@ -59,20 +58,16 @@ func NewLimiter(config *compiled.RateLimit) *Limiter {
 func (l *Limiter) Status() int32 { return l.status }
 
 // KeyFor extracts the bucket key for one request
-// (docs/spec/extensions.md Rate limiting): the downstream TCP peer
-// address, or the first value of the configured header. Requests without
-// the header share one anonymous bucket ("").
-func (l *Limiter) KeyFor(r *http.Request) string {
+// (docs/spec/extensions.md Rate limiting): the resolved client IP
+// (docs/spec/traffic.md Forwarding headers), or the first value of the
+// configured header. Requests without the header share one anonymous
+// bucket ("").
+func (l *Limiter) KeyFor(r *http.Request, clientIP string) string {
 	if name, ok := strings.CutPrefix(l.key, "header:"); ok {
 		return r.Header.Get(name)
 	}
 
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-
-	return host
+	return clientIP
 }
 
 // Allow consumes one token from the key's bucket. When the bucket is

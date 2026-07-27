@@ -191,16 +191,19 @@ func TestKeyFor(t *testing.T) {
 	r.RemoteAddr = "192.0.2.7:4242"
 	r.Header.Set("X-Api-Key", "alice")
 
-	if key := byIP.KeyFor(r); key != "192.0.2.7" {
+	// The client key is the resolved client IP, which the request path
+	// computes from the connection and the gateway's trusted proxies
+	// (docs/spec/traffic.md Forwarding headers).
+	if key := byIP.KeyFor(r, "203.0.113.7"); key != "203.0.113.7" {
 		t.Errorf("client_ip key: got %q", key)
 	}
 
-	if key := byHeader.KeyFor(r); key != "alice" {
+	if key := byHeader.KeyFor(r, "203.0.113.7"); key != "alice" {
 		t.Errorf("header key: got %q", key)
 	}
 
 	r.Header.Del("X-Api-Key")
-	if key := byHeader.KeyFor(r); key != "" {
+	if key := byHeader.KeyFor(r, "203.0.113.7"); key != "" {
 		t.Errorf("missing header must share the anonymous bucket, got %q", key)
 	}
 }

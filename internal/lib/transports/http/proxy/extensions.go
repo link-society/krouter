@@ -42,6 +42,7 @@ func serveExtensions(
 	w http.ResponseWriter,
 	r *http.Request,
 	rule *routing.RuleTable,
+	clientIP string,
 ) (int, string, int) {
 	grpcRule := rule.GRPC()
 
@@ -55,7 +56,7 @@ func serveExtensions(
 	}
 
 	if limiter := rule.RateLimiter(); limiter != nil {
-		allowed, wait := limiter.Allow(limiter.KeyFor(r))
+		allowed, wait := limiter.Allow(limiter.KeyFor(r, clientIP))
 		if !allowed {
 			ratelimitDecisions.WithLabelValues("limited").Inc()
 
