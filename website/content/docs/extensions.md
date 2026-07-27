@@ -78,10 +78,11 @@ key:
 
 - `requests` and `window` set the refill rate (tokens added per window);
   `burst` is the optional bucket capacity (defaulting to `requests`).
-- `key` buckets requests by `client_ip` (the downstream TCP peer, since
-  krouter has no trusted-proxy configuration) or by `header:<Name>` (the
-  first value of that request header, with a shared anonymous bucket for
-  requests lacking it).
+- `key` buckets requests by `client_ip` (the resolved client address: the
+  downstream peer, or what its forwarded chain says when the Gateway
+  [trusts that peer](/docs/configuration/#client-ip-behind-another-proxy))
+  or by `header:<Name>` (the first value of that request header, with a
+  shared anonymous bucket for requests lacking it).
 - A rejected request is answered with `status` (default `429`) and a
   [Retry-After](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After)
   header carrying the whole seconds until the next token.

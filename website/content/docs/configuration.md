@@ -76,6 +76,11 @@ data:
         "http" = 30080   # listener name -> requested NodePort
       }
     }
+
+    client_ip {
+      # Networks whose forwarded headers are trusted (empty by default).
+      trusted_proxies = ["10.0.0.0/8"]
+    }
 ```
 
 The Gateway links to it with `spec.infrastructure.parametersRef`; the
@@ -108,6 +113,30 @@ spec:
   implementation, including `load_balancer_class`.
 - Labels and annotations declared under `Gateway.spec.infrastructure` are
   propagated to the generated Service.
+
+### Client IP behind another proxy
+
+When a CDN, a cloud load balancer or another reverse proxy sits in front
+of a Gateway, the connection krouter terminates comes from that hop, not
+from the client. `client_ip.trusted_proxies` lists the networks allowed to
+speak for their clients:
+
+- A request from a peer in that list has its
+  [`X-Forwarded-For`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For)
+  chain walked from right to left, and the first address outside the list
+  is the client. The chain reaches backends with the peer appended, and
+  the `X-Forwarded-Host`, `X-Forwarded-Proto` and `Forwarded` values the
+  peer sent are passed through.
+- A request from any other peer keeps today's behavior: the peer is the
+  client and those headers are regenerated from the connection, so a
+  spoofed value never reaches a backend.
+- The resolved address is what the access log reports, what the
+  `client_ip` rate limiting key buckets by, and what the WAF inspects as
+  the remote address.
+
+The list is empty by default, which means no peer is trusted. Only list
+intermediaries clients cannot bypass: trusting a network reachable
+directly lets any client pick its own client IP.
 
 ## Listeners
 
