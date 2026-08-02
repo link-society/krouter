@@ -22,7 +22,7 @@ Service behind a Gateway like any other backend.
 ## Metrics
 
 Both planes expose Prometheus metrics on their management port (`:9090`,
-path `/metrics`). krouter ships as one binary, so every name below is
+path `/metrics`). Both run the same binary, so every name below is
 registered on both endpoints, but the `krouter_dataplane_*` series only
 move on data-plane pods and the `krouter_controlplane_*` ones on the
 control plane. Scrape them with your Prometheus installation as

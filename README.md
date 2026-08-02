@@ -3,9 +3,8 @@
 **krouter** (Kubernetes Router) is a [Kubernetes Gateway
 API](https://gateway-api.sigs.k8s.io) implementation and HTTP/HTTPS reverse
 proxy. It uses standard Kubernetes resources only (no custom resource
-definitions), ships as a single binary and container image, applies
-configuration changes without dropping connections, and embeds a live
-dashboard of your gateways, routes and backends.
+definitions), applies configuration changes without dropping connections,
+and embeds a live dashboard of your gateways, routes and backends.
 
 The design, behavior and guarantees are described in the
 [specification](docs/spec/README.md); user documentation and tutorials
@@ -31,7 +30,6 @@ extensions · — not provided):
 | CORS filter | ✅ | ✅ | — | ✅ | ✅ |
 | **Operations** | | | | | |
 | No custom CRDs required | ✅ | — | — | — | — |
-| Single binary and container image | ✅ | — | — | ✅ | — |
 | Hitless reloads (proven with 10,000 live connections) | ✅ | ✅ | ◐ | ✅ | ✅ |
 | Built-in live topology dashboard | ✅ | — | — | ✅ | ◐ |
 | Conformance report published with every build | ✅ | ◐ | ◐ | ◐ | ◐ |

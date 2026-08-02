@@ -4,7 +4,7 @@ title = "krouter: Kubernetes Gateway API router"
 disableKinds = ["taxonomy", "term", "rss"]
 
 [params]
-  description = "krouter is a production-grade Kubernetes Gateway API implementation: one binary, no CRDs of its own, hitless reloads, and a live dashboard."
+  description = "krouter is a production-grade Kubernetes Gateway API implementation: no CRDs of its own, hitless reloads, and a live dashboard."
   github = "https://github.com/link-society/krouter"
   releaseBadge = "https://img.shields.io/github/v/release/link-society/krouter?display_name=tag&sort=semver&label=release&color=485fc7"
 

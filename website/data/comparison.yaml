@@ -30,8 +30,6 @@ groups:
     rows:
       - feature: "No custom CRDs required"
         values: [yes, no, no, no, no]
-      - feature: "Single binary and container image"
-        values: [yes, no, no, yes, no]
       - feature: "Hitless reloads (proven with 10,000 live connections)"
         values: [yes, yes, partial, yes, yes]
       - feature: "Built-in live topology dashboard"

@@ -5,8 +5,8 @@
       <h1 class="title is-1 hero-title">Route everything.<br>Break nothing.</h1>
       <p class="subtitle is-4 hero-subtitle">
         krouter is a Kubernetes-native gateway built on the official
-        Gateway&nbsp;API: one tiny binary that routes HTTP, gRPC, TCP, UDP
-        and TLS without ever dropping a connection.
+        Gateway&nbsp;API: it routes HTTP, gRPC, TCP, UDP and TLS without ever
+        dropping a connection.
       </p>
       <div class="buttons is-centered">
         <a class="button is-white is-medium" href="{{ "/docs/installation/" | relURL }}">
@@ -25,7 +25,7 @@
     <div class="columns is-mobile is-multiline has-text-centered">
       <div class="column"><p class="stat-number">710</p><p class="stat-label">Gateway API conformance checks</p></div>
       <div class="column"><p class="stat-number">0</p><p class="stat-label">custom CRDs to learn</p></div>
-      <div class="column"><p class="stat-number">1</p><p class="stat-label">binary to run</p></div>
+      <div class="column"><p class="stat-number">10,000</p><p class="stat-label">live connections held across reloads</p></div>
     </div>
   </div>
 </section>
@@ -55,8 +55,8 @@
         <div class="feature-card">
           <h3 class="title is-5">Five protocols, one gateway</h3>
           <p>HTTP, gRPC, raw TCP, UDP and TLS (passthrough or terminated)
-          through the same tiny data plane. No sidecars, no fleet of proxies
-          to babysit.</p>
+          through the same data plane DaemonSet. No sidecars, no per-gateway
+          proxy deployment to babysit.</p>
         </div>
       </div>
       <div class="column is-4">
