@@ -539,6 +539,21 @@ def set_pod_ready(pod: str, namespace: str, ready: bool) -> None:
         f"failed to set readiness expectation on {pod}: {resp.status_code} {resp.text[:200]}"
 
 
+def put_expectations(pod: str, namespace: str, expectations: list[dict]) -> None:
+    """
+    Install expectations on one MockServer pod through its admin API.
+
+    The auth suites use this to stand up mock identity providers
+    (docs/spec/authentication.md): discovery documents, JWKS, token
+    endpoints and IdP metadata are plain expectations installed by the
+    test fixtures at runtime.
+    """
+
+    resp = _pod_api(pod, namespace, "PUT", "/mockserver/expectation", expectations)
+    assert resp.status_code in (200, 201), \
+        f"failed to set expectations on {pod}: {resp.status_code} {resp.text[:200]}"
+
+
 def recorded_requests(pod: str, namespace: str, path: str = "/") -> list[dict]:
     """
     Requests recorded by one pod (docs/spec/traffic.md header assertions).

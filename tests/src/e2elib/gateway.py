@@ -377,15 +377,15 @@ def reference_grant(
     }
 
 
-def extension_ref(name: str) -> dict:
+def extension_ref(name: str, kind: str = "ConfigMap") -> dict:
     """
-    ExtensionRef filter referencing a core ConfigMap in the route's
-    namespace (docs/spec/extensions.md).
+    ExtensionRef filter referencing a core ConfigMap or Secret in the
+    route's namespace (docs/spec/extensions.md).
     """
 
     return {
         "type": "ExtensionRef",
-        "extensionRef": {"group": "", "kind": "ConfigMap", "name": name},
+        "extensionRef": {"group": "", "kind": kind, "name": name},
     }
 
 
@@ -412,4 +412,19 @@ def extension_configmap(
         "kind": "ConfigMap",
         "metadata": {"name": name, "namespace": namespace},
         "data": data,
+    }
+
+
+def extension_secret(name: str, namespace: str, auth: str) -> dict:
+    """
+    Extension Secret carrying `auth.hcl` (docs/spec/authentication.md):
+    authentication configuration holds credentials, so it lives in a
+    Secret, never a ConfigMap.
+    """
+
+    return {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {"name": name, "namespace": namespace},
+        "stringData": {"auth.hcl": auth},
     }
