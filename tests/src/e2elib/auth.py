@@ -24,6 +24,7 @@ import hmac
 
 import datetime
 
+from html.parser import HTMLParser
 from urllib.parse import parse_qsl
 
 import httpx
@@ -507,6 +508,74 @@ def mint_logout_request(
 
 
 # --------------------------------------------------------------- browser --
+
+class _FormParser(HTMLParser):
+    """
+    Collects the first form of the login page: action, method, and the
+    inputs with their types and preset values.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.action: str | None = None
+        self.fields: dict[str, str] = {}
+        self.types: dict[str, str] = {}
+        self._in_form = False
+        self._done = False
+
+    def handle_starttag(self, tag, attrs):
+        if self._done:
+            return
+
+        attributes = dict(attrs)
+
+        if tag == "form" and not self._in_form:
+            self._in_form = True
+            self.action = attributes.get("action")
+
+            return
+
+        if tag == "input" and self._in_form:
+            name = attributes.get("name")
+            if name:
+                self.fields[name] = attributes.get("value", "")
+                self.types[name] = attributes.get("type", "text")
+
+    def handle_endtag(self, tag):
+        if tag == "form" and self._in_form:
+            self._in_form = False
+            self._done = True
+
+
+def fill_login_form(html: str, username: str, password: str) -> tuple[str, dict[str, str]]:
+    """
+    Fill the login page's credential form (docs/spec/authentication.md
+    Login page) without assuming field names: the password input takes
+    the password, the first text input takes the username, and hidden
+    inputs (the anti-forgery token) keep their preset values.
+    """
+
+    parser = _FormParser()
+    parser.feed(html)
+
+    assert parser.action, "the login page must render a credential form"
+
+    data = dict(parser.fields)
+    username_set = False
+    for name, field_type in parser.types.items():
+        if field_type == "password":
+            data[name] = password
+
+        elif field_type in ("text", "email") and not username_set:
+            data[name] = username
+            username_set = True
+
+    assert username_set, "the credential form must have a username input"
+    assert any(t == "password" for t in parser.types.values()), \
+        "the credential form must have a password input"
+
+    return parser.action, data
+
 
 class BrowserSession:
     """

@@ -195,6 +195,88 @@ echo_backend = mockserver_backend
 BACKEND_PORT = MOCKSERVER_PORT
 
 
+# --------------------------------------------------------------- glauth --
+
+GLAUTH_IMAGE = "glauth/glauth:v2.4.0"
+GLAUTH_PORT = 3893
+
+
+def glauth_backend(name: str, namespace: str, config_toml: str) -> list[dict]:
+    """
+    ConfigMap + Deployment + Service for one GLAuth directory
+    (docs/spec/authentication.md LDAP).
+
+    The image starts `/app/glauth -c /app/config/config.cfg`; mounting a
+    ConfigMap over /app/config provides the directory contents. Users,
+    groups and the LDAP listener all come from `config_toml`.
+    """
+
+    labels = {"app": name}
+
+    return [
+        {
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {"name": f"{name}-config", "namespace": namespace},
+            "data": {"config.cfg": config_toml},
+        },
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "replicas": 1,
+                "selector": {"matchLabels": labels},
+                "template": {
+                    "metadata": {"labels": labels},
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "glauth",
+                                "image": GLAUTH_IMAGE,
+                                "ports": [{"containerPort": GLAUTH_PORT}],
+                                "volumeMounts": [
+                                    {
+                                        "name": "config",
+                                        "mountPath": "/app/config",
+                                        "readOnly": True,
+                                    },
+                                ],
+                                "readinessProbe": {
+                                    "tcpSocket": {"port": GLAUTH_PORT},
+                                    "periodSeconds": 2,
+                                    "failureThreshold": 2,
+                                },
+                            },
+                        ],
+                        "volumes": [
+                            {
+                                "name": "config",
+                                "configMap": {"name": f"{name}-config"},
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        {
+            "apiVersion": "v1",
+            "kind": "Service",
+            "metadata": {"name": name, "namespace": namespace},
+            "spec": {
+                "selector": labels,
+                "ports": [
+                    {
+                        "name": "ldap",
+                        "port": GLAUTH_PORT,
+                        "targetPort": GLAUTH_PORT,
+                    },
+                ],
+            },
+        },
+    ]
+
+
 # ------------------------------------------------------------ tcp echo --
 
 TCP_ECHO_IMAGE = "alpine/socat:1.8.0.3"
