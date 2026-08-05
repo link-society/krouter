@@ -129,13 +129,30 @@ type Rule struct {
 	// requests are answered 500 and never forwarded, per the upstream
 	// unresolvable-filter contract (docs/spec/extensions.md).
 	ExtensionsInvalid bool `json:"extensionsInvalid,omitempty"`
+	// Auth, when set, is the identity of the rule's merged authentication
+	// extension (docs/spec/authentication.md Resolution and status). The
+	// compiled configuration is sensitive, so only this reference lands in
+	// attachment ConfigMaps: the document itself rides the generation's
+	// generated Secret under AuthSecretKey(Auth).
+	Auth string `json:"auth,omitempty"`
 }
 
 // Extension ConfigMap keys (docs/spec/extensions.md).
 const (
 	RateLimitKey = "ratelimit.hcl"
 	WAFKey       = "waf.hcl"
+	// AuthKey lives in Secrets, never ConfigMaps: authentication
+	// configuration carries credentials (docs/spec/authentication.md).
+	AuthKey = "auth.hcl"
 )
+
+// AuthSecretKey is the generated Secret data key carrying the compiled
+// authentication document of one extension identity
+// (docs/spec/configuration.md, docs/spec/authentication.md Configuration
+// lifecycle).
+func AuthSecretKey(identity string) string {
+	return "auth-" + identity + ".json"
+}
 
 // RateLimit is the merged rate limiting configuration of one rule
 // (docs/spec/extensions.md Rate limiting): a token bucket of capacity
@@ -147,6 +164,86 @@ type RateLimit struct {
 	Burst        int64  `json:"burst"`
 	Key          string `json:"key"`
 	Status       int32  `json:"status"`
+}
+
+// Auth is the merged authentication configuration of one extension
+// (docs/spec/authentication.md): providers compose on a rule, sessions
+// are stateless encrypted cookies, and authorization is claim-based.
+// The document is sensitive (credentials, session key): it MUST ride
+// the generation's generated Secret, never a ConfigMap.
+type Auth struct {
+	// Identity derives from the ordered list of referenced Secrets
+	// (their UIDs, not their contents): cookie names are stable across
+	// edits and distinct between extensions.
+	Identity   string `json:"identity"`
+	PathPrefix string `json:"pathPrefix"`
+
+	Session *AuthSession `json:"session,omitempty"`
+
+	OIDC *AuthOIDC `json:"oidc,omitempty"`
+	SAML *AuthSAML `json:"saml,omitempty"`
+	LDAP *AuthLDAP `json:"ldap,omitempty"`
+	JWT  *AuthJWT  `json:"jwt,omitempty"`
+
+	Authorization []AuthRequire `json:"authorization,omitempty"`
+}
+
+// AuthSession keys the AEAD session and state cookies
+// (docs/spec/authentication.md Stateless sessions).
+type AuthSession struct {
+	Secret         string `json:"secret"`
+	LifetimeMillis int64  `json:"lifetimeMillis"`
+}
+
+type AuthOIDC struct {
+	Issuer       string   `json:"issuer"`
+	ClientID     string   `json:"clientId"`
+	ClientSecret string   `json:"clientSecret,omitempty"`
+	Scopes       []string `json:"scopes,omitempty"`
+	DisplayName  string   `json:"displayName,omitempty"`
+}
+
+type AuthSAML struct {
+	EntityID       string            `json:"entityId"`
+	IDPMetadataURL string            `json:"idpMetadataUrl,omitempty"`
+	IDPMetadata    string            `json:"idpMetadata,omitempty"`
+	SPKeyPEM       string            `json:"spKeyPem"`
+	SPCertPEM      string            `json:"spCertPem"`
+	Attributes     map[string]string `json:"attributes,omitempty"`
+	DisplayName    string            `json:"displayName,omitempty"`
+}
+
+type AuthLDAP struct {
+	URL          string            `json:"url"`
+	StartTLS     bool              `json:"startTls,omitempty"`
+	CA           string            `json:"ca,omitempty"`
+	BindDN       string            `json:"bindDn"`
+	BindPassword string            `json:"bindPassword,omitempty"`
+	UserBaseDN   string            `json:"userBaseDn"`
+	UserFilter   string            `json:"userFilter"`
+	Realm        string            `json:"realm,omitempty"`
+	Attributes   map[string]string `json:"attributes,omitempty"`
+	GroupSearch  *AuthGroupSearch  `json:"groupSearch,omitempty"`
+	DisplayName  string            `json:"displayName,omitempty"`
+}
+
+type AuthGroupSearch struct {
+	BaseDN    string `json:"baseDn"`
+	Filter    string `json:"filter"`
+	Attribute string `json:"attribute"`
+}
+
+type AuthJWT struct {
+	Issuer    string   `json:"issuer"`
+	Audiences []string `json:"audiences"`
+	JWKSURL   string   `json:"jwksUrl,omitempty"`
+}
+
+// AuthRequire is one claim requirement; a request is authorized when
+// every block passes (docs/spec/authentication.md Authorization).
+type AuthRequire struct {
+	Claim  string   `json:"claim"`
+	Values []string `json:"values"`
 }
 
 type Match struct {
