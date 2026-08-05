@@ -39,7 +39,7 @@ custom resources.
 | Client address | The connection peer by default; the `X-Forwarded-For` chain of trusted proxies, and the proxy protocol preamble on listeners configured to require it (docs/spec/traffic.md) |
 | Backend discovery | Kubernetes Services and EndpointSlices |
 | Backend health | EndpointSlice conditions only |
-| Authentication | Out of scope |
+| Authentication | Per-rule OIDC, SAML 2.0, LDAP, and bearer JWT via the `ExtensionRef` filter (docs/spec/authentication.md); providers compose per rule behind a gateway-served login page; sessions are stateless encrypted cookies |
 | Rate limiting | Per-rule token buckets via the `ExtensionRef` filter (docs/spec/extensions.md); enforcement is per data-plane pod |
 | Web application firewall | Coraza with the embedded OWASP Core Rule Set via the `ExtensionRef` filter (docs/spec/extensions.md) |
 | Experimental Gateway API features | Out of scope; TCPRoute (`v1`), TLSRoute (`v1`), UDPRoute (`v1`), BackendTLSPolicy (`v1`), and ListenerSet (`v1`) are Standard as of Gateway API v1.6 |
@@ -71,7 +71,10 @@ Features krouter does not implement yet, in scope for a later version:
 - BackendTLSPolicy `options`.
 - Policy attachment to ListenerSets.
 - Experimental-channel resources and fields.
-- Authentication and authorization policies.
+- Authentication extras (docs/spec/authentication.md): OIDC UserInfo
+  claims, back-channel logout, SAML assertion encryption,
+  `id_token_hint` at logout, custom identity header mappings, login
+  page branding, and graceful session key rotation.
 - Distributed (cluster-coordinated) rate limiting, WAF response-phase
   inspection, and in-tunnel WebSocket enforcement
   (docs/spec/extensions.md).

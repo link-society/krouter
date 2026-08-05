@@ -10,8 +10,9 @@ For each Gateway, the control plane creates:
 
 - One immutable Gateway configuration ConfigMap per generation.
 - One immutable ConfigMap per `(Gateway, Route)` attachment per generation.
-- One immutable generated TLS Secret per generation when TLS material is
-  needed.
+- One immutable generated Secret per generation when sensitive material
+  is needed (TLS certificates, compiled authentication configuration,
+  docs/spec/authentication.md).
 - One small mutable manifest ConfigMap identifying the desired generation
   and every object/checksum in that generation.
 
@@ -20,7 +21,7 @@ erDiagram
     MANIFEST ||--o{ GENERATION : "identifies desired + retained"
     GENERATION ||--|| GATEWAY_CONFIG : contains
     GENERATION ||--o{ ATTACHMENT_CONFIG : contains
-    GENERATION ||--o| TLS_SECRET : contains
+    GENERATION ||--o| GENERATED_SECRET : contains
 
     MANIFEST {
         string gatewayUID "label"
@@ -37,7 +38,7 @@ erDiagram
         string generation "label"
         bool immutable
     }
-    TLS_SECRET {
+    GENERATED_SECRET {
         string generation "label"
         bool immutable
     }
@@ -118,7 +119,7 @@ configuration.
 - Deleting a Route publishes a new Gateway generation without that
   attachment.
 - Deleting a Gateway removes its Service, EndpointSlices, generated
-  configuration, TLS material, and internal listeners.
+  configuration, Secret material, and internal listeners.
 - Recreating an object with the same name but a new UID is treated as a
   distinct object.
 - Manually deleted generated resources are recreated while their owning
