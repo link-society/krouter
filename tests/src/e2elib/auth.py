@@ -16,16 +16,26 @@ handed back to the test, which plays the provider itself.
 
 import base64
 import json
+import secrets
+import zlib
 
 import hashlib
 import hmac
+
+import datetime
 
 from urllib.parse import parse_qsl
 
 import httpx
 
+from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.x509.oid import NameOID
+
+from lxml import etree
+
+from signxml import XMLSigner
 
 from e2elib import backends, net
 
@@ -242,6 +252,258 @@ def s256(verifier: str) -> str:
     """
 
     return b64url(hashlib.sha256(verifier.encode()).digest())
+
+
+# ---------------------------------------------------------------- saml --
+
+NS_SAMLP = "urn:oasis:names:tc:SAML:2.0:protocol"
+NS_SAML = "urn:oasis:names:tc:SAML:2.0:assertion"
+NS_MD = "urn:oasis:names:tc:SAML:2.0:metadata"
+NS_DS = "http://www.w3.org/2000/09/xmldsig#"
+
+BINDING_REDIRECT = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+BINDING_POST = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+NAMEID_UNSPECIFIED = "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified"
+STATUS_SUCCESS = "urn:oasis:names:tc:SAML:2.0:status:Success"
+
+
+def self_signed_cert(common_name: str) -> tuple[rsa.RSAPrivateKey, bytes]:
+    """
+    RSA key and self-signed certificate PEM, for IdP metadata and SP
+    key material.
+    """
+
+    key = rsa_signing_key()
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(minutes=5))
+        .not_valid_after(now + datetime.timedelta(days=1))
+        .sign(key, hashes.SHA256())
+    )
+
+    return key, cert.public_bytes(serialization.Encoding.PEM)
+
+
+def cert_b64(cert_pem: bytes) -> str:
+    """
+    Certificate DER as base64, the X509Certificate element's content.
+    """
+
+    lines = [
+        line for line in cert_pem.decode().splitlines()
+        if line and not line.startswith("-----")
+    ]
+
+    return "".join(lines)
+
+
+def saml_idp_metadata(
+    entity_id: str,
+    sso_url: str,
+    slo_url: str,
+    cert_pem: bytes,
+) -> str:
+    """
+    IdP metadata document served by the mock provider
+    (docs/spec/authentication.md SAML 2.0).
+    """
+
+    return f"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="{NS_MD}" entityID="{entity_id}">
+  <md:IDPSSODescriptor protocolSupportEnumeration="{NS_SAMLP}">
+    <md:KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="{NS_DS}">
+        <ds:X509Data>
+          <ds:X509Certificate>{cert_b64(cert_pem)}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </md:KeyDescriptor>
+    <md:SingleLogoutService Binding="{BINDING_REDIRECT}" Location="{slo_url}"/>
+    <md:SingleSignOnService Binding="{BINDING_REDIRECT}" Location="{sso_url}"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>
+"""
+
+
+def xml_expectation(path: str, xml: str) -> dict:
+    """
+    Static XML MockServer expectation (IdP metadata).
+    """
+
+    return {
+        "priority": 50,
+        "httpRequest": {"method": "GET", "path": path},
+        "httpResponse": {
+            "statusCode": 200,
+            "headers": {"Content-Type": ["application/samlmetadata+xml"]},
+            "body": {"type": "STRING", "string": xml},
+        },
+    }
+
+
+def parse_redirect_binding(url: httpx.URL) -> tuple[etree._Element, dict[str, str]]:
+    """
+    Decode the SAML message of one HTTP-Redirect binding URL; returns the
+    XML root and the query parameters.
+    """
+
+    params = dict(parse_qsl(url.query.decode()))
+    message = params.get("SAMLRequest") or params.get("SAMLResponse")
+    assert message, f"no SAML message on {url}"
+
+    inflated = zlib.decompress(base64.b64decode(message), -15)
+
+    return etree.fromstring(inflated), params
+
+
+def _sign(element: etree._Element, key: rsa.RSAPrivateKey, cert_pem: bytes) -> etree._Element:
+    """
+    Enveloped XMLDSig over one SAML element, signature placed after the
+    Issuer as the schema requires.
+    """
+
+    signer = XMLSigner(
+        signature_algorithm="rsa-sha256",
+        digest_algorithm="sha256",
+        c14n_algorithm="http://www.w3.org/2001/10/xml-exc-c14n#",
+    )
+    signed = signer.sign(
+        element,
+        key=key_pem(key).encode(),
+        cert=cert_pem.decode(),
+        reference_uri="#" + element.get("ID"),
+    )
+
+    signature = signed.find(f"{{{NS_DS}}}Signature")
+    if signature is not None:
+        signed.remove(signature)
+        signed.insert(1, signature)
+
+    return signed
+
+
+def _instant(offset_seconds: int = 0) -> str:
+    at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+        seconds=offset_seconds,
+    )
+
+    return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def saml_id() -> str:
+    return "_" + secrets.token_hex(16)
+
+
+def mint_saml_response(
+    idp_key: rsa.RSAPrivateKey,
+    idp_cert: bytes,
+    issuer: str,
+    in_response_to: str,
+    acs_url: str,
+    audience: str,
+    name_id: str,
+    attributes: dict[str, list[str]],
+    session_index: str | None = None,
+) -> str:
+    """
+    Base64-encoded SAML Response with a signed assertion, ready for the
+    HTTP-POST binding (docs/spec/authentication.md SAML 2.0).
+    """
+
+    session_index = session_index or saml_id()
+
+    attribute_xml = "".join(
+        f'<saml:Attribute Name="{name}">'
+        + "".join(
+            f"<saml:AttributeValue>{value}</saml:AttributeValue>"
+            for value in values
+        )
+        + "</saml:Attribute>"
+        for name, values in attributes.items()
+    )
+
+    assertion_xml = f"""\
+<saml:Assertion xmlns:saml="{NS_SAML}" ID="{saml_id()}" Version="2.0" IssueInstant="{_instant()}">
+  <saml:Issuer>{issuer}</saml:Issuer>
+  <saml:Subject>
+    <saml:NameID Format="{NAMEID_UNSPECIFIED}">{name_id}</saml:NameID>
+    <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+      <saml:SubjectConfirmationData InResponseTo="{in_response_to}" Recipient="{acs_url}" NotOnOrAfter="{_instant(300)}"/>
+    </saml:SubjectConfirmation>
+  </saml:Subject>
+  <saml:Conditions NotBefore="{_instant(-300)}" NotOnOrAfter="{_instant(300)}">
+    <saml:AudienceRestriction>
+      <saml:Audience>{audience}</saml:Audience>
+    </saml:AudienceRestriction>
+  </saml:Conditions>
+  <saml:AuthnStatement AuthnInstant="{_instant()}" SessionIndex="{session_index}">
+    <saml:AuthnContext>
+      <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:Password</saml:AuthnContextClassRef>
+    </saml:AuthnContext>
+  </saml:AuthnStatement>
+  <saml:AttributeStatement>{attribute_xml}</saml:AttributeStatement>
+</saml:Assertion>
+"""
+
+    assertion = _sign(etree.fromstring(assertion_xml.encode()), idp_key, idp_cert)
+
+    response_xml = f"""\
+<samlp:Response xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}" ID="{saml_id()}"
+    Version="2.0" IssueInstant="{_instant()}" Destination="{acs_url}"
+    InResponseTo="{in_response_to}">
+  <saml:Issuer>{issuer}</saml:Issuer>
+  <samlp:Status>
+    <samlp:StatusCode Value="{STATUS_SUCCESS}"/>
+  </samlp:Status>
+</samlp:Response>
+"""
+
+    response = etree.fromstring(response_xml.encode())
+    response.append(assertion)
+
+    return base64.b64encode(etree.tostring(response)).decode()
+
+
+def mint_logout_request(
+    idp_key: rsa.RSAPrivateKey,
+    idp_cert: bytes,
+    issuer: str,
+    destination: str,
+    name_id: str,
+    session_index: str | None = None,
+) -> str:
+    """
+    Base64-encoded signed LogoutRequest for IdP-initiated front-channel
+    SLO over the HTTP-POST binding.
+    """
+
+    session_xml = (
+        f"<samlp:SessionIndex>{session_index}</samlp:SessionIndex>"
+        if session_index
+        else ""
+    )
+
+    request_xml = f"""\
+<samlp:LogoutRequest xmlns:samlp="{NS_SAMLP}" xmlns:saml="{NS_SAML}"
+    ID="{saml_id()}" Version="2.0" IssueInstant="{_instant()}"
+    Destination="{destination}">
+  <saml:Issuer>{issuer}</saml:Issuer>
+  <saml:NameID Format="{NAMEID_UNSPECIFIED}">{name_id}</saml:NameID>
+  {session_xml}
+</samlp:LogoutRequest>
+"""
+
+    signed = _sign(etree.fromstring(request_xml.encode()), idp_key, idp_cert)
+
+    return base64.b64encode(etree.tostring(signed)).decode()
 
 
 # --------------------------------------------------------------- browser --
