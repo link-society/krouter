@@ -3,7 +3,7 @@
 krouter extends HTTPRoute and GRPCRoute rules through the Gateway API
 `ExtensionRef` filter, without defining any custom resource
 (docs/spec/overview.md design principles). An extension is a core
-ConfigMap holding HCL documents, referenced from a route rule:
+ConfigMap or Secret holding HCL documents, referenced from a route rule:
 
 ```yaml
 filters:
@@ -14,38 +14,46 @@ filters:
       name: my-extension
 ```
 
-The ConfigMap lives in the route's namespace (`LocalObjectReference`
-semantics; cross-namespace references are not expressible). It carries one
-or both of these keys:
+The referenced object lives in the route's namespace
+(`LocalObjectReference` semantics; cross-namespace references are not
+expressible). Its kind determines the keys it may carry:
 
-| Key | Contents |
-|---|---|
-| `ratelimit.hcl` | Rate limiting configuration (see below) |
-| `waf.hcl` | Coraza web application firewall configuration (see below) |
+| Kind | Key | Contents |
+|---|---|---|
+| ConfigMap | `ratelimit.hcl` | Rate limiting configuration (see below) |
+| ConfigMap | `waf.hcl` | Coraza web application firewall configuration (see below) |
+| Secret | `auth.hcl` | Authentication and authorization (docs/spec/authentication.md) |
 
-Other keys are ignored. A referenced ConfigMap carrying neither key is
-invalid.
+A ConfigMap carries one or both of its keys. Unrelated keys are ignored,
+with one exception: a krouter key in the wrong kind (`auth.hcl` in a
+ConfigMap, an enforcement key in a Secret) is invalid, because
+credentials MUST NOT live in ConfigMaps and silently ignoring a
+misplaced key would disable the intended protection. A referenced object
+carrying no valid key is invalid.
 
 ## Resolution and status
 
 - `extensionRef` with any group other than `""` (core) or any kind other
-  than `ConfigMap` is a filter value outside the supported set: the route
-  MUST be rejected with reason `UnsupportedValue` and MUST NOT be
-  partially applied (docs/spec/traffic.md Routing and filters).
+  than `ConfigMap` or `Secret` is a filter value outside the supported
+  set: the route MUST be rejected with reason `UnsupportedValue` and MUST
+  NOT be partially applied (docs/spec/traffic.md Routing and filters).
 - A rule MAY carry several `ExtensionRef` filters; they compose, in
   filter list order. Documents of the same key merge: `ratelimit.hcl`
   documents merge attribute by attribute (a later document overrides the
   attributes it sets and inherits the rest), and `waf.hcl` documents
   concatenate their directives into one ruleset (see below). This is the
   modularity mechanism: a base ConfigMap can be shared by many routes and
-  refined by later, route-specific ones.
+  refined by later, route-specific ones. `auth.hcl` documents merge
+  attribute by attribute too; the merged result MUST configure at
+  least one provider (docs/spec/authentication.md).
 - `ExtensionRef` in `backendRefs[].filters` MUST be rejected with reason
   `UnsupportedValue`, like every non-header per-backendRef filter.
-- A referenced ConfigMap that is missing, carries neither key, or holds
+- A referenced object that is missing, carries no valid key, or holds
   invalid HCL keeps the route accepted (the filter type is supported;
   its target is broken) but MUST set the route's `ResolvedRefs`
   condition to `False` with reason `InvalidExtensionRef` and a message
-  naming the ConfigMap and the error. The same handling applies when the
+  naming the object and the error (never quoting Secret contents,
+  docs/spec/security.md). The same handling applies when the
   merged rate-limit configuration is incomplete or when the concatenated
   WAF directives fail to build. Requests matching the affected rules
   MUST be answered `500 Internal Server Error`: per the upstream API, an
@@ -55,17 +63,19 @@ invalid.
 
 ## Configuration lifecycle
 
-Extension ConfigMaps are source configuration, exactly like parameter
-ConfigMaps and certificate Secrets:
+Extension ConfigMaps and Secrets are source configuration, exactly like
+parameter ConfigMaps and certificate Secrets:
 
 - The control plane reads them during reconciliation and compiles their
   content into the generated per-route configuration
   (docs/spec/configuration.md). Generations are content-addressed, so
-  editing an extension ConfigMap produces a new generation that the data
+  editing an extension object produces a new generation that the data
   plane applies atomically, with the usual last-valid behavior on load
   failure.
-- The data plane MUST NOT read source ConfigMaps (docs/spec/security.md):
-  it consumes only the compiled copy.
+- The data plane MUST NOT read source ConfigMaps or Secrets
+  (docs/spec/security.md): it consumes only the compiled copy, and
+  compiled authentication material travels in the generated Secret
+  (docs/spec/authentication.md).
 - Rate limiter state is local to each compiled generation: buckets reset
   when the affected route's configuration changes, exactly as
   round-robin counters do on table swap (docs/spec/traffic.md Connection
@@ -190,6 +200,8 @@ is hijacked into a tunnel:
 
 - Rate limiting counts the handshake as one request; a limited handshake
   is rejected with the configured status and no upgrade happens.
+- Authentication and authorization run on the handshake request like on
+  any other (docs/spec/authentication.md).
 - The WAF inspects the handshake request (method, path, query, headers;
   upgrade requests carry no body) and a deny interrupts it before any
   backend connection exists.
@@ -200,9 +212,13 @@ is hijacked into a tunnel:
 
 For a request matched to a rule carrying extensions, enforcement order is:
 
-1. Rate limiting (cheapest first; a limited request consumes no WAF CPU).
-2. WAF request phases.
-3. Every other filter and gateway-produced response (CORS preflight
+1. Rate limiting (cheapest first; a limited request consumes no
+   authentication or WAF CPU).
+2. Authentication, then authorization (docs/spec/authentication.md).
+   CORS preflights are exempt from this step only, since browsers never
+   attach credentials to them.
+3. WAF request phases.
+4. Every other filter and gateway-produced response (CORS preflight
    answers, redirects, mirrors, header modifiers, forwarding).
 
 A request rejected by an extension MUST NOT be mirrored, redirected,
@@ -215,8 +231,8 @@ answered with CORS headers, or forwarded.
 - `krouter_dataplane_waf_decisions_total{result}` with result `allowed`,
   `denied`, or `error`.
 - Rejected requests appear in the access log with the produced status and
-  a field naming the rejecting extension (`ratelimit` or `waf`) and, for
-  WAF denials, the interrupting rule identifier.
+  a field naming the rejecting extension (`ratelimit`, `waf`, or `auth`)
+  and, for WAF denials, the interrupting rule identifier.
 - Label rules of docs/spec/observability.md apply: no client keys, IPs,
   or paths as metric labels.
 

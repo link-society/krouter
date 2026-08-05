@@ -26,6 +26,7 @@ self-contained enough to be consulted on its own.
 | [configuration.md](configuration.md) | Compiled configuration model, atomic publication, last-valid behavior, ownership and garbage collection |
 | [traffic.md](traffic.md) | Request path, connection lifecycle, hot reload, backend discovery, HTTP behavior |
 | [extensions.md](extensions.md) | ExtensionRef filters: rate limiting and Coraza WAF from ConfigMaps |
+| [authentication.md](authentication.md) | Per-rule authentication and authorization: OIDC, SAML, LDAP, bearer JWT, stateless sessions, gateway-served login page |
 | [security.md](security.md) | TLS material handling, RBAC, workload hardening |
 | [status.md](status.md) | Gateway API status ownership and data-plane acknowledgement |
 | [observability.md](observability.md) | Health endpoints, logging, metrics |

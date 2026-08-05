@@ -17,6 +17,21 @@
   the SNI value from the ClientHello without decrypting anything, and the
   backend owns the TLS session end to end.
 
+## Authentication material
+
+- Auth extension Secrets (docs/spec/authentication.md) are source
+  configuration read by the control plane during reconciliation, like
+  certificate Secrets.
+- The compiled authentication configuration is carried by the generated
+  per-generation Secret, never by generated ConfigMaps.
+- The data plane reads only the generated copy, never source extension
+  Secrets.
+- Session cookies are protected by authenticated encryption keyed from
+  the extension's session secret. Session keys, credentials, tokens, and
+  assertions MUST NOT appear in logs, metrics, ConfigMaps, or status
+  messages; a status condition names a broken Secret without quoting its
+  contents.
+
 ## Frontend client certificate validation
 
 `Gateway.spec.tls.frontend` configures client-certificate validation for
@@ -76,7 +91,8 @@ The control plane may:
   name.
 - Create/update/delete generated Services, EndpointSlices, RoleBindings,
   ConfigMaps, and Secrets.
-- Read referenced Secrets to produce generated TLS Secrets.
+- Read referenced Secrets (listener certificates, auth extensions) to
+  produce generated Secrets.
 
 ### Data-plane permissions
 
@@ -85,7 +101,7 @@ The data plane may:
 - Read controller-generated ConfigMaps and Secrets in `krouter-system`.
 - Read Services and EndpointSlices only in namespaces containing an
   accepted backend used by at least one owned Gateway.
-- Read no source TLS Secrets.
+- Read no source Secrets.
 - Write no Gateway API resources or statuses.
 
 The control plane manages namespace-scoped RoleBindings for backend

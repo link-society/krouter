@@ -89,3 +89,19 @@ The implementation is accepted when:
     listener, that comes without trusted proxies, or that disagrees
     across listeners sharing an internal listener is reported as
     `InvalidParameters`, verified by end-to-end tests.
+28. `ExtensionRef` authentication enforces OIDC, SAML, LDAP, and bearer
+    JWT per rule from `auth.hcl` Secrets: browser flows complete the
+    redirect round trip against a mock identity provider and mint
+    stateless sessions that hold across configuration reloads and
+    data-plane pod replacement, unsolicited SAML assertions are
+    rejected, LDAP collects credentials through the login form or HTTP
+    Basic with search-then-bind, bearer JWTs gate HTTPRoute and
+    GRPCRoute rules with RFC 6750 challenges and gRPC statuses,
+    documents merge in filter order and MAY compose several providers
+    on one rule with browser clients choosing theirs on the
+    gateway-served login page, claim rules answer 403 without redirect
+    loops, identity headers reach backends with client-supplied copies
+    stripped, logout clears the session and reaches the provider's
+    logout endpoint, broken or misplaced references fail closed, and
+    an unreachable provider yields 503 while established sessions keep
+    working, verified by end-to-end tests.

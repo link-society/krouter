@@ -268,8 +268,9 @@ GRPCRoute rules support `RequestHeaderModifier`, `ResponseHeaderModifier`,
 and `RequestMirror` with the same semantics.
 
 HTTPRoute and GRPCRoute rules additionally support `ExtensionRef` filters
-referencing core ConfigMaps, enabling per-rule rate limiting and WAF
-inspection (docs/spec/extensions.md).
+referencing core ConfigMaps and Secrets, enabling per-rule rate limiting,
+WAF inspection (docs/spec/extensions.md), and authentication
+(docs/spec/authentication.md).
 
 Backend references MAY carry their own filters (`backendRefs[].filters`):
 `RequestHeaderModifier` and `ResponseHeaderModifier` are supported and
@@ -287,7 +288,7 @@ be partially applied.
 
 No implementation-specific annotations are interpreted, and no custom
 resources are defined: route extensions are limited to the `ExtensionRef`
-ConfigMap contract of docs/spec/extensions.md.
+contract of docs/spec/extensions.md.
 
 ## Timeouts
 
