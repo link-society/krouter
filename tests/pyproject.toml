@@ -13,6 +13,7 @@ dependencies = [
     "PyYAML>=6.0",
     "junitparser>=5.0.1",
     "websockets>=13",
+    "signxml>=4.0",
 ]
 
 [tool.pdm]
