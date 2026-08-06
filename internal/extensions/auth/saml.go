@@ -21,6 +21,8 @@ import (
 
 	"time"
 
+	"github.com/beevik/etree"
+
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	dsig "github.com/russellhaering/goxmldsig"
@@ -333,15 +335,33 @@ func (e *Enforcer) serveSAMLSLO(w http.ResponseWriter, r *http.Request) int {
 	// the session cookie it could never reach server-side.
 	e.codec.ClearSession(w, r)
 
-	relayState := r.Form.Get("RelayState")
-
-	target, err := sp.MakeRedirectLogoutResponse(request.ID, relayState)
-	if err != nil {
+	destination := sp.GetSLOBindingLocation(saml.HTTPRedirectBinding)
+	if destination == "" {
 		// No IdP SLO endpoint to answer to: the session is cleared, done.
 		return e.redirect(w, r, "/")
 	}
 
-	return e.redirect(w, r, target.String())
+	response, err := sp.MakeLogoutResponse(destination, request.ID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+
+		return http.StatusInternalServerError
+	}
+
+	target, err := signedRedirect(
+		sp,
+		destination,
+		"SAMLResponse",
+		response.Element(),
+		r.Form.Get("RelayState"),
+	)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+
+		return http.StatusInternalServerError
+	}
+
+	return e.redirect(w, r, target)
 }
 
 // LogoutURL builds the RP-initiated single logout redirect from the
@@ -353,16 +373,30 @@ func (p *SAMLProvider) LogoutURL(r *http.Request, session *Session, prefix strin
 	}
 
 	sp, err := p.serviceProvider(r, prefix)
-	if err != nil || sp.GetSLOBindingLocation(saml.HTTPRedirectBinding) == "" {
-		return ""
-	}
-
-	target, err := sp.MakeRedirectLogoutRequest(session.NameID, "")
 	if err != nil {
 		return ""
 	}
 
-	return target.String()
+	destination := sp.GetSLOBindingLocation(saml.HTTPRedirectBinding)
+	if destination == "" {
+		return ""
+	}
+
+	request, err := sp.MakeLogoutRequest(destination, session.NameID)
+	if err != nil {
+		return ""
+	}
+
+	if session.SessionIndex != "" {
+		request.SessionIndex = &saml.SessionIndex{Value: session.SessionIndex}
+	}
+
+	target, err := signedRedirect(sp, destination, "SAMLRequest", request.Element(), "")
+	if err != nil {
+		return ""
+	}
+
+	return target
 }
 
 // ---------------------------------------------------------------- helpers --
@@ -414,6 +448,79 @@ func (p *SAMLProvider) identityFromAssertion(
 	}
 
 	return identity, extra
+}
+
+// signedRedirect builds a redirect-binding URL for one SAML message,
+// signing the query string with sp_key (SAML bindings §3.4.4.1; the
+// XML signature does not survive the DEFLATE encoding, the query
+// signature replaces it).
+func signedRedirect(
+	sp *saml.ServiceProvider,
+	destination string,
+	param string,
+	element *etree.Element,
+	relayState string,
+) (string, error) {
+	// The embedded XML signature MUST be removed on this binding.
+	for _, child := range element.ChildElements() {
+		if child.Tag == "Signature" {
+			element.RemoveChild(child)
+		}
+	}
+
+	var encoded bytes.Buffer
+	b64 := base64.NewEncoder(base64.StdEncoding, &encoded)
+	deflated, _ := flate.NewWriter(b64, flate.BestCompression)
+
+	document := etree.NewDocument()
+	document.SetRoot(element)
+	if _, err := document.WriteTo(deflated); err != nil {
+		return "", err
+	}
+
+	if err := deflated.Close(); err != nil {
+		return "", err
+	}
+
+	if err := b64.Close(); err != nil {
+		return "", err
+	}
+
+	target, err := url.Parse(destination)
+	if err != nil {
+		return "", err
+	}
+
+	// Order matters for the signature: the signed string is the query
+	// as transmitted.
+	query := target.RawQuery
+	if query != "" {
+		query += "&"
+	}
+
+	query += param + "=" + url.QueryEscape(encoded.String())
+	if relayState != "" {
+		query += "&RelayState=" + url.QueryEscape(relayState)
+	}
+
+	query += "&SigAlg=" + url.QueryEscape(sp.SignatureMethod)
+
+	signingContext, err := saml.GetSigningContext(sp)
+	if err != nil {
+		return "", err
+	}
+
+	signature, err := signingContext.SignString(query)
+	if err != nil {
+		return "", err
+	}
+
+	query += "&Signature=" + url.QueryEscape(
+		base64.StdEncoding.EncodeToString(signature))
+
+	target.RawQuery = query
+
+	return target.String(), nil
 }
 
 // parseLogoutRequest decodes an incoming front-channel LogoutRequest:
