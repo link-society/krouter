@@ -264,7 +264,10 @@ func (c *Codec) SealState(
 	}
 
 	cookie := c.cookie(r, c.StateCookie(), value, StateLifetime)
-	if crossSite {
+	if crossSite && r.TLS != nil {
+		// SameSite=None requires Secure: on plain HTTP listeners the
+		// cookie stays Lax (docs/spec/authentication.md Stateless
+		// sessions), matching the Secure-on-HTTPS rule.
 		cookie.SameSite = http.SameSiteNoneMode
 		cookie.Secure = true
 	}

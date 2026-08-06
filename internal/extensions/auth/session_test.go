@@ -207,7 +207,7 @@ func TestCrossSiteStateCookie(t *testing.T) {
 	codec := testCodec(t, "0123456789ab")
 
 	w := httptest.NewRecorder()
-	err := codec.SealState(w, httptest.NewRequest("GET", "/", nil), &State{
+	err := codec.SealState(w, httptest.NewRequest("GET", "https://gw.example/", nil), &State{
 		Extension:     "0123456789ab",
 		SAMLRequestID: "_r1",
 	}, true)
@@ -218,5 +218,21 @@ func TestCrossSiteStateCookie(t *testing.T) {
 	cookie := w.Result().Cookies()[0]
 	if cookie.SameSite != http.SameSiteNoneMode || !cookie.Secure {
 		t.Errorf("cross-site state must be SameSite=None; Secure: %+v", cookie)
+	}
+
+	// SameSite=None requires Secure: plain HTTP listeners keep Lax so
+	// the cookie is not refused outright.
+	w = httptest.NewRecorder()
+	err = codec.SealState(w, httptest.NewRequest("GET", "/", nil), &State{
+		Extension:     "0123456789ab",
+		SAMLRequestID: "_r1",
+	}, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cookie = w.Result().Cookies()[0]
+	if cookie.SameSite != http.SameSiteLaxMode || cookie.Secure {
+		t.Errorf("plain-http cross-site state must stay Lax: %+v", cookie)
 	}
 }
