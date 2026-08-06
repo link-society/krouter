@@ -2,7 +2,8 @@
 # Demo topology: one Gateway serving every route kind implemented by
 # krouter — HTTP, gRPC, TCP, UDP and TLS passthrough — backed by the mock
 # backends from tests/mocks (httpbin, tcpbin, udpbin, grpcbin; images built
-# by `task mocks:build`). `task k8s:serve` builds and loads the
+# by `task mocks:build`), plus an LDAP-protected path backed by a GLAuth
+# directory. `task k8s:serve` builds and loads the
 # images, applies this manifest and port-forwards the dashboard.
 #
 # It also keeps the dashboard-degradation examples: a cross-namespace
@@ -36,6 +37,20 @@
 #
 #   # TLS passthrough — grpcbin's TLS listener, routed by SNI:
 #   grpcurl -insecure -servername grpcbin.demo.example.com 127.0.0.1:30100 list
+#
+#   # Authentication — LDAP-protected paths (docs/spec/authentication.md;
+#   # alice/alice-password is in platform-team, bob/bob-password in
+#   # contractors, /admin requires platform-team):
+#   curl -si -H 'Host: httpbin.demo.example.com' http://127.0.0.1:30098/private   # 401 + Basic challenge
+#   curl -s -u alice:alice-password -H 'Host: httpbin.demo.example.com' \
+#     http://127.0.0.1:30098/private                                              # X-Auth-Request-* headers
+#   curl -si -u bob:bob-password -H 'Host: httpbin.demo.example.com' \
+#     http://127.0.0.1:30098/admin                                                # 403, wrong group
+#
+#   # Browser flow (login form, session cookie, logout): add
+#   #   127.0.0.1 httpbin.demo.example.com
+#   # to /etc/hosts, then open http://httpbin.demo.example.com:30098/private
+#   # and http://httpbin.demo.example.com:30098/.krouter/auth/logout
 #
 #   # UDP — udpbin (NodePort left dynamic: the kind cluster publishes no
 #   # spare UDP host port, so probe from inside the cluster):
@@ -503,6 +518,194 @@ spec:
       kind: Service
 ---
 ##############################
+## DIRECTORY (LDAP identities)
+##############################
+# GLAuth directory backing the authentication demo: three accounts
+# (svc-krouter/svc-secret for the gateway's search bind, alice and bob
+# with the passwords hashed below) and their groups.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: directory-config
+  namespace: demo
+data:
+  config.cfg: |
+    [ldap]
+      enabled = true
+      listen = "0.0.0.0:3893"
+
+    [ldaps]
+      enabled = false
+
+    [api]
+      enabled = false
+
+    [behaviors]
+      IgnoreCapabilities = false
+      LimitFailedBinds = false
+
+    [backend]
+      datastore = "config"
+      baseDN = "dc=example,dc=com"
+
+    [[users]]
+      name = "svc-krouter"
+      uidnumber = 5000
+      primarygroup = 5500
+      passsha256 = "266739a274b3d2030954f1b943135d2116afe09e1a9f9d287d70bbd43ae94515"
+        [[users.capabilities]]
+        action = "search"
+        object = "*"
+
+    [[users]]
+      name = "alice"
+      mail = "alice@example.com"
+      uidnumber = 5001
+      primarygroup = 5501
+      passsha256 = "17a96502d336e4c18a43182a353d7f0a38414c6fc4daf678acae834a819cecee"
+
+    [[users]]
+      name = "bob"
+      mail = "bob@example.com"
+      uidnumber = 5002
+      primarygroup = 5502
+      passsha256 = "df53c27a66157885ba143e34f25d6380e12168b0f7da4f0c46efa54cd9a083b7"
+
+    [[groups]]
+      name = "svcaccts"
+      gidnumber = 5500
+
+    [[groups]]
+      name = "platform-team"
+      gidnumber = 5501
+
+    [[groups]]
+      name = "contractors"
+      gidnumber = 5502
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: directory
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: directory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: directory
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: directory
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: glauth
+          image: glauth/glauth:v2.4.0
+          imagePullPolicy: IfNotPresent
+          # The image's default command already loads /app/config/config.cfg,
+          # provided by the ConfigMap mount below.
+          ports:
+            - name: ldap
+              containerPort: 3893
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: ldap
+            periodSeconds: 5
+          securityContext:
+            runAsNonRoot: true
+            # The stock image runs as root; any unprivileged UID works.
+            runAsUser: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: directory-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: directory
+  namespace: demo
+spec:
+  selector:
+    app.kubernetes.io/name: directory
+  ports:
+    - name: ldap
+      port: 3893
+      targetPort: ldap
+---
+# Authentication material rides Secrets, never ConfigMaps
+# (docs/spec/extensions.md). Demo-only credentials.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-auth
+  namespace: demo
+stringData:
+  auth.hcl: |
+    version = 1
+
+    auth {
+      session {
+        secret   = "demo-only-session-secret-0123456789abcdef"
+        lifetime = "12h"
+      }
+
+      provider "ldap" {
+        url           = "ldap://directory.demo.svc.cluster.local:3893"
+        bind_dn       = "cn=svc-krouter,ou=svcaccts,dc=example,dc=com"
+        bind_password = "svc-secret"
+        user_base_dn  = "dc=example,dc=com"
+        user_filter   = "(cn={username})"
+        realm         = "demo"
+
+        attributes {
+          email = "mail"
+        }
+
+        group_search {
+          base_dn   = "ou=groups,dc=example,dc=com"
+          filter    = "(uniqueMember={dn})"
+          attribute = "cn"
+        }
+      }
+    }
+---
+# Composed after demo-auth on the /admin rule: require blocks only ever
+# tighten access (docs/spec/authentication.md Resolution).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-auth-admins
+  namespace: demo
+stringData:
+  auth.hcl: |
+    version = 1
+
+    auth {
+      authorization {
+        require {
+          claim  = "groups"
+          values = ["platform-team"]
+        }
+      }
+    }
+---
+##############################
 ## ROUTES
 ##############################
 # Extended-feature showcase: request timeout, URL rewrite, header
@@ -613,6 +816,64 @@ spec:
         - name: audit
           namespace: demo-backends
           port: 9100
+---
+# LDAP-protected paths (docs/spec/authentication.md): /private for any
+# authenticated user, /admin for platform-team only. Both rewrite to
+# httpbin's /headers so the injected X-Auth-Request-* identity headers
+# are visible in the response.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: private
+  namespace: demo
+spec:
+  parentRefs:
+    - name: demo
+      sectionName: http
+  hostnames:
+    - httpbin.demo.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /private
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: ""
+            kind: Secret
+            name: demo-auth
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /headers
+      backendRefs:
+        - name: httpbin
+          port: 80
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /admin
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: ""
+            kind: Secret
+            name: demo-auth
+        - type: ExtensionRef
+          extensionRef:
+            group: ""
+            kind: Secret
+            name: demo-auth-admins
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /headers
+      backendRefs:
+        - name: httpbin
+          port: 80
 ---
 # Intentionally missing backend: shows degraded rendering in the dashboard
 # and 500s at runtime (docs/spec/failure-modes.md).
