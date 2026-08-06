@@ -48,7 +48,7 @@ groups:
       - feature: "PROXY protocol (client IP on raw TCP)"
         values: [yes, yes, yes, yes, yes]
       - feature: "Authentication / authorization policies"
-        values: [no, yes, no, yes, yes]
+        values: [yes, yes, no, yes, yes]
 
   - name: Beyond krouter's scope
     rows:

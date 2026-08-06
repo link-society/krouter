@@ -38,7 +38,7 @@ extensions · — not provided):
 | Web application firewall (built-in OWASP CRS) | ✅ | ◐ | — | ◐ | ◐ |
 | Client IP from trusted proxies (X-Forwarded-For) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | PROXY protocol (client IP on raw TCP) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Authentication / authorization policies | — | ✅ | — | ✅ | ✅ |
+| Authentication / authorization policies | ✅ | ✅ | — | ✅ | ✅ |
 | **Beyond krouter's scope** | | | | | |
 | Service mesh (east-west traffic) | — | — | — | — | ✅ |
 | Retries and circuit breaking | — | ✅ | — | ✅ | ✅ |
