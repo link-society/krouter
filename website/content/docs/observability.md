@@ -1,7 +1,7 @@
 ---
 title: "Observability"
 description: "The live dashboard, Prometheus metrics, access logs, and failure behavior."
-weight: 5
+weight: 6
 ---
 
 ## Live dashboard
@@ -38,6 +38,7 @@ described in the
 | `krouter_dataplane_backend_errors_total` | Counter | `kind`: `selection`, `connection` | Backend failures on HTTP and gRPC routes: `selection` covers rules without a usable backend or ready endpoint, `connection` covers failed backend requests. |
 | `krouter_dataplane_ratelimit_decisions_total` | Counter | `result`: `allowed`, `limited` | [Rate limiting](/docs/extensions/) decisions on rules carrying a limit. |
 | `krouter_dataplane_waf_decisions_total` | Counter | `result`: `allowed`, `denied`, `error` | [WAF](/docs/extensions/) decisions on rules carrying a ruleset. |
+| `krouter_dataplane_auth_decisions_total` | Counter | `provider`: `oidc`, `saml`, `ldap`, `jwt`, `none`; `result`: `allowed`, `unauthenticated`, `forbidden`, `error` | [Authentication](/docs/authentication/) decisions on rules carrying an auth extension. |
 | `krouter_dataplane_tcp_connections_total` | Counter | `result`: `forwarded`, `refused`, `error` | TCP connections handled, by outcome. |
 | `krouter_dataplane_tcp_active_connections` | Gauge | — | TCP connections currently forwarded. |
 | `krouter_dataplane_tcp_bytes_total` | Counter | `direction`: `downstream_to_backend`, `backend_to_downstream` | Bytes forwarded on TCP routes, by direction. |

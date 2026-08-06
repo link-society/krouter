@@ -8,15 +8,21 @@ krouter extends route rules through the Gateway API
 [ExtensionRef filter](https://gateway-api.sigs.k8s.io/api-types/httproute/#filters-optional),
 without defining any custom resource. An extension is a plain
 [ConfigMap](https://kubernetes.io/docs/concepts/configuration/configmap/)
+or [Secret](https://kubernetes.io/docs/concepts/configuration/secret/)
 holding [HCL](https://github.com/hashicorp/hcl) documents, referenced from
-an HTTPRoute or GRPCRoute rule. The ConfigMap lives in the route's own
-namespace (`LocalObjectReference` semantics, so cross-namespace references
-are not expressible) and carries one or both of these keys:
+an HTTPRoute or GRPCRoute rule. The referenced object lives in the route's
+own namespace (`LocalObjectReference` semantics, so cross-namespace
+references are not expressible) and each key belongs to exactly one kind:
 
-| Key | Contents |
-|---|---|
-| `ratelimit.hcl` | Token-bucket rate limiting |
-| `waf.hcl` | Coraza web application firewall ruleset |
+| Key | Kind | Contents |
+|---|---|---|
+| `ratelimit.hcl` | ConfigMap | Token-bucket rate limiting |
+| `waf.hcl` | ConfigMap | Coraza web application firewall ruleset |
+| `auth.hcl` | Secret | [Authentication and authorization](/docs/authentication/) |
+
+A misplaced key (such as `auth.hcl` in a ConfigMap) invalidates the
+reference. This page covers the two ConfigMap keys; authentication has
+[its own page](/docs/authentication/).
 
 The filter and the ConfigMap it points to always travel together:
 
@@ -138,14 +144,16 @@ Extensions follow the same fail-closed contract as the rest of the Gateway
 API:
 
 - A reference with any group other than core or any kind other than
-  `ConfigMap`, or an `ExtensionRef` under `backendRefs[].filters`, rejects
-  the route in full with reason `UnsupportedValue`.
-- A referenced ConfigMap that is missing, carries neither key, holds
-  invalid HCL, produces an incomplete merged rate-limit configuration, or
-  whose concatenated WAF directives fail to build keeps the route accepted
-  but sets `ResolvedRefs` to `False` with reason `InvalidExtensionRef`.
-  Requests matching the affected rule are answered `500`, never silently
-  skipped, mirroring how unresolvable backends behave.
+  `ConfigMap` or `Secret`, or an `ExtensionRef` under
+  `backendRefs[].filters`, rejects the route in full with reason
+  `UnsupportedValue`.
+- A referenced object that is missing, carries no key valid for its kind,
+  holds invalid HCL, produces an incomplete merged rate-limit
+  configuration, or whose concatenated WAF directives fail to build keeps
+  the route accepted but sets `ResolvedRefs` to `False` with reason
+  `InvalidExtensionRef`. Requests matching the affected rule are answered
+  `500`, never silently skipped, mirroring how unresolvable backends
+  behave.
 
 The control plane validates a WAF ruleset by building the engine once at
 compile time, so a broken program surfaces as `InvalidExtensionRef` before
@@ -155,10 +163,10 @@ any request reaches it.
 
 For a request matched to a rule carrying extensions, enforcement runs rate
 limiting first (cheapest, so a limited request consumes no WAF CPU), then
-the WAF request phases, then every other filter and gateway-produced
-response (CORS answers, redirects, mirrors, header modifiers, forwarding).
-A request rejected by an extension is never mirrored, redirected, answered
-with CORS headers, or forwarded.
+[authentication](/docs/authentication/), then the WAF request phases, then
+every other filter and gateway-produced response (CORS answers, redirects,
+mirrors, header modifiers, forwarding). A request rejected by an extension
+is never mirrored, redirected, answered with CORS headers, or forwarded.
 
 See [Observability](/docs/observability/) for the decision metrics and the
 access-log fields that record extension rejections.

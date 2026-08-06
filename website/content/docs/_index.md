@@ -45,6 +45,8 @@ configuration keeps serving.
   cross-namespace policies.
 - [Extensions](/docs/extensions/): per-rule rate limiting and Coraza WAF
   from plain ConfigMaps.
+- [Authentication](/docs/authentication/): per-rule OIDC, SAML, LDAP and
+  JWT authentication from plain Secrets.
 - [Observability](/docs/observability/): dashboard, metrics and logs.
 - [Conformance & testing](/docs/conformance/): how krouter is verified,
   including the full [test report](/report/report.html).
