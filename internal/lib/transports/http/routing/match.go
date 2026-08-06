@@ -10,6 +10,7 @@ import (
 
 	discoveryv1 "k8s.io/api/discovery/v1"
 
+	"github.com/link-society/krouter/internal/extensions/auth"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 	"github.com/link-society/krouter/internal/lib/transports/grpc"
 	"github.com/link-society/krouter/internal/lib/transports/tcp"
@@ -107,6 +108,57 @@ func (t *Tables) match(
 	}
 
 	return bestRule, bestListener, bestRoute
+}
+
+// AuthEndpoint resolves the auth extensions whose reserved endpoints
+// intercept one request path (docs/spec/authentication.md Reserved path
+// prefix): on every hostname under which an accepted rule carrying a
+// cookie provider is served, requests under that extension's prefix are
+// answered by the gateway itself and never reach user routes. Several
+// extensions MAY share a hostname and a prefix; the returned candidates
+// are disambiguated by the caller through the state and session
+// cookies.
+func (t *Tables) AuthEndpoint(port int32, host, path string) []*auth.Enforcer {
+	table := t.byPort[port]
+	if table == nil {
+		return nil
+	}
+
+	var candidates []*auth.Enforcer
+	seen := map[string]bool{}
+
+	for _, listener := range table.listeners {
+		if !hostnameMatches(listener.hostname, host) {
+			continue
+		}
+
+		for _, route := range listener.routes {
+			if !routeHostnameMatches(route.hostnames, host) {
+				continue
+			}
+
+			for _, rule := range route.rules {
+				enforcer := rule.authEnforcer
+				if enforcer == nil || !enforcer.HasCookieProvider() {
+					continue
+				}
+
+				if seen[enforcer.Identity()] {
+					continue
+				}
+
+				prefix := enforcer.PathPrefix()
+				if path != prefix && !strings.HasPrefix(path, prefix+"/") {
+					continue
+				}
+
+				seen[enforcer.Identity()] = true
+				candidates = append(candidates, enforcer)
+			}
+		}
+	}
+
+	return candidates
 }
 
 // ruleSpecificity ranks one applying match by the in-rule precedence

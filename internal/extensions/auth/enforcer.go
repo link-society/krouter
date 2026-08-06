@@ -87,8 +87,54 @@ func (p *OIDCProvider) Refresh(ctx context.Context, session *Session, cfg *compi
 	return nil, fmt.Errorf("%w: oidc refresh not implemented", ErrUnavailable)
 }
 
+func (p *OIDCProvider) LogoutURL(r *http.Request, session *Session) string { return "" }
+
+func (p *SAMLProvider) LogoutURL(r *http.Request, session *Session) string { return "" }
+
 func (p *LDAPProvider) Authenticate(ctx context.Context, username, password string) (*Identity, error) {
 	return nil, fmt.Errorf("%w: ldap not implemented", ErrUnavailable)
+}
+
+func (e *Enforcer) serveOIDCStart(w http.ResponseWriter, r *http.Request) int {
+	http.NotFound(w, r)
+
+	return http.StatusNotFound
+}
+
+func (e *Enforcer) serveOIDCCallback(w http.ResponseWriter, r *http.Request) int {
+	http.NotFound(w, r)
+
+	return http.StatusNotFound
+}
+
+func (e *Enforcer) serveSAMLStart(w http.ResponseWriter, r *http.Request) int {
+	http.NotFound(w, r)
+
+	return http.StatusNotFound
+}
+
+func (e *Enforcer) serveSAMLACS(w http.ResponseWriter, r *http.Request) int {
+	http.NotFound(w, r)
+
+	return http.StatusNotFound
+}
+
+func (e *Enforcer) serveSAMLMetadata(w http.ResponseWriter, r *http.Request) int {
+	http.NotFound(w, r)
+
+	return http.StatusNotFound
+}
+
+func (e *Enforcer) serveSAMLSLO(w http.ResponseWriter, r *http.Request) int {
+	http.NotFound(w, r)
+
+	return http.StatusNotFound
+}
+
+func (e *Enforcer) serveLDAPLogin(w http.ResponseWriter, r *http.Request) int {
+	http.NotFound(w, r)
+
+	return http.StatusNotFound
 }
 
 // NewEnforcer hydrates the providers of one compiled extension.

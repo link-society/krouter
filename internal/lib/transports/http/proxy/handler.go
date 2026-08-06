@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/link-society/krouter/internal/extensions/auth"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 	"github.com/link-society/krouter/internal/lib/transports/grpc"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
@@ -206,6 +207,32 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request, port int32, with
 	if withTLS && r.TLS != nil && tables.Misdirected(port, r.TLS.ServerName, host) {
 		http.Error(w, "misdirected request", http.StatusMisdirectedRequest)
 		observeRequest(http.StatusMisdirectedRequest, start)
+		return
+	}
+
+	// Reserved auth endpoints shadow user routes on hostnames served by
+	// cookie-provider rules (docs/spec/authentication.md Reserved path
+	// prefix); rule extensions never apply to them.
+	if candidates := tables.AuthEndpoint(port, host, r.URL.Path); len(candidates) > 0 {
+		status := auth.ServeEndpoint(w, r, candidates)
+		observeRequest(status, start)
+
+		client := r.RemoteAddr
+		if trustedPeer {
+			client = clientIP
+		}
+
+		slog.Info("request",
+			"extension", "auth",
+			"method", r.Method,
+			"authority", host,
+			"path", r.URL.Path,
+			"status", status,
+			"duration", time.Since(start),
+			"proto", r.Proto,
+			"client", client,
+		)
+
 		return
 	}
 
