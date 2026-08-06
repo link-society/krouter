@@ -135,6 +135,23 @@ def stack(gateway_class, module_namespace, signing_key):
     kubectl.wait_route_parent_condition("app-route", ns, "ResolvedRefs", timeout=60)
     net.wait_http_ok(ports.AUTH_OIDC, path="/plain")
 
+    def discovery_ready():
+        """
+        The data plane fetches the discovery document lazily; the first
+        flow start can race Service endpoint propagation.
+        """
+
+        with auth.BrowserSession(ports.AUTH_OIDC) as browser:
+            _, offsite, _ = browser.follow_offsite("/app")
+
+            return offsite is not None or None
+
+    kubectl.wait_for(
+        discovery_ready,
+        timeout=60,
+        desc="oidc discovery reachable from the data plane",
+    )
+
     return ns
 
 
@@ -187,14 +204,15 @@ def complete_login(
     path: str = "/app",
     lifetime: int = 300,
     refresh_token: str | None = None,
-) -> dict:
+) -> tuple[dict, list[str]]:
     """
     Play the provider for one authorization code flow: parse the
     authorization request, install the token expectation, and return
-    through the callback to the protected path.
+    through the callback to the protected path. Returns the
+    authorization request parameters and the visited local paths.
     """
 
-    params, _ = authorize_params(browser, path)
+    params, visited = authorize_params(browser, path)
 
     code = secrets.token_urlsafe(12)
     id_token = auth.mint_jwt(
@@ -232,7 +250,7 @@ def complete_login(
     resp = browser.get(resp.headers["location"])
     assert resp.status_code == 200, "post-login return must serve the app"
 
-    return params
+    return params, visited
 
 
 def test_login_round_trip_mints_a_session(stack, signing_key):
@@ -244,7 +262,7 @@ def test_login_round_trip_mints_a_session(stack, signing_key):
 
     ns = stack
     with auth.BrowserSession(ports.AUTH_OIDC) as browser:
-        params, visited = authorize_params(browser)
+        params, visited = complete_login(ns, browser, signing_key)
 
         # Single interactive provider: the login page is traversed, no
         # chooser is rendered (docs/spec/authentication.md Login page).
@@ -257,7 +275,6 @@ def test_login_round_trip_mints_a_session(stack, signing_key):
         assert params.get("code_challenge"), "PKCE MUST ride the authorization request"
         assert params.get("code_challenge_method") == "S256"
 
-        complete_login(ns, browser, signing_key)
         assert browser.cookie_names(), "the callback must set a session cookie"
 
         resp = browser.get("/app")
