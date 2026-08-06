@@ -67,39 +67,6 @@ type Enforcer struct {
 	saml *SAMLProvider
 }
 
-// Providers not implemented yet are constructed by their own commits;
-// until then a configured provider without an implementation fails
-// closed through the nil checks in Evaluate.
-type SAMLProvider struct{}
-
-func NewSAMLProvider(cfg *compiled.AuthSAML) (*SAMLProvider, error) { return nil, nil }
-
-func (p *SAMLProvider) LogoutURL(r *http.Request, session *Session) string { return "" }
-
-func (e *Enforcer) serveSAMLStart(w http.ResponseWriter, r *http.Request) int {
-	http.NotFound(w, r)
-
-	return http.StatusNotFound
-}
-
-func (e *Enforcer) serveSAMLACS(w http.ResponseWriter, r *http.Request) int {
-	http.NotFound(w, r)
-
-	return http.StatusNotFound
-}
-
-func (e *Enforcer) serveSAMLMetadata(w http.ResponseWriter, r *http.Request) int {
-	http.NotFound(w, r)
-
-	return http.StatusNotFound
-}
-
-func (e *Enforcer) serveSAMLSLO(w http.ResponseWriter, r *http.Request) int {
-	http.NotFound(w, r)
-
-	return http.StatusNotFound
-}
-
 // NewEnforcer hydrates the providers of one compiled extension.
 func NewEnforcer(cfg *compiled.Auth) (*Enforcer, error) {
 	enforcer := &Enforcer{cfg: cfg}

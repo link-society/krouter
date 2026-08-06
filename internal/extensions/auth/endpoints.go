@@ -148,7 +148,7 @@ func (e *Enforcer) serveLogout(w http.ResponseWriter, r *http.Request) int {
 		switch session.Provider {
 		case "saml":
 			if e.saml != nil {
-				if target := e.saml.LogoutURL(r, session); target != "" {
+				if target := e.saml.LogoutURL(r, session, e.cfg.PathPrefix); target != "" {
 					return e.redirect(w, r, target)
 				}
 			}
