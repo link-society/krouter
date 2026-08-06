@@ -7,6 +7,7 @@ import (
 
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 
 	"net"
 	"net/http"
@@ -15,11 +16,32 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/link-society/krouter/internal/extensions/auth"
 	"github.com/link-society/krouter/internal/extensions/ratelimiting"
 	"github.com/link-society/krouter/internal/extensions/waf"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
 	"github.com/link-society/krouter/internal/lib/transports/http/clientip"
 )
+
+// buildAuthEnforcer hydrates one rule's authentication enforcer from
+// the generation's generated Secret (docs/spec/authentication.md).
+func buildAuthEnforcer(identity string, secret *corev1.Secret) (*auth.Enforcer, error) {
+	if secret == nil {
+		return nil, fmt.Errorf("no generated secret for auth extension %s", identity)
+	}
+
+	payload, ok := secret.Data[compiled.AuthSecretKey(identity)]
+	if !ok {
+		return nil, fmt.Errorf("generated secret misses auth extension %s", identity)
+	}
+
+	config := &compiled.Auth{}
+	if err := json.Unmarshal(payload, config); err != nil {
+		return nil, fmt.Errorf("auth extension %s: %w", identity, err)
+	}
+
+	return auth.NewEnforcer(config)
+}
 
 // BuildGatewayTable turns verified compiled payloads into runtime tables.
 // Backend transports whose TLS configuration is unchanged since the
@@ -171,6 +193,19 @@ func BuildGatewayTable(
 					entry.extensionsInvalid = true
 				} else {
 					entry.wafEngine = engine
+				}
+			}
+
+			// The compiled authentication document rides the generated
+			// Secret; a missing entry or a hydration failure fails the
+			// rule closed (docs/spec/authentication.md Configuration
+			// lifecycle).
+			if rule.Auth != "" {
+				enforcer, err := buildAuthEnforcer(rule.Auth, secret)
+				if err != nil {
+					entry.extensionsInvalid = true
+				} else {
+					entry.authEnforcer = enforcer
 				}
 			}
 

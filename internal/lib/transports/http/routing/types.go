@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 
+	"github.com/link-society/krouter/internal/extensions/auth"
 	"github.com/link-society/krouter/internal/extensions/ratelimiting"
 	"github.com/link-society/krouter/internal/extensions/waf"
 	"github.com/link-society/krouter/internal/lib/k8s/compiled"
@@ -189,6 +190,7 @@ type RuleTable struct {
 	// requests are answered 500 (docs/spec/extensions.md).
 	limiter           *ratelimiting.Limiter
 	wafEngine         *waf.Engine
+	authEnforcer      *auth.Enforcer
 	extensionsInvalid bool
 }
 
@@ -199,6 +201,10 @@ func (r *RuleTable) RateLimiter() *ratelimiting.Limiter { return r.limiter }
 // WAF returns the rule's web application firewall engine, or nil
 // (docs/spec/extensions.md Web application firewall).
 func (r *RuleTable) WAF() *waf.Engine { return r.wafEngine }
+
+// Auth returns the rule's authentication enforcer, or nil
+// (docs/spec/authentication.md).
+func (r *RuleTable) Auth() *auth.Enforcer { return r.authEnforcer }
 
 // ExtensionsInvalid reports a broken ExtensionRef target: the rule fails
 // closed (docs/spec/extensions.md Resolution and status).
