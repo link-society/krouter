@@ -21,6 +21,7 @@ const (
 	StatusUnimplemented     = "12"
 	StatusInternal          = "13"
 	StatusUnavailable       = "14"
+	StatusUnauthenticated   = "16"
 )
 
 // IsRequest reports whether the request is a gRPC request.
