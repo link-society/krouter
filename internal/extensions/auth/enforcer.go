@@ -72,39 +72,18 @@ type Enforcer struct {
 // until then a configured provider without an implementation fails
 // closed through the nil checks in Evaluate.
 type (
-	OIDCProvider struct{}
 	LDAPProvider struct{}
 	SAMLProvider struct{}
 )
-
-func NewOIDCProvider(cfg *compiled.AuthOIDC) *OIDCProvider { return nil }
 
 func NewLDAPProvider(cfg *compiled.AuthLDAP) (*LDAPProvider, error) { return nil, nil }
 
 func NewSAMLProvider(cfg *compiled.AuthSAML) (*SAMLProvider, error) { return nil, nil }
 
-func (p *OIDCProvider) Refresh(ctx context.Context, session *Session, cfg *compiled.Auth) (*Session, error) {
-	return nil, fmt.Errorf("%w: oidc refresh not implemented", ErrUnavailable)
-}
-
-func (p *OIDCProvider) LogoutURL(r *http.Request, session *Session) string { return "" }
-
 func (p *SAMLProvider) LogoutURL(r *http.Request, session *Session) string { return "" }
 
 func (p *LDAPProvider) Authenticate(ctx context.Context, username, password string) (*Identity, error) {
 	return nil, fmt.Errorf("%w: ldap not implemented", ErrUnavailable)
-}
-
-func (e *Enforcer) serveOIDCStart(w http.ResponseWriter, r *http.Request) int {
-	http.NotFound(w, r)
-
-	return http.StatusNotFound
-}
-
-func (e *Enforcer) serveOIDCCallback(w http.ResponseWriter, r *http.Request) int {
-	http.NotFound(w, r)
-
-	return http.StatusNotFound
 }
 
 func (e *Enforcer) serveSAMLStart(w http.ResponseWriter, r *http.Request) int {
