@@ -68,26 +68,36 @@ def wait_http_ok(
     timeout: float = 120,
     worker: int = 1,
     headers: dict[str, str] | None = None,
+    consecutive: int = 1,
 ) -> httpx.Response:
     """
     Wait until the Gateway serves 200 for the request (traffic readiness).
+
+    `consecutive` requires that many 200s in a row: NodePorts balance over
+    every data-plane pod, and lazily fetched provider material (JWKS, IdP
+    metadata) is only proven ready per pod.
     """
 
     def check():
-        try:
-            resp = request(
-                node_port,
-                path=path,
-                host=host,
-                scheme=scheme,
-                worker=worker,
-                headers=headers,
-            )
+        resp = None
+        for _ in range(consecutive):
+            try:
+                resp = request(
+                    node_port,
+                    path=path,
+                    host=host,
+                    scheme=scheme,
+                    worker=worker,
+                    headers=headers,
+                )
 
-        except (httpx.HTTPError, OSError):
-            return None
+            except (httpx.HTTPError, OSError):
+                return None
 
-        return resp if resp.status_code == 200 else None
+            if resp.status_code != 200:
+                return None
+
+        return resp
 
     return kubectl.wait_for(
         check,
