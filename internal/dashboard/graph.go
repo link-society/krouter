@@ -22,9 +22,19 @@ type graphNode struct {
 	Lines     []string `json:"lines"`
 	OK        bool     `json:"ok"`
 
+	// Badges are the extension markers shown on the box's top right
+	// corner (docs/spec/extensions.md, docs/spec/authentication.md).
+	Badges []graphBadge `json:"badges,omitempty"`
+
 	// YAMLPath is the endpoint serving the object's manifest; empty when
 	// the object does not exist (e.g. a missing backend Service).
 	YAMLPath string `json:"yamlPath,omitempty"`
+}
+
+// graphBadge is one extension icon with its tooltip label.
+type graphBadge struct {
+	Icon  string `json:"icon"`
+	Label string `json:"label"`
 }
 
 // graphLink is one edge; OK mirrors the attachment/reference validity.
@@ -146,6 +156,7 @@ func buildGraph(topo *gatewayapi.Topology) graphData {
 			Title:     route.Namespace + "/" + route.Name,
 			Lines:     lines,
 			OK:        routeOK,
+			Badges:    routeBadges(&route),
 			YAMLPath:  "/api/yaml/route/" + route.UID,
 		})
 
@@ -194,6 +205,43 @@ func buildGraph(topo *gatewayapi.Topology) graphData {
 	}
 
 	return graph
+}
+
+// routeBadges marks the extensions carried by at least one rule of the
+// route, in enforcement-independent display order: rate limiting, WAF,
+// authentication.
+func routeBadges(route *gatewayapi.RouteInfo) []graphBadge {
+	rateLimit, waf, auth := routeExtensions(route)
+
+	var badges []graphBadge
+
+	if rateLimit {
+		badges = append(badges, graphBadge{Icon: "\u23f3", Label: "Rate limiting"})
+	}
+
+	if waf {
+		badges = append(badges, graphBadge{Icon: "\U0001f6e1\ufe0f", Label: "Web application firewall"})
+	}
+
+	if auth {
+		badges = append(badges, graphBadge{Icon: "\U0001f464", Label: "Authentication"})
+	}
+
+	return badges
+}
+
+// routeExtensions reports whether any compiled rule of the route
+// carries a rate limit, a WAF ruleset or an authentication extension.
+func routeExtensions(route *gatewayapi.RouteInfo) (rateLimit, waf, auth bool) {
+	for _, parent := range route.Parents {
+		for _, rule := range parent.Rules {
+			rateLimit = rateLimit || rule.RateLimit != nil
+			waf = waf || rule.WAF != ""
+			auth = auth || rule.Auth != ""
+		}
+	}
+
+	return rateLimit, waf, auth
 }
 
 func (h *handler) graph(w http.ResponseWriter, r *http.Request) {

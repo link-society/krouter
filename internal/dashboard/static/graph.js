@@ -22,6 +22,8 @@
   var CLUSTER_LABEL = 22;
   var CLUSTER_GAP = 40;
 
+  var BADGE_WIDTH = 16;
+
   function nodeWidth(node) {
     var longest = node.title.length;
 
@@ -32,6 +34,11 @@
     });
 
     var width = longest * CHAR_WIDTH + 2 * PADDING_X;
+
+    /* Keep the title clear of the top-right extension badges. */
+    if (node.badges) {
+      width = Math.max(width, node.title.length * CHAR_WIDTH + 2 * PADDING_X + node.badges.length * BADGE_WIDTH);
+    }
 
     return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width));
   }
@@ -358,6 +365,20 @@
           .attr("x", PADDING_X)
           .attr("y", TITLE_HEIGHT + 8 + index * LINE_HEIGHT)
           .text(text);
+      });
+
+      /* Extension badges on the top-right corner, tooltip on hover;
+         drawn right-to-left so the array order reads left-to-right. */
+      (d.badges || []).forEach(function (badge, index) {
+        group
+          .append("text")
+          .attr("class", "graph-badge")
+          .attr("text-anchor", "end")
+          .attr("x", positions[d.id].width - 6 - (d.badges.length - 1 - index) * BADGE_WIDTH)
+          .attr("y", 17)
+          .text(badge.icon)
+          .append("title")
+          .text(badge.label);
       });
     });
 
