@@ -101,6 +101,14 @@ func (r *Engine) publishGeneration(
 			continue
 		}
 
+		// Compiled authentication documents ride the generated Secret,
+		// never ConfigMaps (docs/spec/authentication.md Configuration
+		// lifecycle). Identities are content-addressed, so collisions
+		// between outcomes are identical payloads.
+		for identity, payload := range outcome.authDocs {
+			secretData[compiled.AuthSecretKey(identity)] = payload
+		}
+
 		existing, ok := routeConfigs[outcome.config.UID]
 		if !ok {
 			routeConfigs[outcome.config.UID] = outcome.config

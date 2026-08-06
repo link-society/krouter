@@ -418,6 +418,18 @@ func GenerationID(gatewayPayload []byte, attachments map[string][]byte, secretCh
 	return hex.EncodeToString(hasher.Sum(nil))[:12]
 }
 
+// AuthIdentity derives the extension identity from the ordered list of
+// referenced Secrets: their UIDs, not their contents, so cookie names
+// survive edits (docs/spec/authentication.md Resolution and status).
+func AuthIdentity(secretUIDs []string) string {
+	hasher := sha256.New()
+	for _, uid := range secretUIDs {
+		fmt.Fprintf(hasher, "%s\x00", uid)
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil))[:12]
+}
+
 func MarshalPayload(v any) []byte {
 	payload, err := json.Marshal(v)
 	if err != nil {
