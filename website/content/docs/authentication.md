@@ -211,4 +211,6 @@ these headers are stripped on authenticated rules, so backends can trust
 them.
 
 See [Observability](/docs/observability/) for the decision metric and
-the access-log fields recording authentication outcomes.
+the access-log fields recording authentication outcomes, and the
+[authentication tutorial](/docs/tutorials/authentication/) for a
+hands-on walkthrough from a login form to bearer tokens.
