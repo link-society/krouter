@@ -180,7 +180,7 @@ func (e *Enforcer) Evaluate(w http.ResponseWriter, r *http.Request, grpcRule boo
 	if scheme == "basic" && e.ldap != nil {
 		username, password, ok := r.BasicAuth()
 		if !ok {
-			return e.unauthenticated(grpcRule, false)
+			return e.unauthenticated(grpcRule, false, "")
 		}
 
 		identity, err := e.ldap.Authenticate(r.Context(), username, password)
@@ -201,7 +201,7 @@ func (e *Enforcer) Evaluate(w http.ResponseWriter, r *http.Request, grpcRule boo
 	}
 
 	// 4. Anything else is unauthenticated.
-	return e.unauthenticated(grpcRule, isNavigation(r))
+	return e.unauthenticated(grpcRule, isNavigation(r), r.URL.RequestURI())
 }
 
 // refreshIfNeeded hands an in-session expired OIDC token to the
@@ -270,7 +270,7 @@ func (e *Enforcer) credentialFailure(provider string, err error, grpcRule bool) 
 		return e.failure(provider, err, grpcRule)
 	}
 
-	decision := e.unauthenticated(grpcRule, false)
+	decision := e.unauthenticated(grpcRule, false, "")
 	decision.Provider = provider
 
 	return decision
@@ -290,12 +290,12 @@ func (e *Enforcer) failure(provider string, err error, grpcRule bool) Decision {
 // navigations are redirected to the login page when a cookie provider
 // is configured, everything else is answered 401 with one challenge per
 // credential-consuming provider (docs/spec/authentication.md).
-func (e *Enforcer) unauthenticated(grpcRule, navigation bool) Decision {
+func (e *Enforcer) unauthenticated(grpcRule, navigation bool, returnURL string) Decision {
 	if navigation && !grpcRule && e.HasCookieProvider() {
 		return Decision{
 			Result:     "unauthenticated",
 			Status:     http.StatusFound,
-			RedirectTo: e.LoginURL(""),
+			RedirectTo: e.LoginURL(returnURL),
 		}
 	}
 
