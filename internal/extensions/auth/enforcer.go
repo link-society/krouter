@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
@@ -71,20 +70,11 @@ type Enforcer struct {
 // Providers not implemented yet are constructed by their own commits;
 // until then a configured provider without an implementation fails
 // closed through the nil checks in Evaluate.
-type (
-	LDAPProvider struct{}
-	SAMLProvider struct{}
-)
-
-func NewLDAPProvider(cfg *compiled.AuthLDAP) (*LDAPProvider, error) { return nil, nil }
+type SAMLProvider struct{}
 
 func NewSAMLProvider(cfg *compiled.AuthSAML) (*SAMLProvider, error) { return nil, nil }
 
 func (p *SAMLProvider) LogoutURL(r *http.Request, session *Session) string { return "" }
-
-func (p *LDAPProvider) Authenticate(ctx context.Context, username, password string) (*Identity, error) {
-	return nil, fmt.Errorf("%w: ldap not implemented", ErrUnavailable)
-}
 
 func (e *Enforcer) serveSAMLStart(w http.ResponseWriter, r *http.Request) int {
 	http.NotFound(w, r)
@@ -105,12 +95,6 @@ func (e *Enforcer) serveSAMLMetadata(w http.ResponseWriter, r *http.Request) int
 }
 
 func (e *Enforcer) serveSAMLSLO(w http.ResponseWriter, r *http.Request) int {
-	http.NotFound(w, r)
-
-	return http.StatusNotFound
-}
-
-func (e *Enforcer) serveLDAPLogin(w http.ResponseWriter, r *http.Request) int {
 	http.NotFound(w, r)
 
 	return http.StatusNotFound
