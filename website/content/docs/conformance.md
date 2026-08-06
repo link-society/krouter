@@ -1,7 +1,7 @@
 ---
 title: "Conformance & testing"
 description: "How krouter is verified: official conformance, e2e, performance gates, and the published report."
-weight: 6
+weight: 7
 ---
 
 krouter treats the official
@@ -52,7 +52,6 @@ the report as `gotestwaf.html`.
 
 krouter is a gateway, not a service mesh: the `MESH` profile tests and
 the HTTPRoute retry tests are the only skipped conformance tests.
-Authentication policies, retries and active health checks are out of
-scope today; the
+Retries and active health checks are out of scope today; the
 [comparison table](/#how-krouter-compares) lists which alternatives cover
 those.
