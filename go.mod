@@ -3,6 +3,7 @@ module github.com/link-society/krouter
 go 1.26.3
 
 require (
+	github.com/beevik/etree v1.5.0
 	github.com/corazawaf/coraza-coreruleset/v4 v4.25.0
 	github.com/corazawaf/coraza/v3 v3.7.0
 	github.com/crewjam/saml v0.5.1
@@ -25,7 +26,6 @@ require (
 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/beevik/etree v1.5.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/corazawaf/libinjection-go v0.3.2 // indirect
