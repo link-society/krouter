@@ -9,6 +9,9 @@
       <th>Kind</th>
       <th>Hostnames</th>
       <th>Gateway</th>
+      <th>Rate limiting</th>
+      <th>WAF</th>
+      <th>Auth</th>
       <th>Status</th>
     </tr>
   </thead>
@@ -19,6 +22,9 @@
       <td><span class="tag is-light kind-{{.Kind}}">{{.Kind}}</span></td>
       <td>{{if .Hostnames}}{{.Hostnames}}{{else}}*{{end}}</td>
       <td>{{.Gateway}}</td>
+      <td>{{if .RateLimit}}<span title="Rate limiting enabled">&#x23f3;</span>{{else}}<span class="has-text-grey-light">&mdash;</span>{{end}}</td>
+      <td>{{if .WAF}}<span title="Web application firewall enabled">&#x1f6e1;&#xfe0f;</span>{{else}}<span class="has-text-grey-light">&mdash;</span>{{end}}</td>
+      <td>{{if .Auth}}<span title="Authentication enabled">&#x1f464;</span>{{else}}<span class="has-text-grey-light">&mdash;</span>{{end}}</td>
       <td>
         {{if .Accepted}}<span class="tag is-success is-light">Accepted</span>
         {{else}}<span class="tag is-danger is-light" title="{{.Reason}}">{{.Reason}}</span>{{end}}

@@ -99,6 +99,10 @@
   fill: var(--bulma-text-weak, #7a7a7a);
 }
 
+.graph-badge {
+  font-size: 11px;
+}
+
 .graph-node.is-broken .graph-line:last-of-type {
   fill: #ff3860;
 }

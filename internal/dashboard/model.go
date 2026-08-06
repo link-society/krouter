@@ -112,6 +112,9 @@ type routeRow struct {
 	Reason       string
 	RefsResolved bool
 	RefsReason   string
+	RateLimit    bool
+	WAF          bool
+	Auth         bool
 }
 
 type backendsData struct {
@@ -183,6 +186,12 @@ func buildRouteRows(topo *gatewayapi.Topology) []routeRow {
 				Reason:       parent.Reason,
 				RefsResolved: parent.RefsResolved,
 				RefsReason:   parent.RefsReason,
+			}
+
+			for _, rule := range parent.Rules {
+				row.RateLimit = row.RateLimit || rule.RateLimit != nil
+				row.WAF = row.WAF || rule.WAF != ""
+				row.Auth = row.Auth || rule.Auth != ""
 			}
 
 			rows = append(rows, row)
