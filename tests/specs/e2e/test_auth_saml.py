@@ -167,9 +167,13 @@ def stack(gateway_class, module_namespace, idp_material):
     kubectl.wait_route_parent_condition("app-route", ns, "ResolvedRefs", timeout=60)
     net.wait_http_ok(ports.AUTH_SAML, path="/plain")
 
-    # The IdP metadata is fetched lazily: serving the SP metadata proves
-    # the flow endpoints are ready end to end.
-    net.wait_http_ok(ports.AUTH_SAML, path=f"{PREFIX}/saml/metadata")
+    # The IdP metadata is fetched lazily per data-plane pod:
+    # consecutive 200s on the SP metadata prove every pod resolved it.
+    net.wait_http_ok(
+        ports.AUTH_SAML,
+        path=f"{PREFIX}/saml/metadata",
+        consecutive=8,
+    )
 
     return ns
 

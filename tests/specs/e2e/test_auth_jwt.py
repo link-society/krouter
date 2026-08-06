@@ -141,6 +141,16 @@ def stack(gateway_class, module_namespace, signing_key):
     kubectl.wait_route_parent_condition("api-route", ns, "ResolvedRefs", timeout=60)
     net.wait_http_ok(ports.AUTH_JWT, path="/plain")
 
+    # The JWKS is fetched lazily per data-plane pod: consecutive 200s
+    # for a valid token prove every pod resolved it.
+    token = auth.mint_jwt(signing_key, KID, claims(ns))
+    net.wait_http_ok(
+        ports.AUTH_JWT,
+        path="/api",
+        headers=auth.bearer(token),
+        consecutive=8,
+    )
+
     return ns
 
 
