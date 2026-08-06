@@ -150,6 +150,12 @@ func (p *LDAPProvider) Authenticate(
 		return nil, fmt.Errorf("%w: user bind: %v", ErrUnavailable, err)
 	}
 
+	// The user bind only verified the password: directory reads continue
+	// under the service account, whose access the operator provisioned.
+	if err := conn.Bind(p.cfg.BindDN, p.cfg.BindPassword); err != nil {
+		return nil, fmt.Errorf("%w: service re-bind: %v", ErrUnavailable, err)
+	}
+
 	identity := &Identity{User: username}
 
 	if attribute := p.cfg.Attributes["email"]; attribute != "" {
