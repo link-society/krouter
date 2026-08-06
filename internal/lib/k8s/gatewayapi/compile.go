@@ -964,7 +964,7 @@ func (r *Engine) compileGRPCRule(
 		}
 	}
 
-	ext, err := r.compileExtensions(w, route.Namespace, extensionRefs, outcome)
+	ext, err := r.compileExtensions(w, route.Namespace, extensionRefs, true, outcome)
 	if err != nil {
 		return compiled.Rule{}, err
 	}
@@ -972,6 +972,10 @@ func (r *Engine) compileGRPCRule(
 	compiledRule.RateLimit = ext.rateLimit
 	compiledRule.WAF = ext.waf
 	compiledRule.ExtensionsInvalid = ext.invalid
+
+	if ext.auth != nil {
+		compiledRule.Auth = ext.auth.Identity
+	}
 
 	for _, backendRef := range rule.BackendRefs {
 		backend := r.compileBackend(w, route.Namespace, "GRPCRoute", backendRef.BackendRef, outcome)
@@ -1144,7 +1148,7 @@ func (r *Engine) compileRoute(
 			}
 		}
 
-		ext, err := r.compileExtensions(w, route.Namespace, extensionRefs, outcome)
+		ext, err := r.compileExtensions(w, route.Namespace, extensionRefs, false, outcome)
 		if err != nil {
 			return nil
 		}
@@ -1152,6 +1156,10 @@ func (r *Engine) compileRoute(
 		compiledRule.RateLimit = ext.rateLimit
 		compiledRule.WAF = ext.waf
 		compiledRule.ExtensionsInvalid = ext.invalid
+
+		if ext.auth != nil {
+			compiledRule.Auth = ext.auth.Identity
+		}
 
 		if err := compileTimeouts(&compiledRule, rule.Timeouts); err != nil {
 			return nil
