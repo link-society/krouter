@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/link-society/krouter/internal/extensions/auth"
 	"github.com/link-society/krouter/internal/lib/transports/grpc"
 	"github.com/link-society/krouter/internal/lib/transports/http/routing"
 )
@@ -31,19 +32,28 @@ var wafDecisions = promauto.NewCounterVec(
 	[]string{"result"}, // allowed | denied | error
 )
 
+var authDecisions = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "krouter_dataplane_auth_decisions_total",
+		Help: "Authentication decisions, by provider and result (docs/spec/authentication.md).",
+	},
+	[]string{"provider", "result"}, // provider oidc|saml|ldap|jwt|none
+)
+
 // serveExtensions enforces the rule's extensions before any other filter
 // or gateway-produced response (docs/spec/extensions.md Request path
 // integration): fail-closed 500 for broken ExtensionRef targets, then
-// rate limiting (cheapest first), then the WAF request phases. On upgrade
-// requests this runs on the handshake, before any connection hijack. It
-// returns the produced status, the rejecting extension name, and the
-// interrupting WAF rule identifier, or 0 to continue serving.
+// rate limiting (cheapest first), then authentication and authorization,
+// then the WAF request phases. On upgrade requests this runs on the
+// handshake, before any connection hijack. It returns the produced
+// status, the rejecting extension name, the interrupting WAF rule
+// identifier (or 0 to continue serving), and the authenticated user.
 func serveExtensions(
 	w http.ResponseWriter,
 	r *http.Request,
 	rule *routing.RuleTable,
 	clientIP string,
-) (int, string, int) {
+) (int, string, int, string) {
 	grpcRule := rule.GRPC()
 
 	if rule.ExtensionsInvalid() {
@@ -52,7 +62,7 @@ func serveExtensions(
 		status := deny(w, grpcRule, http.StatusInternalServerError,
 			grpc.StatusInternal, "invalid route extension")
 
-		return status, "extensionref", 0
+		return status, "extensionref", 0, ""
 	}
 
 	if limiter := rule.RateLimiter(); limiter != nil {
@@ -69,10 +79,29 @@ func serveExtensions(
 			status := deny(w, grpcRule, int(limiter.Status()),
 				grpc.StatusResourceExhausted, "rate limited")
 
-			return status, "ratelimit", 0
+			return status, "ratelimit", 0, ""
 		}
 
 		ratelimitDecisions.WithLabelValues("allowed").Inc()
+	}
+
+	// Authentication runs after rate limiting and before the WAF: denied
+	// clients spend no WAF CPU, and the WAF only ever inspects
+	// authenticated traffic (docs/spec/authentication.md Request path
+	// integration).
+	user := ""
+	if enforcer := rule.Auth(); enforcer != nil {
+		// CORS preflights carry no credentials: on rules with a CORS
+		// filter they skip authentication and continue down the chain
+		// (docs/spec/authentication.md).
+		if rule.CORS() == nil || !isCORSPreflight(r) {
+			status, decidedUser := serveAuth(w, r, enforcer, grpcRule)
+			if status != 0 {
+				return status, "auth", 0, ""
+			}
+
+			user = decidedUser
+		}
 	}
 
 	if engine := rule.WAF(); engine != nil {
@@ -89,7 +118,7 @@ func serveExtensions(
 			status := deny(w, grpcRule, http.StatusInternalServerError,
 				grpc.StatusInternal, "web application firewall error")
 
-			return status, "waf", 0
+			return status, "waf", 0, ""
 		}
 
 		if denial != nil {
@@ -97,13 +126,50 @@ func serveExtensions(
 			status := deny(w, grpcRule, denial.Status,
 				grpc.StatusPermissionDenied, "forbidden")
 
-			return status, "waf", denial.RuleID
+			return status, "waf", denial.RuleID, ""
 		}
 
 		wafDecisions.WithLabelValues("allowed").Inc()
 	}
 
-	return 0, "", 0
+	return 0, "", 0, user
+}
+
+// serveAuth renders one authentication decision
+// (docs/spec/authentication.md Request path integration): 0 to continue
+// with the identity injected, or the produced status.
+func serveAuth(
+	w http.ResponseWriter,
+	r *http.Request,
+	enforcer *auth.Enforcer,
+	grpcRule bool,
+) (int, string) {
+	decision := enforcer.Evaluate(w, r, grpcRule)
+
+	provider := decision.Provider
+	if provider == "" {
+		provider = "none"
+	}
+
+	authDecisions.WithLabelValues(provider, decision.Result).Inc()
+
+	if decision.Allowed {
+		decision.Identity.Apply(r)
+
+		return 0, decision.Identity.User
+	}
+
+	if decision.RedirectTo != "" {
+		http.Redirect(w, r, decision.RedirectTo, decision.Status)
+
+		return decision.Status, ""
+	}
+
+	for _, challenge := range decision.Challenges {
+		w.Header().Add("WWW-Authenticate", challenge)
+	}
+
+	return deny(w, grpcRule, decision.Status, decision.GRPCCode, decision.Message), ""
 }
 
 // deny writes an extension rejection in the transport-appropriate form and
