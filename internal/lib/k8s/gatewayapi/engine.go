@@ -113,6 +113,30 @@ func (r *Engine) gatherWorld(ctx context.Context, acks AckState) (*world, error)
 		return cm, nil
 	}
 
+	secretCache := map[string]*corev1.Secret{}
+	secretErrs := map[string]error{}
+	w.extensionSecret = func(namespace, name string) (*corev1.Secret, error) {
+		key := nsName(namespace, name)
+
+		if secret, ok := secretCache[key]; ok {
+			return secret, nil
+		}
+
+		if err, ok := secretErrs[key]; ok {
+			return nil, err
+		}
+
+		secret, err := r.client.CoreV1().Secrets(namespace).
+			Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			secretErrs[key] = err
+			return nil, err
+		}
+
+		secretCache[key] = secret
+		return secret, nil
+	}
+
 	classList, err := r.gwClient.GatewayV1().GatewayClasses().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err

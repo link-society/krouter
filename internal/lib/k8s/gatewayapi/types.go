@@ -38,6 +38,12 @@ type world struct {
 	// (docs/spec/extensions.md), in the route's namespace.
 	extensionCM func(namespace, name string) (*corev1.ConfigMap, error)
 
+	// extensionSecret fetches (and caches for this sync) the extension
+	// Secrets referenced by route ExtensionRef filters: authentication
+	// configuration carries credentials, so it lives in Secrets
+	// (docs/spec/authentication.md).
+	extensionSecret func(namespace, name string) (*corev1.Secret, error)
+
 	acks          AckState
 	bundleVersion string
 }
@@ -130,6 +136,12 @@ type routeParentOutcome struct {
 	refsMessage  string
 
 	config *compiled.RouteConfig // nil when not accepted
+
+	// authDocs are the compiled authentication documents of this
+	// attachment's rules, keyed by extension identity: sensitive, they
+	// ride the generation's generated Secret, never ConfigMaps
+	// (docs/spec/authentication.md Configuration lifecycle).
+	authDocs map[string][]byte
 }
 
 func (o *routeParentOutcome) routeKind() string {
