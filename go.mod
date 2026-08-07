@@ -3,14 +3,14 @@ module github.com/link-society/krouter
 go 1.26.3
 
 require (
-	github.com/beevik/etree v1.5.0
+	github.com/beevik/etree v1.7.0
 	github.com/corazawaf/coraza-coreruleset/v4 v4.25.0
 	github.com/corazawaf/coraza/v3 v3.7.0
 	github.com/crewjam/saml v0.5.1
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/prometheus/client_golang v1.24.1
-	github.com/russellhaering/goxmldsig v1.4.0
+	github.com/russellhaering/goxmldsig v1.6.0
 	github.com/vladopajic/go-actor v1.2.0
 	go.uber.org/fx v1.24.0
 	k8s.io/api v0.36.3
