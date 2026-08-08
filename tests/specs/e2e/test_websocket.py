@@ -69,8 +69,14 @@ def stack(gateway_class, module_namespace, ca):
     kubectl.wait_deployment_ready(BACKEND, ns)
 
     # The route also serves plain HTTP: /healthz reaches the backend
-    # without upgrading, proving readiness end to end.
+    # without upgrading, proving readiness end to end for each listener.
     net.wait_http_ok(ports.WEBSOCKET, path="/healthz")
+    net.wait_http_ok(
+        ports.WEBSOCKET_TLS,
+        path="/healthz",
+        scheme="https",
+        host=WS_HOSTNAME,
+    )
 
     return ns
 
