@@ -334,11 +334,22 @@ class UdpFlow:
         self.sock.settimeout(timeout)
         self.addr = (config.TEST_HOST, ports.host_port(node_port, worker))
 
-    def exchange(self, payload: str = "ping") -> str:
-        self.sock.sendto(payload.encode(), self.addr)
-        data, _ = self.sock.recvfrom(4096)
+    def exchange(self, payload: str = "ping", attempts: int = 3) -> str:
+        # UDP is best-effort: resend on timeout. Retries reuse the same
+        # socket (same source address), so the flow identity is preserved.
+        for attempt in range(attempts):
+            self.sock.sendto(payload.encode(), self.addr)
 
-        return data.decode().strip()
+            try:
+                data, _ = self.sock.recvfrom(4096)
+
+            except TimeoutError:
+                if attempt == attempts - 1:
+                    raise
+
+                continue
+
+            return data.decode().strip()
 
     def close(self):
         self.sock.close()
