@@ -337,14 +337,15 @@ class UdpFlow:
     def exchange(self, payload: str = "ping", attempts: int = 3) -> str:
         # UDP is best-effort: resend on timeout. Retries reuse the same
         # socket (same source address), so the flow identity is preserved.
-        for attempt in range(attempts):
+        while True:
+            attempts -= 1
             self.sock.sendto(payload.encode(), self.addr)
 
             try:
                 data, _ = self.sock.recvfrom(4096)
 
             except TimeoutError:
-                if attempt == attempts - 1:
+                if attempts <= 0:
                     raise
 
                 continue
@@ -789,7 +790,18 @@ def ws_connect(
         kwargs["ssl"] = ctx
         kwargs["server_hostname"] = server_hostname
 
-    return connect(url, **kwargs)
+    # A timed-out opening handshake is retried on a fresh connection:
+    # nothing was exchanged yet, so no test semantics are involved.
+    # Refusals (InvalidStatus and the like) propagate immediately.
+    attempts = 3
+    while True:
+        attempts -= 1
+        try:
+            return connect(url, **kwargs)
+
+        except TimeoutError:
+            if attempts <= 0:
+                raise
 
 
 def ws_echo_roundtrip(conn, payload: str) -> str:
