@@ -10,7 +10,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/prometheus/client_golang v1.24.1
-	github.com/russellhaering/goxmldsig v1.6.0
+	github.com/russellhaering/goxmldsig v1.6.1
 	github.com/vladopajic/go-actor v1.2.0
 	go.uber.org/fx v1.24.0
 	k8s.io/api v0.36.3
