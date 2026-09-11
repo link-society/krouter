@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	k8s.io/api v0.37.0
-	sigs.k8s.io/controller-runtime v0.24.1
-	sigs.k8s.io/gateway-api v1.6.1
+	sigs.k8s.io/controller-runtime v0.25.0
+	sigs.k8s.io/gateway-api v1.6.2
 	sigs.k8s.io/gateway-api/conformance v1.6.1
 )
 
