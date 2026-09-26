@@ -4,8 +4,8 @@
 
 The control plane is the sole status writer.
 
-It MUST implement all status fields and conditions required by Gateway API
-v1.6.1, including:
+It MUST implement all status fields and conditions required by Gateway API,
+including:
 
 - GatewayClass `Accepted` and `SupportedVersion`.
 - GatewayClass `status.supportedFeatures`, listing exactly the Gateway API
