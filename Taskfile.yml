@@ -6,7 +6,8 @@ vars:
   KIND_CONTEXT: kind-{{.KIND_CLUSTER}}
   KIND_NODE_IMAGE: '{{.KIND_NODE_IMAGE | default ""}}'
 
-  GATEWAY_API_VERSION: v1.6.1
+  GATEWAY_API_VERSION:
+    sh: go list -m -f '{{`{{.Version}}`}}' sigs.k8s.io/gateway-api
   IMAGE: ghcr.io/link-society/krouter:dev
 
   GOLANG_IMAGE: golang:1.26

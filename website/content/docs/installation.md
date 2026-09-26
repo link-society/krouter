@@ -19,12 +19,12 @@ weight: 1
 krouter deliberately does not bundle the Gateway API
 [CustomResourceDefinitions](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/):
 they are cluster-wide, versioned upstream, and often shared with other
-controllers. Install the **v1.6.1 Standard channel**: since Gateway API
+controllers. Install the **Standard channel**: since Gateway API
 v1.6 it carries everything krouter uses, including `TCPRoute`,
 `UDPRoute`, `TLSRoute`, `BackendTLSPolicy` and `ListenerSet`:
 
 ```sh
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml
+kubectl apply --server-side -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/standard-install.yaml
 ```
 
 > Server-side apply is recommended: the larger CRDs exceed the

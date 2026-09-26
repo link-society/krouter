@@ -2,7 +2,7 @@
 
 The implementation is accepted when:
 
-1. The Gateway API v1.6.1 `GATEWAY-HTTP` Core conformance suite passes in
+1. The Gateway API `GATEWAY-HTTP` Core conformance suite passes in
    full.
 2. HTTP/1.1 and HTTP/2 work through HTTP and HTTPS listeners.
 3. Cross-namespace Route attachment and backend access obey namespace

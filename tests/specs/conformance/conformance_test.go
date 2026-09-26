@@ -3,7 +3,7 @@
 //
 // The conformance target (docs/spec/overview.md, docs/spec/acceptance.md criteria 1,
 // 13, 14, 15 and 19) is: all Core tests of the GATEWAY-HTTP, GATEWAY-GRPC,
-// GATEWAY-TLS, GATEWAY-TCP and GATEWAY-UDP profiles, Gateway API v1.6.1.
+// GATEWAY-TLS, GATEWAY-TCP and GATEWAY-UDP profiles, Gateway API.
 // The profiles are therefore forced here rather than left to a flag.
 //
 // The suite dials the addresses published on Gateway status, which are
