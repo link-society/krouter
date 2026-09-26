@@ -30,7 +30,7 @@ custom resources.
 | Item | Requirement |
 |---|---|
 | Kubernetes | v1.31 or newer |
-| Gateway API | v1.6.1; every resource krouter consumes ships with the Standard channel CRDs (TCPRoute, UDPRoute, TLSRoute, BackendTLSPolicy, and ListenerSet graduated in v1.6) |
+| Gateway API | every resource krouter consumes ships with the Standard channel CRDs (TCPRoute, UDPRoute, TLSRoute, BackendTLSPolicy, and ListenerSet graduated in v1.6) |
 | Conformance target | Every test in the `GATEWAY-HTTP`, `GATEWAY-GRPC`, `GATEWAY-TLS`, `GATEWAY-TCP`, and `GATEWAY-UDP` profiles, Core and Extended: the suite MUST skip only Mesh-profile tests and the tests of unclaimed Extended features (HTTPRoute retries, listed under deferred work) |
 | Route types | HTTPRoute, GRPCRoute, TCPRoute, TLSRoute, and UDPRoute |
 | Client protocols | HTTP/1.1, HTTP/2 (including gRPC), raw TCP, TLS passthrough, and UDP |

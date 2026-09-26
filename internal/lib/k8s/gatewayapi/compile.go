@@ -44,8 +44,8 @@ func (r *Engine) validateListeners(
 		}
 
 		for _, entry := range set.set.Spec.Listeners {
-			// ListenerEntry and Listener are field-for-field identical in
-			// v1.6.1; the conversion breaks loudly if they ever diverge.
+			// ListenerEntry and Listener are field-for-field identical;
+			// the conversion breaks loudly if they ever diverge.
 			spec := gatewayv1.Listener(entry)
 
 			listeners = append(listeners,
