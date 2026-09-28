@@ -36,6 +36,13 @@ tasks:
       # Server-side apply, as upstream recommends: the httproutes CRD alone
       # nears the client-side last-applied-configuration annotation size limit.
       - kubectl --context {{.KIND_CONTEXT}} apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml
+      # Clusters set up from the Experimental channel keep its extra CRDs
+      # behind, and the conformance suite refuses mixed channels or bundle
+      # versions: prune whatever the Standard bundle did not overwrite.
+      - >-
+        kubectl --context {{.KIND_CONTEXT}} get crd
+        -o jsonpath='{range .items[?(@.metadata.annotations.gateway\.networking\.k8s\.io/channel=="experimental")]}{.metadata.name}{"\n"}{end}'
+        | xargs -r kubectl --context {{.KIND_CONTEXT}} delete crd
       - kubectl --context {{.KIND_CONTEXT}} wait --for=condition=Established --timeout=60s crd/gatewayclasses.gateway.networking.k8s.io crd/gateways.gateway.networking.k8s.io crd/httproutes.gateway.networking.k8s.io crd/referencegrants.gateway.networking.k8s.io crd/tcproutes.gateway.networking.k8s.io crd/tlsroutes.gateway.networking.k8s.io crd/udproutes.gateway.networking.k8s.io
 
   image:update:
