@@ -9,7 +9,8 @@ Please open a `Security Bug Report` on the
 
 | Version | Supported |
 | --- | --- |
-| [1.2.2](https://github.com/link-society/krouter/releases/tag/v1.2.2) | :white_check_mark: |
+| [1.2.3](https://github.com/link-society/krouter/releases/tag/v1.2.3) | :white_check_mark: |
+| [1.2.2](https://github.com/link-society/krouter/releases/tag/v1.2.2) | :x: |
 | [1.2.1](https://github.com/link-society/krouter/releases/tag/v1.2.1) | :x: |
 | [1.2.0](https://github.com/link-society/krouter/releases/tag/v1.2.0) | :x: |
 | [1.1.0](https://github.com/link-society/krouter/releases/tag/v1.1.0) | :x: |
