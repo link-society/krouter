@@ -142,8 +142,9 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 		// Misdirected-request detection (docs/spec/traffic.md).
 		features.SupportGatewayHTTPSListenerDetectMisdirectedRequests,
 
-		// Infrastructure metadata propagation (docs/spec/frontend.md).
-		features.SupportGatewayInfrastructurePropagation,
+		// Gateway infrastructure: metadata propagation and parametersRef
+		// (docs/spec/frontend.md, docs/spec/parameters.md).
+		features.SupportGatewayInfrastructure,
 
 		// Static Gateway addresses (docs/spec/frontend.md Gateway addresses).
 		features.SupportGatewayStaticAddresses,
