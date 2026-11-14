@@ -12,7 +12,7 @@ ADD internal /src/internal
 ## BUILD GO CODE
 ##############################
 
-FROM golang:1.27-alpine3.22 AS builder-go
+FROM golang:1.27-alpine3.24 AS builder-go
 ARG TARGETOS
 ARG TARGETARCH
 
