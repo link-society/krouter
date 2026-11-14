@@ -1,6 +1,6 @@
 module github.com/link-society/krouter/tests/specs/conformance
 
-go 1.26.0
+go 1.27.0
 
 require (
 	k8s.io/api v0.37.1

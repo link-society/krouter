@@ -16,7 +16,7 @@ from e2elib import kubectl
 
 log = logging.getLogger("e2elib.loadgen")
 
-GOLANG_IMAGE = "golang:1.26"
+GOLANG_IMAGE = "golang:1.27"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 

@@ -1,6 +1,6 @@
 module github.com/link-society/krouter
 
-go 1.26.3
+go 1.27.0
 
 require (
 	github.com/beevik/etree v1.8.1

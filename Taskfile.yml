@@ -10,7 +10,7 @@ vars:
     sh: go list -m -f '{{`{{.Version}}`}}' sigs.k8s.io/gateway-api
   IMAGE: ghcr.io/link-society/krouter:dev
 
-  GOLANG_IMAGE: golang:1.26
+  GOLANG_IMAGE: golang:1.27
   GOTESTSUM_VERSION: v1.13.0
 
 includes:
