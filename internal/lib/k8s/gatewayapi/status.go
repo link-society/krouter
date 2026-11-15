@@ -12,10 +12,12 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayconsts "sigs.k8s.io/gateway-api/pkg/consts"
 	"sigs.k8s.io/gateway-api/pkg/features"
 )
 
@@ -176,9 +178,23 @@ var supportedFeatures = func() []gatewayv1.SupportedFeature {
 	return entries
 }()
 
-func (r *Engine) writeClassStatus(ctx context.Context, w *world, name string) error {
-	supported := strings.HasPrefix(w.bundleVersion, "v1.6")
+// supportsBundleVersion follows the Gateway API dependency's release line,
+// allowing patch releases within the same major and minor version.
+func supportsBundleVersion(bundle string) bool {
+	installed, err := version.ParseSemantic(bundle)
+	if err != nil {
+		return false
+	}
 
+	supported, err := version.ParseSemantic(gatewayconsts.BundleVersion)
+	if err != nil {
+		return false
+	}
+
+	return installed.Major() == supported.Major() && installed.Minor() == supported.Minor()
+}
+
+func (r *Engine) writeClassStatus(ctx context.Context, w *world, name string) error {
 	supportedCondition := condition(
 		string(gatewayv1.GatewayClassConditionStatusSupportedVersion),
 		metav1.ConditionTrue,
@@ -186,11 +202,12 @@ func (r *Engine) writeClassStatus(ctx context.Context, w *world, name string) er
 		fmt.Sprintf("Gateway API CRD bundle version %s is supported", w.bundleVersion),
 		0,
 	)
-	if !supported {
+	if !supportsBundleVersion(w.bundleVersion) {
 		supportedCondition.Status = metav1.ConditionFalse
 		supportedCondition.Reason = string(gatewayv1.GatewayClassReasonUnsupportedVersion)
 		supportedCondition.Message = fmt.Sprintf(
-			"Gateway API CRD bundle version %q is not supported", w.bundleVersion)
+			"Gateway API CRD bundle version %q is not supported; expected the same major and minor version as %s",
+			w.bundleVersion, gatewayconsts.BundleVersion)
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
