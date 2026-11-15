@@ -2,7 +2,11 @@
 version: 2
 updates:
   - package-ecosystem: "gomod"
-    directory: "/"
+    # Keep the operator's Gateway API CRDs and conformance suite in sync.
+    directories:
+      - "/"
+      - "/tests/mocks"
+      - "/tests/specs/conformance"
     schedule:
       interval: "weekly"
     commit-message:
@@ -10,22 +14,12 @@ updates:
     labels:
       - "deps: go"
     groups:
-      operator:
+      operator-k8s:
         patterns:
-          - "*"
-
-  - package-ecosystem: "gomod"
-    directories:
-      - "/tests/mocks"
-      - "/tests/specs/conformance"
-    schedule:
-      interval: "weekly"
-    commit-message:
-      prefix: ":arrow_up: :white_check_mark: "
-    labels:
-      - "deps: go"
-    groups:
-      testsuite-go:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+      # Dependabot assigns dependencies to the first matching group.
+      operator:
         patterns:
           - "*"
 
