@@ -277,6 +277,9 @@ type BackendTable struct {
 	// MUST fail closed (docs/spec/traffic.md Backend TLS).
 	tlsTransport *http.Transport
 	tlsInvalid   bool
+	// tlsConfig is the immutable backend verification configuration for
+	// terminated TLSRoutes, separate from HTTP's mutable ALPN settings.
+	tlsConfig *tls.Config
 
 	counter atomic.Int64
 }

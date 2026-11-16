@@ -61,6 +61,9 @@ type Selection struct {
 	// (docs/spec/traffic.md TLS passthrough and termination).
 	Terminate   bool
 	Certificate *stdtls.Certificate
+	// BackendTLS re-encrypts a terminated stream according to its
+	// BackendTLSPolicy. Passthrough leaves the original TLS stream intact.
+	BackendTLS *stdtls.Config
 }
 
 // Picker selects a backend endpoint for one new downstream connection on
@@ -143,7 +146,16 @@ func (f *Forwarder) forward(
 	prefix []byte,
 	start time.Time,
 ) {
-	backend, err := net.DialTimeout("tcp", selection.Endpoint, f.dialTimeout)
+	var (
+		backend net.Conn
+		err     error
+	)
+	if selection.Terminate && selection.BackendTLS != nil {
+		backend, err = stdtls.DialWithDialer(
+			&net.Dialer{Timeout: f.dialTimeout}, "tcp", selection.Endpoint, selection.BackendTLS)
+	} else {
+		backend, err = net.DialTimeout("tcp", selection.Endpoint, f.dialTimeout)
+	}
 	if err != nil {
 		connectionsTotal.WithLabelValues("error").Inc()
 		slog.Error("tls backend dial failed",
@@ -203,8 +215,8 @@ func (f *Forwarder) forward(
 // serveTerminated handles a Terminate-mode listener
 // (docs/spec/traffic.md TLS passthrough and termination): the recorded
 // ClientHello is replayed into a local handshake using the listener
-// certificate, then the decrypted stream is forwarded to the backend with
-// raw TCP semantics.
+// certificate, then the decrypted stream is forwarded to the backend,
+// re-encrypted when a BackendTLSPolicy applies.
 func (f *Forwarder) serveTerminated(
 	downstream net.Conn,
 	recorded []byte,
