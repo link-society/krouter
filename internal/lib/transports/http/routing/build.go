@@ -353,10 +353,6 @@ func buildBackendTable(
 	}
 
 	entry.tlsKey = backendTLSFingerprint(backend.TLS, clientCertSum)
-	if transport, ok := transports[entry.tlsKey]; ok {
-		entry.tlsTransport = transport
-		return entry
-	}
 
 	config := &tls.Config{ServerName: backend.TLS.Hostname}
 
@@ -383,9 +379,17 @@ func buildBackendTable(
 		config.VerifyPeerCertificate = sanVerifier(pool, backend.TLS.SubjectAltNames)
 	}
 
+	entry.tlsConfig = config
+	if transport, ok := transports[entry.tlsKey]; ok {
+		entry.tlsTransport = transport
+		return entry
+	}
+
 	entry.tlsTransport = &http.Transport{
-		TLSClientConfig:     config,
-		ForceAttemptHTTP2:   false,
+		// HTTP negotiates HTTP/2 for gRPC over TLS while retaining HTTP/1.1
+		// fallback. Keep its ALPN mutations out of raw TLSRoute connections.
+		TLSClientConfig:     config.Clone(),
+		ForceAttemptHTTP2:   true,
 		MaxIdleConns:        256,
 		MaxIdleConnsPerHost: 64,
 		IdleConnTimeout:     90 * time.Second,

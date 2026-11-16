@@ -638,13 +638,16 @@ func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Sel
 	if backend == nil || !backend.valid {
 		return tls.Selection{}, false
 	}
+	if bestListener.terminate && backend.tlsInvalid {
+		return tls.Selection{}, false
+	}
 
 	endpoint, ok := backend.Pick(index)
 	if !ok {
 		return tls.Selection{}, false
 	}
 
-	return tls.Selection{
+	selection := tls.Selection{
 		Endpoint: fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port),
 		Gateway:  table.gatewayName,
 		Route:    bestRoute.Key(),
@@ -654,7 +657,12 @@ func (t *Tables) PickTLS(port int32, sni string, index *EndpointsIndex) (tls.Sel
 		// and termination).
 		Terminate:   bestListener.terminate,
 		Certificate: bestListener.cert,
-	}, true
+	}
+	if bestListener.terminate {
+		selection.BackendTLS = backend.tlsConfig
+	}
+
+	return selection, true
 }
 
 // PickTLS implements tls.Picker over the live snapshots.
