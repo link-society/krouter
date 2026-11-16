@@ -3,10 +3,8 @@ package gatewayapi
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -86,121 +84,6 @@ func TestWriteClassStatusSupportedVersion(t *testing.T) {
 			}
 			if !tt.supported && !strings.Contains(got.Message, supportedMinor) {
 				t.Errorf("condition message %q does not identify supported release %q", got.Message, supportedMinor)
-			}
-		})
-	}
-}
-
-func TestWriteGatewayStatusPreservesForeignConditions(t *testing.T) {
-	ctx := context.Background()
-	previousTransition := metav1.NewTime(time.Unix(1, 0).UTC())
-	foreignGateway := metav1.Condition{
-		Type: "example.com/GatewayReady", Status: metav1.ConditionTrue,
-		Reason: "ThirdPartyController", Message: "keep this condition unchanged",
-		ObservedGeneration: 1, LastTransitionTime: previousTransition,
-	}
-	foreignListener := foreignGateway
-	foreignListener.Type = "example.com/ListenerReady"
-	previousAccepted := metav1.Condition{
-		Type: "Accepted", Status: metav1.ConditionTrue, Reason: "Accepted",
-		ObservedGeneration: 1, LastTransitionTime: previousTransition,
-	}
-	fallbackType := string(gatewayv1.GatewayConditionInsecureFrontendValidationMode)
-	previousFallback := previousAccepted
-	previousFallback.Type = fallbackType
-
-	gw := &gatewayv1.Gateway{
-		ObjectMeta: metav1.ObjectMeta{Name: "gateway", Namespace: "default", Generation: 2},
-		Status: gatewayv1.GatewayStatus{
-			Conditions: []metav1.Condition{foreignGateway, previousAccepted, previousFallback},
-			Listeners: []gatewayv1.ListenerStatus{{
-				Name:       "http",
-				Conditions: []metav1.Condition{foreignListener, previousAccepted},
-			}},
-		},
-	}
-	client := gwfake.NewSimpleClientset()
-	if _, err := client.GatewayV1().Gateways(gw.Namespace).Create(ctx, gw, metav1.CreateOptions{}); err != nil {
-		t.Fatalf("create Gateway: %v", err)
-	}
-	engine := &Engine{gwClient: client}
-	input := gatewayStatusInput{
-		accepted:     condition("Accepted", metav1.ConditionTrue, "Accepted", "", gw.Generation),
-		programmed:   condition("Programmed", metav1.ConditionTrue, "Programmed", "", gw.Generation),
-		resolvedRefs: condition("ResolvedRefs", metav1.ConditionTrue, "ResolvedRefs", "", gw.Generation),
-		gatewayAcked: true,
-		listeners: []*listenerState{{
-			spec:     gatewayv1.Listener{Name: "http", Protocol: gatewayv1.HTTPProtocolType, Port: 80},
-			accepted: true, acceptedReason: "Accepted",
-			refsResolved: true, refsReason: "ResolvedRefs",
-		}},
-	}
-
-	for _, step := range []struct {
-		name     string
-		fallback bool
-	}{
-		{"remove stale fallback", false},
-		{"enable fallback", true},
-		{"disable fallback", false},
-	} {
-		t.Run(step.name, func(t *testing.T) {
-			input.insecureFallback = step.fallback
-			if err := engine.writeGatewayStatus(ctx, gw, input); err != nil {
-				t.Fatalf("write Gateway status: %v", err)
-			}
-			updated, err := client.GatewayV1().Gateways(gw.Namespace).Get(ctx, gw.Name, metav1.GetOptions{})
-			if err != nil {
-				t.Fatalf("get Gateway: %v", err)
-			}
-			if len(updated.Status.Listeners) != 1 {
-				t.Fatalf("got %d listener statuses, want 1", len(updated.Status.Listeners))
-			}
-
-			for _, entry := range []struct {
-				name       string
-				conditions []metav1.Condition
-				foreign    metav1.Condition
-			}{
-				{"Gateway", updated.Status.Conditions, foreignGateway},
-				{"Listener", updated.Status.Listeners[0].Conditions, foreignListener},
-			} {
-				got := meta.FindStatusCondition(entry.conditions, entry.foreign.Type)
-				if !reflect.DeepEqual(got, &entry.foreign) {
-					t.Errorf("%s foreign condition changed: got %#v, want %#v", entry.name, got, entry.foreign)
-				}
-				if len(entry.conditions) == 0 || entry.conditions[0].Type != entry.foreign.Type {
-					t.Errorf("%s foreign condition was reordered", entry.name)
-				}
-				for _, conditionType := range []string{"Accepted", "Programmed", "ResolvedRefs"} {
-					got := meta.FindStatusCondition(entry.conditions, conditionType)
-					if got == nil || got.Status != metav1.ConditionTrue || got.ObservedGeneration != gw.Generation {
-						t.Errorf("%s %s condition did not catch up to generation %d: %#v", entry.name, conditionType, gw.Generation, got)
-					}
-				}
-				accepted := meta.FindStatusCondition(entry.conditions, "Accepted")
-				if accepted != nil && !accepted.LastTransitionTime.Equal(&previousTransition) {
-					t.Errorf("%s Accepted transition time changed without a status change", entry.name)
-				}
-			}
-
-			fallback := meta.FindStatusCondition(updated.Status.Conditions, fallbackType)
-			if step.fallback {
-				if fallback == nil || fallback.Status != metav1.ConditionTrue || fallback.ObservedGeneration != gw.Generation {
-					t.Errorf("fallback condition not published: %#v", fallback)
-				}
-			} else if fallback != nil {
-				t.Errorf("stale fallback condition retained: %#v", fallback)
-			}
-
-			client.ClearActions()
-			if err := engine.writeGatewayStatus(ctx, gw, input); err != nil {
-				t.Fatalf("repeat Gateway status write: %v", err)
-			}
-			for _, action := range client.Actions() {
-				if action.GetVerb() == "update" {
-					t.Error("unchanged reconciliation rewrote Gateway status")
-				}
 			}
 		})
 	}

@@ -39,30 +39,18 @@ func condition(condType string, status metav1.ConditionStatus, reason, message s
 	}
 }
 
-// mergeConditions updates the types we report without touching conditions
-// owned by other controllers. Additional ownedTypes identify conditional
-// conditions that must be removed when absent from desired.
-func mergeConditions(existing, desired []metav1.Condition, ownedTypes ...string) []metav1.Condition {
+func mergeConditions(existing, desired []metav1.Condition) []metav1.Condition {
 	now := metav1.NewTime(time.Now())
 
-	merged := make([]metav1.Condition, 0, len(existing)+len(desired))
-	for _, have := range existing {
-		if slices.Contains(ownedTypes, have.Type) && !slices.ContainsFunc(desired, func(want metav1.Condition) bool {
-			return want.Type == have.Type
-		}) {
-			continue
-		}
-		merged = append(merged, have)
-	}
-
+	merged := make([]metav1.Condition, 0, len(desired))
 	for _, want := range desired {
 		want.LastTransitionTime = now
 
-		index := slices.IndexFunc(merged, func(have metav1.Condition) bool {
-			return have.Type == want.Type
-		})
-		if index >= 0 {
-			have := merged[index]
+		for _, have := range existing {
+			if have.Type != want.Type {
+				continue
+			}
+
 			if have.Status == want.Status {
 				want.LastTransitionTime = have.LastTransitionTime
 			}
@@ -74,17 +62,17 @@ func mergeConditions(existing, desired []metav1.Condition, ownedTypes ...string)
 				want = have
 			}
 
-			merged[index] = want
-		} else {
-			merged = append(merged, want)
+			break
 		}
+
+		merged = append(merged, want)
 	}
 
 	return merged
 }
 
-// The control plane writes krouter's status conditions (docs/spec/status.md).
-// Every writer preserves foreign conditions and unchanged transition times,
+// The control plane is the sole status writer (docs/spec/status.md). Every writer
+// merges conditions (preserving transition times for unchanged conditions)
 // and skips API updates when nothing changed, keeping reconciliation
 // idempotent (docs/spec/failure-modes.md).
 
@@ -270,21 +258,26 @@ func (r *Engine) writeGatewayStatus(
 
 		desired := fresh.Status.DeepCopy()
 
-		gatewayConditions := []metav1.Condition{input.accepted, input.programmed, input.resolvedRefs}
+		desired.Conditions = mergeConditions(fresh.Status.Conditions,
+			[]metav1.Condition{input.accepted, input.programmed, input.resolvedRefs})
 
 		// InsecureFrontendValidationMode is present exactly while a
 		// listener uses AllowInsecureFallback (docs/spec/security.md).
 		if input.insecureFallback {
-			gatewayConditions = append(gatewayConditions, condition(
-				string(gatewayv1.GatewayConditionInsecureFrontendValidationMode),
-				metav1.ConditionTrue,
-				string(gatewayv1.GatewayReasonConfigurationChanged),
-				"a listener allows insecure client-certificate fallback",
-				fresh.Generation,
-			))
+			desired.Conditions = mergeConditions(desired.Conditions,
+				[]metav1.Condition{condition(
+					string(gatewayv1.GatewayConditionInsecureFrontendValidationMode),
+					metav1.ConditionTrue,
+					string(gatewayv1.GatewayReasonConfigurationChanged),
+					"a listener allows insecure client-certificate fallback",
+					fresh.Generation,
+				)})
+		} else {
+			desired.Conditions = slices.DeleteFunc(desired.Conditions,
+				func(c metav1.Condition) bool {
+					return c.Type == string(gatewayv1.GatewayConditionInsecureFrontendValidationMode)
+				})
 		}
-		desired.Conditions = mergeConditions(fresh.Status.Conditions, gatewayConditions,
-			string(gatewayv1.GatewayConditionInsecureFrontendValidationMode))
 
 		desired.Addresses = nil
 		switch {
